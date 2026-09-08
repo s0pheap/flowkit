@@ -7,6 +7,26 @@ from pathlib import Path
 BASE_DIR = Path(os.environ.get("FLOW_AGENT_DIR", Path(__file__).parent.parent))
 DB_PATH = BASE_DIR / "flow_agent.db"
 
+# ─── Load .env file ──────────────────────────────────────────
+def _load_env():
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(BASE_DIR / ".env")
+    except ImportError:
+        env_file = BASE_DIR / ".env"
+        if env_file.exists():
+            for line in env_file.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                k = k.strip()
+                v = v.strip().strip("\"'")
+                if k and k not in os.environ:
+                    os.environ[k] = v
+
+_load_env()
+
 # ─── API Server ──────────────────────────────────────────────
 API_HOST = os.environ.get("API_HOST", "127.0.0.1")
 API_PORT = int(os.environ.get("API_PORT", "8100"))
@@ -32,7 +52,7 @@ USE_BATCH_RPC = os.environ.get("USE_BATCH_RPC", "1") == "1"
 # The Flow project every RPC is scoped to. Project creation went with the old
 # labs.google tRPC endpoint, so a project is made once in the Flow UI and its
 # uuid pinned here; POST /api/projects falls back to it when no id is given.
-FLOW_PROJECT_ID = os.environ.get("FLOW_PROJECT_ID", "")
+FLOW_PROJECT_ID = os.environ.get("FLOW_PROJECT_ID", "c44bcef5-de99-4b52-b8a5-27f0fe67bc67")
 
 # Capabilities whose payloads were never captured off the new UI (4K upscale,
 # reference-to-video, start+end-frame chaining) fail loudly by default. With
@@ -85,9 +105,12 @@ SHARED_OUTPUT_DIR = OUTPUT_DIR / "_shared"
 TTS_TEMPLATES_DIR = SHARED_OUTPUT_DIR / "tts_templates"
 MUSIC_OUTPUT_DIR = SHARED_OUTPUT_DIR / "music"
 
-# ─── TTS (OmniVoice) ─────────────────────────────────────────
+# ─── TTS (Google TTS / OmniVoice) ───────────────────────────
+TTS_ENGINE = os.environ.get("TTS_ENGINE", "google")  # "google" (default, via gTTS) or "omnivoice"
+TTS_LANG = os.environ.get("TTS_LANG", "en")          # default language (e.g. "en", "vi", "ja", "fr")
+TTS_TLD = os.environ.get("TTS_TLD", "com")           # domain/accent: "com" (US), "co.uk" (UK), "ca", "co.in"
 TTS_MODEL = os.environ.get("TTS_MODEL", "k2-fsa/OmniVoice")
-TTS_DEVICE = os.environ.get("TTS_DEVICE", "cpu")  # MPS produces gibberish; CPU+fp32 works
+TTS_DEVICE = os.environ.get("TTS_DEVICE", "cpu")     # MPS produces gibberish; CPU+fp32 works
 TTS_SAMPLE_RATE = int(os.environ.get("TTS_SAMPLE_RATE", "24000"))
 
 # ─── Review / Claude Vision ──────────────────────────────────

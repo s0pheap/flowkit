@@ -9,6 +9,8 @@ class TTSGenerateRequest(BaseModel):
     ref_audio: Optional[str] = Field(None, max_length=500)
     ref_text: Optional[str] = None
     speed: float = Field(1.0, ge=0.5, le=3.0)
+    lang: Optional[str] = Field(None, max_length=10)
+    tld: Optional[str] = Field(None, max_length=10)
 
 
 class TTSGenerateResponse(BaseModel):
@@ -21,6 +23,8 @@ class NarrateVideoRequest(BaseModel):
     project_id: str
     orientation: Literal["HORIZONTAL", "VERTICAL"] = "HORIZONTAL"
     speed: float = Field(1.0, ge=0.5, le=3.0)
+    lang: Optional[str] = Field(None, max_length=10)
+    tld: Optional[str] = Field(None, max_length=10)
     instruct: Optional[str] = Field(None, max_length=200)
     ref_audio: Optional[str] = Field(None, max_length=500)  # Path to voice template WAV
     ref_text: Optional[str] = None   # Transcript of ref_audio (auto-resolved from template)

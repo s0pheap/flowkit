@@ -83,6 +83,8 @@ async def tts_generate(body: TTSGenerateRequest):
                 ref_audio=body.ref_audio,
                 ref_text=body.ref_text,
                 speed=body.speed,
+                lang=body.lang,
+                tld=body.tld,
             )
         except Exception as e:
             logger.exception("TTS generation failed")
@@ -153,6 +155,9 @@ async def narrate_video(vid: str, body: NarrateVideoRequest):
     narrated_dir = OUTPUT_DIR / project_slug / "narrated"
     narrated_dir.mkdir(parents=True, exist_ok=True)
 
+    lang = body.lang or project.get("language")
+    tld = body.tld
+
     async with _TTS_SEMAPHORE:
         raw_results = await generate_video_narration(
             scenes=scenes,
@@ -161,6 +166,8 @@ async def narrate_video(vid: str, body: NarrateVideoRequest):
             ref_audio=ref_audio,
             ref_text=ref_text,
             speed=body.speed,
+            lang=lang,
+            tld=tld,
         )
 
     orientation = body.orientation.upper()

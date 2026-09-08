@@ -7,14 +7,70 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
-from agent.config import TTS_MODEL, TTS_SAMPLE_RATE
+from agent.config import (
+    TTS_ENGINE,
+    TTS_LANG,
+    TTS_TLD,
+    TTS_MODEL,
+    TTS_SAMPLE_RATE,
+)
 
 logger = logging.getLogger(__name__)
 
 # Default to python3.10 (has torch/torchaudio/omnivoice); override with TTS_PYTHON_BIN if needed
 PYTHON_BIN = os.environ.get("TTS_PYTHON_BIN", "python3.10")
 
-# Inline script template for TTS generation via subprocess
+
+def _generate_google_tts(
+    text: str,
+    output_path: str,
+    lang: str = "en",
+    tld: str = "com",
+    speed: float = 1.0,
+    sample_rate: int = 24000,
+) -> float:
+    """Generate audio using Google TTS (gTTS) and convert to standardized WAV.
+
+    Returns duration in seconds.
+    """
+    from gtts import gTTS
+    import tempfile
+    import wave
+
+    out = Path(output_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+
+    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp_mp3:
+        tmp_mp3_path = tmp_mp3.name
+
+    try:
+        tts = gTTS(text=text, lang=lang, tld=tld, slow=(speed < 0.9))
+        tts.save(tmp_mp3_path)
+
+        cmd = [
+            "ffmpeg", "-y", "-i", tmp_mp3_path,
+            "-ar", str(sample_rate),
+            "-ac", "1",
+            str(out),
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if result.returncode != 0:
+            raise RuntimeError(f"FFmpeg audio conversion failed: {result.stderr[-300:]}")
+
+        with wave.open(str(out), "rb") as wf:
+            frames = wf.getnframes()
+            rate = wf.getframerate()
+            duration = round(frames / float(rate), 2)
+        return duration
+    finally:
+        try:
+            if os.path.exists(tmp_mp3_path):
+                os.remove(tmp_mp3_path)
+        except OSError:
+            pass
+
+
+# Inline script template for TTS generation via subprocess (OmniVoice fallback)
 _TTS_SCRIPT = """
 import sys, json, torch, torchaudio
 
@@ -37,7 +93,7 @@ torchaudio.save(args["output"], audio[0], args["sample_rate"])
 print(json.dumps({"ok": True, "path": args["output"]}))
 """
 
-# Batch script — loads model once, generates for multiple texts
+# Batch script — loads model once, generates for multiple texts (OmniVoice fallback)
 _TTS_BATCH_SCRIPT = """
 import sys, json, torch, torchaudio
 from pathlib import Path
@@ -80,10 +136,31 @@ async def generate_speech(
     ref_audio: Optional[str] = None,
     ref_text: Optional[str] = None,
     speed: float = 1.0,
+    lang: Optional[str] = None,
+    tld: Optional[str] = None,
 ) -> str:
-    """Generate speech for text via subprocess. Returns path to WAV file."""
+    """Generate speech for text. Uses Google TTS (default) or OmniVoice fallback."""
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
+    engine = TTS_ENGINE.lower()
+    if engine == "google":
+        language = lang or TTS_LANG
+        domain = tld or TTS_TLD
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(
+            None,
+            _generate_google_tts,
+            text,
+            output_path,
+            language,
+            domain,
+            speed,
+            TTS_SAMPLE_RATE,
+        )
+        logger.info("Google TTS saved to %s (lang=%s, tld=%s)", output_path, language, domain)
+        return output_path
+
+    # OmniVoice fallback
     args = {
         "model": TTS_MODEL,
         "text": text,
@@ -129,6 +206,8 @@ async def generate_video_narration(
     ref_audio: Optional[str] = None,
     ref_text: Optional[str] = None,
     speed: float = 1.0,
+    lang: Optional[str] = None,
+    tld: Optional[str] = None,
 ) -> list[dict]:
     """Generate narration WAVs for scenes with narrator_text.
 
@@ -158,26 +237,55 @@ async def generate_video_narration(
         items.append({"id": scene_id, "text": narrator_text, "output": wav_path})
         scene_map[scene_id] = {"display_order": display_order, "narrator_text": narrator_text}
 
-    # Run batch subprocess if there are items
+    # Run generation if there are items
     batch_results = {}
     if items:
-        args = {
-            "model": TTS_MODEL,
-            "sample_rate": TTS_SAMPLE_RATE,
-            "speed": speed,
-            "items": items,
-        }
-        if instruct:
-            args["instruct"] = instruct
-        if ref_audio:
-            args["ref_audio"] = ref_audio
-        if ref_text:
-            args["ref_text"] = ref_text
+        engine = TTS_ENGINE.lower()
+        if engine == "google":
+            language = lang or TTS_LANG
+            domain = tld or TTS_TLD
+            loop = asyncio.get_event_loop()
 
-        loop = asyncio.get_event_loop()
-        raw = await loop.run_in_executor(None, _run_batch_subprocess, args)
-        for r in raw:
-            batch_results[r["id"]] = r
+            def _process_item(item):
+                try:
+                    duration = _generate_google_tts(
+                        text=item["text"],
+                        output_path=item["output"],
+                        lang=language,
+                        tld=domain,
+                        speed=speed,
+                        sample_rate=TTS_SAMPLE_RATE,
+                    )
+                    return {"id": item["id"], "ok": True, "path": item["output"], "duration": duration}
+                except Exception as e:
+                    logger.exception("Google TTS failed for scene %s", item["id"])
+                    return {"id": item["id"], "ok": False, "error": str(e)}
+
+            from concurrent.futures import ThreadPoolExecutor
+            raw = await loop.run_in_executor(
+                None,
+                lambda: list(ThreadPoolExecutor(max_workers=4).map(_process_item, items)),
+            )
+            for r in raw:
+                batch_results[r["id"]] = r
+        else:
+            args = {
+                "model": TTS_MODEL,
+                "sample_rate": TTS_SAMPLE_RATE,
+                "speed": speed,
+                "items": items,
+            }
+            if instruct:
+                args["instruct"] = instruct
+            if ref_audio:
+                args["ref_audio"] = ref_audio
+            if ref_text:
+                args["ref_text"] = ref_text
+
+            loop = asyncio.get_event_loop()
+            raw = await loop.run_in_executor(None, _run_batch_subprocess, args)
+            for r in raw:
+                batch_results[r["id"]] = r
 
     # Build final results for all scenes
     results = []
