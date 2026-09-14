@@ -373,3 +373,27 @@ class TestSingleton:
         instance = init_operations(mock_client, mock_repo)
         retrieved = get_operations()
         assert retrieved is instance
+
+
+# ---------------------------------------------------------------------------
+# _build_video_prompt — look & feel camera direction
+# ---------------------------------------------------------------------------
+
+class TestVideoPromptLookFeel:
+    async def _build(self, look_feel):
+        scene = {"id": SCENE_ID, "look_feel": look_feel}
+        with patch("agent.sdk.services.operations.crud") as mock_crud:
+            mock_crud.get_project = AsyncMock(return_value={"allow_music": 0, "allow_voice": 0})
+            return await ops_module._build_video_prompt("A ship at dawn.", scene, PROJECT_ID)
+
+    async def test_generate_mode_appends_camera_direction(self):
+        prompt = await self._build('{"mode": "generate", "motion": "zoom_in", "strength": "strong"}')
+        assert prompt.startswith("A ship at dawn. Camera direction: The camera steadily pushes in toward the subject.")
+
+    async def test_no_look_feel_leaves_prompt_alone(self):
+        prompt = await self._build(None)
+        assert "Camera direction" not in prompt
+
+    async def test_ffmpeg_mode_adds_nothing(self):
+        prompt = await self._build('{"mode": "ffmpeg", "motion": "pan_left"}')
+        assert "Camera direction" not in prompt

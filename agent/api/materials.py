@@ -3,6 +3,8 @@ import logging
 
 from fastapi import APIRouter, HTTPException
 
+from agent import auth
+
 from agent.models.material import MaterialCreateRequest, MaterialResponse
 from agent.materials import (
     get_material,
@@ -56,6 +58,7 @@ async def get(material_id: str):
 @router.post("", response_model=MaterialResponse, status_code=201)
 async def create(body: MaterialCreateRequest):
     """Create a custom material. ID must not clash with built-in materials."""
+    auth.require_admin()
     if body.id in _BUILTIN_IDS:
         raise HTTPException(400, f"Cannot override built-in material '{body.id}'")
     if get_material(body.id):
@@ -89,6 +92,7 @@ async def create(body: MaterialCreateRequest):
 @router.delete("/{material_id}")
 async def delete(material_id: str):
     """Delete a custom material. Built-in materials cannot be deleted."""
+    auth.require_admin()
     if material_id in _BUILTIN_IDS:
         raise HTTPException(400, f"Cannot delete built-in material '{material_id}'")
     if material_id not in MATERIALS:

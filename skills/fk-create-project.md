@@ -9,6 +9,22 @@ Create a new Google Flow video project. Ask the user for:
 
 Then execute:
 
+## Connection
+
+These commands work against a local agent or a shared server. The Flow Kit
+installer (`<server>/install.sh` or `install.ps1`) writes `~/.flowkit/env` with
+`FLOWKIT_URL` and `FLOWKIT_API_KEY`; without that file they default to
+`http://127.0.0.1:8100` and no key. Shell state does not carry
+over between commands, so **start every command with this line**:
+
+```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+```
+
+Then call the API as `curl -s "$FK/api/..." -H "$KEY"`. A `401` means the key is
+missing or wrong; a `404` on an id you were given means it belongs to another user.
+In PowerShell use `$env:FLOWKIT_URL` and `-Headers @{"X-API-Key"=$env:FLOWKIT_API_KEY}`.
+
 ## Real-People Characters (Documentary / News Projects)
 
 When characters are based on **real famous people** (politicians, military leaders, celebrities), Google's AI safety filter (`PUBLIC_ERROR_UNSAFE_GENERATION`) will reject generation if it recognizes the person. This section captures battle-tested strategies from real production runs.
@@ -108,27 +124,34 @@ Camera stays behind. Viewers see the leader's power through body language, not f
 
 Since Flow moved to `flow.google.com`, Flow Kit cannot create Flow projects —
 the endpoint that did it went with the migration. Every generation is scoped to
-an existing one.
+an existing one, and one Flow project holds one Flow Kit project.
 
 ```bash
-curl -s http://127.0.0.1:8100/api/flow/status | python3 -c "
-import sys, json
-s = json.load(sys.stdin)
-print('Flow project:', s.get('flow_project_id') or 'NONE — create one in the Flow UI')
-"
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/auth/me" -H "$KEY"
+curl -s "$FK/api/projects" -H "$KEY"
 ```
 
-If it prints NONE, ask the user to open `https://flow.google.com/`, create a
-project, and copy the uuid out of the URL. Then either pin it
-(`export FLOW_PROJECT_ID=<uuid>` before starting the agent) or pass it as
-`flow_project_id` in Step 1. Without it every request fails `NO_FLOW_PROJECT`.
+- **`auth_enabled: true` and `is_admin: false`** (a shared server): `project_ids` are
+  the Flow projects granted to this key. Use one that is not already the `id` of a
+  project in the second response, and pass it as `flow_project_id` in Step 1. If
+  every grant is used, stop and tell the user to ask the server admin for another
+  Flow project — do not guess an id.
+- **Otherwise** (a local agent, or an admin key): run
+  `curl -s "$FK/api/flow/status" -H "$KEY"`. If `flow_project_id` is null, ask the
+  user to open `https://flow.google.com/`, create a project and copy the uuid out
+  of the URL, then pass it as `flow_project_id` in Step 1 (or pin it as
+  `FLOW_PROJECT_ID` on the agent). Without it every request fails `NO_FLOW_PROJECT`.
 
 ## Step 1: Create project with all entities
 
-Add `"flow_project_id": "<uuid>"` if you are not using the pinned one.
+Include `"flow_project_id": "<uuid>"` from Step 0 (it may be left out only on a
+local agent with a pinned `FLOW_PROJECT_ID`). `403` means that Flow project is not
+granted to this key; `409` means it already holds a project.
 
 ```bash
-curl -X POST http://127.0.0.1:8100/api/projects \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -X POST "$FK/api/projects" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{"name": "...", "description": "...", "story": "...", "material": "3d_pixar", "characters": [
     {"name": "...", "entity_type": "character", "description": "...", "voice_description": "Deep calm voice, speaks slowly with confidence"},
@@ -142,7 +165,8 @@ Save the returned `project_id`.
 ## Step 2: Create video
 
 ```bash
-curl -X POST http://127.0.0.1:8100/api/videos \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -X POST "$FK/api/videos" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{"project_id": "<PID>", "title": "...", "display_order": 0}'
 ```
@@ -272,7 +296,8 @@ Scene 4's video uses `transition_prompt` because it has `end_scene_media_id` (sc
 - `character_names`: list ALL entities that should appear (characters + locations + assets)
 
 ```bash
-curl -X POST http://127.0.0.1:8100/api/scenes \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -X POST "$FK/api/scenes" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{"video_id": "<VID>", "display_order": N, "prompt": "...", "video_prompt": "...", "transition_prompt": "...", "character_names": [...], "chain_type": "ROOT|CONTINUATION", "parent_scene_id": "..."}'
 ```
@@ -443,7 +468,8 @@ Print a summary table:
 After creating scenes, review all prompts. If any prompt is too simple or missing detail, **PATCH it — do not delete and recreate**.
 
 ```bash
-curl -X PATCH http://127.0.0.1:8100/api/scenes/<SID> \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -X PATCH "$FK/api/scenes/<SID>" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "Hero charges across the Castle bridge at dawn, sword raised, golden light catching the blade. Wide shot.",
@@ -462,12 +488,13 @@ curl -X PATCH http://127.0.0.1:8100/api/scenes/<SID> \
 After all scenes are created, **always** switch the active project to the newly created one. Without this, downstream skills (`/fk-status`, `/fk-pipeline`, `/fk-monitor`, `/fk-dashboard`) will continue showing the previously-active project — confusing and a frequent source of errors.
 
 ```bash
-curl -s -X PUT http://127.0.0.1:8100/api/active-project \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s -X PUT "$FK/api/active-project" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{"project_id":"<PID>"}'
 
 # Verify
-curl -s http://127.0.0.1:8100/api/active-project
+curl -s "$FK/api/active-project" -H "$KEY"
 # Should print: {"project_id":"<PID>","project_name":"<your new project>",...}
 ```
 

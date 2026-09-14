@@ -1,4 +1,8 @@
-"""OmniVoice TTS service — subprocess-based for compatibility."""
+"""Narration TTS: Gemini (default), gTTS, or OmniVoice via subprocess.
+
+Whatever engine speaks, every narration wav gets a ``*.words.json`` sidecar with
+per-word timings, which the subtitle writer reads.
+"""
 import asyncio
 import json
 import logging
@@ -13,7 +17,13 @@ from agent.config import (
     TTS_TLD,
     TTS_MODEL,
     TTS_SAMPLE_RATE,
+    GEMINI_API_KEY,
+    GEMINI_TTS_MODEL,
+    GEMINI_TTS_VOICE,
+    GEMINI_TIMING_MODEL,
+    GEMINI_TTS_CONCURRENCY,
 )
+from agent.services import gemini_tts
 
 logger = logging.getLogger(__name__)
 
@@ -138,11 +148,22 @@ async def generate_speech(
     speed: float = 1.0,
     lang: Optional[str] = None,
     tld: Optional[str] = None,
+    voice: Optional[str] = None,
+    style: Optional[str] = None,
 ) -> str:
-    """Generate speech for text. Uses Google TTS (default) or OmniVoice fallback."""
+    """Generate speech for text with the configured TTS_ENGINE."""
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
     engine = TTS_ENGINE.lower()
+    if engine == "gemini":
+        await gemini_tts.synthesize(
+            text, output_path,
+            api_key=GEMINI_API_KEY, model=GEMINI_TTS_MODEL,
+            voice=voice or GEMINI_TTS_VOICE, style=style or instruct, speed=speed,
+        )
+        logger.info("Gemini TTS saved to %s (voice=%s)", output_path, voice or GEMINI_TTS_VOICE)
+        return output_path
+
     if engine == "google":
         language = lang or TTS_LANG
         domain = tld or TTS_TLD
@@ -185,6 +206,32 @@ async def generate_speech(
     return output_path
 
 
+def timings_path_for(wav_path: str) -> Path:
+    """scene_000_<id>.wav -> scene_000_<id>.words.json"""
+    return Path(wav_path).with_suffix(".words.json")
+
+
+async def write_word_timings(wav_path: str, text: str) -> dict:
+    """Time every word of ``text`` in ``wav_path`` and save the sidecar JSON next to it."""
+    result = await gemini_tts.word_timings(
+        wav_path, text, api_key=GEMINI_API_KEY, model=GEMINI_TIMING_MODEL,
+    )
+    sidecar = timings_path_for(wav_path)
+    payload = {"text": text, **result}
+    sidecar.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    return {**result, "timings_path": str(sidecar)}
+
+
+def load_word_timings(wav_path: str) -> Optional[dict]:
+    sidecar = timings_path_for(wav_path)
+    if not sidecar.exists():
+        return None
+    try:
+        return json.loads(sidecar.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
 def _run_tts_subprocess(args: dict) -> dict:
     """Run TTS subprocess."""
     proc = subprocess.run(
@@ -208,10 +255,13 @@ async def generate_video_narration(
     speed: float = 1.0,
     lang: Optional[str] = None,
     tld: Optional[str] = None,
+    voice: Optional[str] = None,
+    style: Optional[str] = None,
+    with_timings: bool = True,
 ) -> list[dict]:
-    """Generate narration WAVs for scenes with narrator_text.
+    """Generate narration WAVs (plus word-timing sidecars) for scenes with narrator_text.
 
-    Uses batch subprocess — loads model once for all scenes.
+    OmniVoice runs as one batch subprocess so the model loads once.
     Returns list of result dicts.
     """
     out_dir = Path(output_dir)
@@ -241,7 +291,27 @@ async def generate_video_narration(
     batch_results = {}
     if items:
         engine = TTS_ENGINE.lower()
-        if engine == "google":
+        if engine == "gemini":
+            gate = asyncio.Semaphore(max(GEMINI_TTS_CONCURRENCY, 1))
+
+            async def _gemini_item(item):
+                async with gate:
+                    try:
+                        duration = await gemini_tts.synthesize(
+                            item["text"], item["output"],
+                            api_key=GEMINI_API_KEY, model=GEMINI_TTS_MODEL,
+                            # Not `instruct`: here it is the project's OmniVoice voice-design
+                            # string ("male, low pitch"), which Gemini would read out loud.
+                            voice=voice or GEMINI_TTS_VOICE, style=style, speed=speed,
+                        )
+                        return {"id": item["id"], "ok": True, "path": item["output"], "duration": duration}
+                    except Exception as e:
+                        logger.exception("Gemini TTS failed for scene %s", item["id"])
+                        return {"id": item["id"], "ok": False, "error": str(e)}
+
+            for r in await asyncio.gather(*(_gemini_item(item) for item in items)):
+                batch_results[r["id"]] = r
+        elif engine == "google":
             language = lang or TTS_LANG
             domain = tld or TTS_TLD
             loop = asyncio.get_event_loop()
@@ -341,7 +411,30 @@ async def generate_video_narration(
                 "error": br.get("error", "not processed"),
             })
 
+    if with_timings:
+        await _attach_word_timings(results)
     return results
+
+
+async def _attach_word_timings(results: list[dict]) -> None:
+    """Add timings to completed results, reusing a sidecar whose text still matches."""
+    gate = asyncio.Semaphore(max(GEMINI_TTS_CONCURRENCY, 1))
+
+    async def _one(r: dict):
+        existing = load_word_timings(r["audio_path"])
+        if existing and existing.get("text") == r["narrator_text"] and existing.get("words"):
+            timing = {**existing, "timings_path": str(timings_path_for(r["audio_path"]))}
+        else:
+            async with gate:
+                timing = await write_word_timings(r["audio_path"], r["narrator_text"])
+        r["timings_path"] = timing["timings_path"]
+        r["timing_source"] = timing.get("timing_source")
+        r["duration"] = r.get("duration") or timing.get("duration")
+
+    await asyncio.gather(*(
+        _one(r) for r in results
+        if r["status"] == "COMPLETED" and r.get("audio_path") and Path(r["audio_path"]).exists()
+    ))
 
 
 def _run_batch_subprocess(args: dict) -> list[dict]:

@@ -1,7 +1,9 @@
 """Direct Flow API endpoints — for manual operations outside the queue."""
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Literal, Optional
+
+from agent import auth
 
 from agent.config import USE_BATCH_RPC, FLOW_PROJECT_ID, FLOW_ALLOW_DEGRADED
 from agent.services.flow_client import get_flow_client
@@ -13,6 +15,11 @@ from agent.services.omni_flash import (
 )
 
 router = APIRouter(prefix="/flow", tags=["flow"])
+
+
+async def _admin_only():
+    """Direct Flow calls skip the queue, its throttle and the ownership checks, so users go through /api/requests."""
+    auth.require_admin()
 
 
 class GenerateImageRequest(BaseModel):
@@ -104,16 +111,22 @@ async def extension_status():
     bearer token at all, so false is expected there rather than a fault.
     """
     client = get_flow_client()
+    allowed = await auth.allowed_project_ids()
+    if allowed is None:
+        flow_project_id = FLOW_PROJECT_ID or None
+    else:
+        # A user never sees the server's pinned project, only their own grants.
+        flow_project_id = sorted(allowed)[0] if len(allowed) == 1 else None
     return {
         "connected": client.connected,
         "transport": "batch" if USE_BATCH_RPC else "legacy_rest",
-        "flow_project_id": FLOW_PROJECT_ID or None,
+        "flow_project_id": flow_project_id,
         "allow_degraded": FLOW_ALLOW_DEGRADED,
         "flow_key_present": client._flow_key is not None,
     }
 
 
-@router.get("/credits")
+@router.get("/credits", dependencies=[Depends(_admin_only)])
 async def get_credits():
     """Get user credits from Google Flow."""
     client = get_flow_client()
@@ -125,7 +138,7 @@ async def get_credits():
     return result.get("data", result)
 
 
-@router.post("/generate-image")
+@router.post("/generate-image", dependencies=[Depends(_admin_only)])
 async def generate_image(body: GenerateImageRequest):
     """Generate image directly (bypasses queue)."""
     client = get_flow_client()
@@ -137,7 +150,7 @@ async def generate_image(body: GenerateImageRequest):
     return result.get("data", result)
 
 
-@router.post("/generate-video")
+@router.post("/generate-video", dependencies=[Depends(_admin_only)])
 async def generate_video(body: GenerateVideoRequest):
     """Submit frame-conditioned video generation using Veo or Omni Flash.
 
@@ -183,7 +196,7 @@ async def generate_video(body: GenerateVideoRequest):
     return result.get("data", result)
 
 
-@router.post("/generate-video-refs")
+@router.post("/generate-video-refs", dependencies=[Depends(_admin_only)])
 async def generate_video_refs(body: GenerateVideoRefsRequest):
     """Submit reference-to-video generation using Veo or Gemini Omni Flash.
 
@@ -219,7 +232,7 @@ async def generate_video_refs(body: GenerateVideoRefsRequest):
     return result.get("data", result)
 
 
-@router.post("/generate-video-omni")
+@router.post("/generate-video-omni", dependencies=[Depends(_admin_only)])
 async def generate_video_omni(body: GenerateOmniFlashVideoRequest):
     """Submit Gemini Omni Flash reference-to-video generation.
 
@@ -238,7 +251,7 @@ async def generate_video_omni(body: GenerateOmniFlashVideoRequest):
     return result.get("data", result)
 
 
-@router.post("/upscale-video")
+@router.post("/upscale-video", dependencies=[Depends(_admin_only)])
 async def upscale_video(body: UpscaleVideoRequest):
     """Submit video upscale (returns operations for polling)."""
     client = get_flow_client()
@@ -250,7 +263,7 @@ async def upscale_video(body: UpscaleVideoRequest):
     return result.get("data", result)
 
 
-@router.post("/check-status")
+@router.post("/check-status", dependencies=[Depends(_admin_only)])
 async def check_status(body: CheckStatusRequest):
     """Check Veo operation status or Omni workflow/media status.
 
@@ -284,7 +297,7 @@ async def check_status(body: CheckStatusRequest):
     return result.get("data", result)
 
 
-@router.post("/check-omni-status")
+@router.post("/check-omni-status", dependencies=[Depends(_admin_only)])
 async def check_omni_status(body: CheckOmniStatusRequest):
     """Poll Gemini Omni Flash jobs via workflow primary media IDs."""
     client = get_flow_client()
@@ -305,6 +318,7 @@ async def check_omni_status(body: CheckOmniStatusRequest):
 @router.post("/refresh-urls/{project_id}")
 async def refresh_project_urls(project_id: str):
     """Bulk refresh all media URLs for a project via per-media get_media calls."""
+    await auth.require_project(project_id)
     client = get_flow_client()
     if not client.connected:
         raise HTTPException(503, "Extension not connected")
@@ -321,6 +335,7 @@ async def get_media(media_id: str):
     Returns the raw response which may contain ``video.encodedVideo`` for
     workflow-backed video generations.
     """
+    await auth.require_media(media_id)
     client = get_flow_client()
     if not client.connected:
         raise HTTPException(503, "Extension not connected")
@@ -333,7 +348,7 @@ async def get_media(media_id: str):
     return result.get("data", result)
 
 
-@router.post("/edit-image")
+@router.post("/edit-image", dependencies=[Depends(_admin_only)])
 async def edit_image(body: EditImageRequest):
     """Edit an existing image using IMAGE_INPUT_TYPE_BASE_IMAGE (bypasses queue)."""
     client = get_flow_client()
@@ -349,7 +364,7 @@ async def edit_image(body: EditImageRequest):
     return result.get("data", result)
 
 
-@router.post("/upload-image")
+@router.post("/upload-image", dependencies=[Depends(_admin_only)])
 async def upload_image(body: UploadImageRequest):
     """Upload a local image file to Google Flow and get a media_id."""
     import base64, mimetypes

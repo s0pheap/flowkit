@@ -3,6 +3,15 @@ from pydantic import BaseModel, Field
 from typing import Optional, Literal
 
 
+_VOICE_PATTERN = r"^[A-Za-z]{2,32}$"
+
+
+class WordTiming(BaseModel):
+    word: str
+    start: float
+    end: float
+
+
 class TTSGenerateRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=5000)
     instruct: Optional[str] = Field(None, max_length=200)
@@ -11,12 +20,20 @@ class TTSGenerateRequest(BaseModel):
     speed: float = Field(1.0, ge=0.5, le=3.0)
     lang: Optional[str] = Field(None, max_length=10)
     tld: Optional[str] = Field(None, max_length=10)
+    voice: Optional[str] = Field(None, pattern=_VOICE_PATTERN)  # Gemini prebuilt voice, e.g. "Kore"
+    style: Optional[str] = Field(None, max_length=300)  # Gemini delivery direction, e.g. "Say as a tense documentary narrator"
+    output_path: Optional[str] = Field(None, max_length=500)  # .wav under output/; default is a random file in output/_shared
+    scene_id: Optional[str] = None  # write the scene's narration (output/<slug>/tts/scene_NNN_<id>.wav); overrides output_path
+    with_timings: bool = True
 
 
 class TTSGenerateResponse(BaseModel):
     audio_path: str
     duration: Optional[float] = None
     sample_rate: int = 24000
+    words: Optional[list[WordTiming]] = None
+    timing_source: Optional[str] = None  # "gemini" or "estimated"
+    timings_path: Optional[str] = None
 
 
 class NarrateVideoRequest(BaseModel):
@@ -28,6 +45,8 @@ class NarrateVideoRequest(BaseModel):
     instruct: Optional[str] = Field(None, max_length=200)
     ref_audio: Optional[str] = Field(None, max_length=500)  # Path to voice template WAV
     ref_text: Optional[str] = None   # Transcript of ref_audio (auto-resolved from template)
+    voice: Optional[str] = Field(None, pattern=_VOICE_PATTERN)
+    style: Optional[str] = Field(None, max_length=300)
     template: Optional[str] = Field(None, pattern=r"^[a-zA-Z0-9_-]{1,64}$")  # Voice template name
     mix: bool = True
     sfx_volume: float = Field(0.4, ge=0.0, le=2.0)
@@ -41,6 +60,8 @@ class SceneNarrationResult(BaseModel):
     narrator_text: Optional[str] = None
     audio_path: Optional[str] = None
     duration: Optional[float] = None
+    timings_path: Optional[str] = None
+    timing_source: Optional[str] = None
     status: str  # COMPLETED, SKIPPED, FAILED
     error: Optional[str] = None
 

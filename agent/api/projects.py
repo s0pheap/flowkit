@@ -7,7 +7,9 @@ import aiohttp
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from agent import auth
 from agent.config import BASE_DIR, USE_BATCH_RPC
+from agent.db import crud
 from agent.models.project import Project, ProjectCreate, ProjectUpdate
 from agent.models.character import Character
 from agent.sdk.persistence.sqlite_repository import SQLiteRepository
@@ -151,6 +153,10 @@ def _get_repo() -> SQLiteRepository:
 async def create(body: ProjectCreate):
     from agent.materials import get_material
 
+    principal = auth.current_principal()
+    if not principal.is_admin:
+        body.flow_project_id = await _granted_flow_project(body.flow_project_id)
+
     # Step 1: Create project on Google Flow to get the real projectId
     client = get_flow_client()
     if not client.connected:
@@ -183,6 +189,10 @@ async def create(body: ProjectCreate):
             raise HTTPException(502, f"Flow API error: {flow_result['error']}")
         flow_project_id = _read_flow_project_id(flow_result)
         logger.info("Flow project created: %s", flow_project_id)
+
+    if await crud.get_project(flow_project_id):
+        raise HTTPException(409, f"Project {flow_project_id} already exists. One Flow project holds one Flow Kit project.")
+    await _require_unique_slug(body.name)
 
     repo = _get_repo()
 
@@ -227,20 +237,49 @@ async def create(body: ProjectCreate):
                 voice_description=char_input.get("voice_description"),
             )
             await repo.link_character_to_project(flow_project_id, char.id)
+            if not principal.is_admin:
+                await crud.set_character_owner(char.id, principal.id)
             logger.info("%s '%s' created and linked: %s", etype, char_input["name"], char.id)
 
     return project
+
+
+async def _require_unique_slug(name: str, project_id: str | None = None) -> None:
+    """Generated files live in output/<slug of the name>, so two projects must not share one."""
+    slug = slugify(name)
+    for other in await crud.list_projects():
+        if other["id"] != project_id and slugify(other["name"]) == slug:
+            raise HTTPException(409, f"A project named like {name!r} already exists (its files would share "
+                                     f"output/{slug}). Choose a different name.")
+
+
+async def _granted_flow_project(requested: str | None) -> str:
+    """The Flow project a non-admin may build in: the one they named, or their only unused grant."""
+    granted = await auth.allowed_project_ids()
+    if requested:
+        if requested not in granted:
+            raise HTTPException(403, f"Flow project {requested} is not granted to this API key")
+        return requested
+    unused = sorted([pid for pid in granted if not await crud.get_project(pid)])
+    if len(unused) == 1:
+        return unused[0]
+    raise HTTPException(400, "Pass flow_project_id: one of your granted Flow projects that has no project yet "
+                             f"(unused: {unused or 'none'}). GET /api/auth/me lists your grants.")
 
 
 @router.get("", response_model=list[Project])
 async def list_all(status: str = None):
     repo = _get_repo()
     rows = await repo.list("project", **({} if status is None else {"status": status}))
+    allowed = await auth.allowed_project_ids()
+    if allowed is not None:
+        rows = [r for r in rows if r["id"] in allowed]
     return [repo._row_to_project(r) for r in rows]
 
 
 @router.get("/{pid}", response_model=Project)
 async def get(pid: str):
+    await auth.require_project(pid)
     repo = _get_repo()
     p = await repo.get_project(pid)
     if not p:
@@ -250,6 +289,9 @@ async def get(pid: str):
 
 @router.patch("/{pid}", response_model=Project)
 async def update(pid: str, body: ProjectUpdate):
+    await auth.require_project(pid)
+    if body.name:
+        await _require_unique_slug(body.name, pid)
     repo = _get_repo()
     row = await repo.update("project", pid, **body.model_dump(exclude_unset=True))
     if not row:
@@ -259,6 +301,7 @@ async def update(pid: str, body: ProjectUpdate):
 
 @router.delete("/{pid}")
 async def delete(pid: str):
+    await auth.require_project(pid)
     repo = _get_repo()
     if not await repo.delete_project(pid):
         raise HTTPException(404, "Project not found")
@@ -267,6 +310,8 @@ async def delete(pid: str):
 
 @router.post("/{pid}/characters/{cid}")
 async def link_character(pid: str, cid: str):
+    await auth.require_project(pid)
+    await auth.require_character(cid)
     repo = _get_repo()
     if not await repo.link_character_to_project(pid, cid):
         raise HTTPException(400, "Failed to link character")
@@ -275,6 +320,7 @@ async def link_character(pid: str, cid: str):
 
 @router.delete("/{pid}/characters/{cid}")
 async def unlink_character(pid: str, cid: str):
+    await auth.require_project(pid)
     repo = _get_repo()
     if not await repo.unlink_character_from_project(pid, cid):
         raise HTTPException(404, "Link not found")
@@ -283,6 +329,7 @@ async def unlink_character(pid: str, cid: str):
 
 @router.get("/{pid}/characters", response_model=list[Character])
 async def get_characters(pid: str):
+    await auth.require_project(pid)
     repo = _get_repo()
     return await repo.get_project_characters(pid)
 
@@ -290,6 +337,7 @@ async def get_characters(pid: str):
 @router.get("/{pid}/output-dir")
 async def get_output_dir(pid: str):
     """Get or create project output directory with meta.json."""
+    await auth.require_project(pid)
     repo = _get_repo()
     project = await repo.get_project(pid)
     if not project:
@@ -363,6 +411,7 @@ async def generate_thumbnail(pid: str, body: ThumbnailRequest):
     from agent.materials import get_material
     from agent.sdk.services.result_handler import parse_result
 
+    await auth.require_project(pid)
     logger.info("generate_thumbnail: started for project %s", pid)
 
     client = get_flow_client()

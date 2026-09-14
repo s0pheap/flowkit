@@ -99,6 +99,7 @@ class SQLiteRepository(Repository):
             "trim_end": scene.trim_end,
             "duration": scene.duration,
             "narrator_text": scene.narrator_text,
+            "look_feel": json.dumps(scene.look_feel) if scene.look_feel is not None else None,
             # Vertical
             "vertical_image_url": scene.vertical.image.url,
             "vertical_image_media_id": scene.vertical.image.media_id,

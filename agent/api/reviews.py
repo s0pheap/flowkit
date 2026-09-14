@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 
 from agent.models.review import VideoReview, SceneReview
 from agent.services.video_reviewer import review_video, review_scene_video
+from agent import auth
 from agent.db.crud import get_video, get_scene, get_project_characters, list_scenes
 
 logger = logging.getLogger(__name__)
@@ -26,9 +27,8 @@ async def review_video_endpoint(
     if orientation and orientation.upper() not in ("VERTICAL", "HORIZONTAL"):
         raise HTTPException(400, "orientation must be 'VERTICAL' or 'HORIZONTAL'")
 
-    video = await get_video(vid)
-    if not video:
-        raise HTTPException(404, "Video not found")
+    await auth.require_project(project_id)
+    video = await auth.require_video(vid)
 
     # Use video-level orientation first, then fall back to scene auto-detect
     if not orientation:
@@ -64,9 +64,8 @@ async def review_scene_endpoint(
     if orientation and orientation.upper() not in ("VERTICAL", "HORIZONTAL"):
         raise HTTPException(400, "orientation must be 'VERTICAL' or 'HORIZONTAL'")
 
-    scene = await get_scene(sid)
-    if not scene:
-        raise HTTPException(404, "Scene not found")
+    await auth.require_project(project_id)
+    scene = await auth.require_scene(sid)
     if scene.get("video_id") != vid:
         raise HTTPException(404, "Scene does not belong to this video")
 

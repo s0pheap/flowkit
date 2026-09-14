@@ -7,6 +7,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 
+from agent import auth
 from agent.db import crud
 
 router = APIRouter(prefix="/api/active-project", tags=["active-project"])
@@ -15,15 +16,44 @@ logger = logging.getLogger(__name__)
 _STATE_FILE = Path(__file__).parent.parent / "active_project.json"
 
 
-def _read_state() -> dict | None:
+def _read_file() -> dict:
     if _STATE_FILE.exists():
         try:
             with open(_STATE_FILE) as f:
                 return json.load(f)
         except (json.JSONDecodeError, OSError) as e:
             logger.warning("Corrupt active_project.json, clearing: %s", e)
-            _clear_state()
-    return None
+            _STATE_FILE.unlink()
+    return {}
+
+
+def _read_state() -> dict | None:
+    """The caller's choice. Admins share the top-level entry (what the statusline reads); users get their own."""
+    data = _read_file()
+    principal = auth.current_principal()
+    if principal.is_admin:
+        return data if data.get("project_id") else None
+    return (data.get("users") or {}).get(principal.id)
+
+
+def _set_state(state: dict | None):
+    data = _read_file()
+    principal = auth.current_principal()
+    if principal.is_admin:
+        users = data.get("users")
+        data = dict(state or {})
+        if users:
+            data["users"] = users
+    else:
+        users = data.setdefault("users", {})
+        if state:
+            users[principal.id] = state
+        else:
+            users.pop(principal.id, None)
+    if data:
+        _write_state(data)
+    elif _STATE_FILE.exists():
+        _STATE_FILE.unlink()
 
 
 def _write_state(data: dict):
@@ -41,8 +71,7 @@ def _write_state(data: dict):
 
 
 def _clear_state():
-    if _STATE_FILE.exists():
-        _STATE_FILE.unlink()
+    _set_state(None)
 
 
 @router.get("")
@@ -52,7 +81,7 @@ async def get_active_project():
 
     if state and state.get("project_id"):
         project = await crud.get_project(state["project_id"])
-        if project:
+        if project and await auth.can_access_project(project["id"]):
             # Enrich with video info
             videos = await crud.list_videos(project_id=project["id"])
             video = videos[0] if videos else None
@@ -71,6 +100,9 @@ async def get_active_project():
 
     # Fall back to most recent project
     projects = await crud.list_projects()
+    allowed = await auth.allowed_project_ids()
+    if allowed is not None:
+        projects = [p for p in projects if p["id"] in allowed]
     if not projects:
         return {"project_id": None, "project_name": None, "source": "none"}
 
@@ -95,11 +127,11 @@ async def set_active_project(body: dict):
     if not project_id:
         raise HTTPException(status_code=400, detail="project_id is required")
 
-    project = await crud.get_project(project_id)
+    project = await auth.require_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail=f"Project {project_id} not found")
 
-    _write_state({"project_id": project_id})
+    _set_state({"project_id": project_id})
     logger.info("Active project set: %s (%s)", project["name"], project_id[:8])
 
     videos = await crud.list_videos(project_id=project_id)

@@ -8,6 +8,7 @@ import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from agent import auth
 from agent.config import MUSIC_OUTPUT_DIR
 from agent.sdk.persistence.sqlite_repository import SQLiteRepository
 from agent.services.suno import get_suno_client
@@ -185,6 +186,7 @@ async def download_task_clips(task_id: str, project_id: Optional[str] = None):
 
     # Resolve output dir: project-specific or shared
     if project_id:
+        await auth.require_project(project_id)
         repo = SQLiteRepository()
         project = await repo.get_project(project_id)
         if not project:

@@ -290,10 +290,13 @@ function sendToAgent(msg) {
   if (msg.id) {
     fetch('http://127.0.0.1:8100/api/ext/callback', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      // The agent checks the secret it sent on connect (required when API keys are on).
+      headers: { 'Content-Type': 'application/json', 'X-Callback-Secret': callbackSecret || '' },
       body: JSON.stringify(msg),
+    }).then((res) => {
+      if (!res.ok) throw new Error(`callback HTTP ${res.status}`);
     }).catch(() => {
-      // HTTP failed — fallback to WS
+      // HTTP failed or was refused — fallback to WS
       if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
     });
     return;

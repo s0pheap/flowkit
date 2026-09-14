@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS character (
     voice_description TEXT,  -- max ~30 words, e.g. "Deep gravelly voice with a warm laugh"
     reference_image_url TEXT,
     media_id TEXT,
+    owner_user_id TEXT,  -- api_user that created it; NULL = admin/local
     created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
@@ -128,6 +129,9 @@ CREATE TABLE IF NOT EXISTS scene (
     -- Narration
     narrator_text TEXT,
 
+    -- Look & feel (JSON: mode, motion, strength, transition, transition_duration, duration)
+    look_feel TEXT,
+
     created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
@@ -158,6 +162,28 @@ CREATE INDEX IF NOT EXISTS idx_scene_order ON scene(video_id, display_order);
 CREATE INDEX IF NOT EXISTS idx_request_status ON request(status);
 CREATE INDEX IF NOT EXISTS idx_request_scene ON request(scene_id);
 CREATE INDEX IF NOT EXISTS idx_video_project ON video(project_id);
+
+-- API users (AUTH_ENABLED=1). Only the sha256 of a key is stored.
+CREATE TABLE IF NOT EXISTS api_user (
+    id           TEXT PRIMARY KEY,
+    name         TEXT NOT NULL UNIQUE,
+    key_hash     TEXT NOT NULL UNIQUE,
+    key_prefix   TEXT NOT NULL,  -- first characters of the key, to tell keys apart
+    is_admin     INTEGER NOT NULL DEFAULT 0,
+    disabled     INTEGER NOT NULL DEFAULT 0,
+    created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    last_used_at TEXT
+);
+
+-- Flow projects a user may use. project_id is the Flow project uuid, which is
+-- also the local project id, so a grant can exist before the project row does.
+CREATE TABLE IF NOT EXISTS user_project (
+    user_id    TEXT NOT NULL REFERENCES api_user(id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    PRIMARY KEY (user_id, project_id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_project_project ON user_project(project_id);
 """
 
 
@@ -188,6 +214,9 @@ async def init_db():
         if "voice_description" not in columns:
             await db.execute("ALTER TABLE character ADD COLUMN voice_description TEXT DEFAULT ''")
             logger.info("Migrated: added voice_description column to character table")
+        if "owner_user_id" not in columns:
+            await db.execute("ALTER TABLE character ADD COLUMN owner_user_id TEXT")
+            logger.info("Migrated: added owner_user_id column to character table")
         # Migration: add edit_prompt and source_media_id to request table
         cursor = await db.execute("PRAGMA table_info(request)")
         req_columns = {row[1] for row in await cursor.fetchall()}
@@ -258,6 +287,9 @@ CREATE INDEX IF NOT EXISTS idx_request_scene ON request(scene_id);
         if "narrator_text" not in scene_columns:
             await db.execute("ALTER TABLE scene ADD COLUMN narrator_text TEXT")
             logger.info("Migrated: added narrator_text column to scene table")
+        if "look_feel" not in scene_columns:
+            await db.execute("ALTER TABLE scene ADD COLUMN look_feel TEXT")
+            logger.info("Migrated: added look_feel column to scene table")
         # Migration: add narrator fields to project table
         cursor = await db.execute("PRAGMA table_info(project)")
         project_columns = {row[1] for row in await cursor.fetchall()}

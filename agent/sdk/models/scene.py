@@ -44,6 +44,7 @@ class Scene(DomainModel):
     video_prompt: Optional[str] = None
     transition_prompt: Optional[str] = None
     narrator_text: Optional[str] = None
+    look_feel: Optional[dict[str, Any]] = None
     character_names: Optional[list[str]] = field(default=None)
     parent_scene_id: Optional[str] = None
     chain_type: str = "ROOT"
@@ -75,6 +76,13 @@ class Scene(DomainModel):
             except (ValueError, TypeError):
                 names_raw = None
 
+        look_raw = row.get("look_feel")
+        if isinstance(look_raw, str):
+            try:
+                look_raw = _json.loads(look_raw)
+            except (ValueError, TypeError):
+                look_raw = None
+
         return cls(
             id=row.get("id", ""),
             video_id=row.get("video_id", ""),
@@ -84,6 +92,7 @@ class Scene(DomainModel):
             video_prompt=row.get("video_prompt"),
             transition_prompt=row.get("transition_prompt"),
             narrator_text=row.get("narrator_text"),
+            look_feel=look_raw if isinstance(look_raw, dict) else None,
             character_names=names_raw,
             parent_scene_id=row.get("parent_scene_id"),
             chain_type=row.get("chain_type", "ROOT"),
@@ -113,6 +122,7 @@ class Scene(DomainModel):
             "parent_scene_id": self.parent_scene_id,
             "chain_type": self.chain_type,
             "source": self.source,
+            "look_feel": _json.dumps(self.look_feel) if self.look_feel is not None else None,
             "_project_id": project_id,
         }
         # Flatten OrientationSlot fields

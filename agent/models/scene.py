@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from typing import Optional
 from agent.models.enums import ChainType, SceneSource, StatusType
+from agent.models.look_feel import LookFeel
 
 
 class SceneCreate(BaseModel):
@@ -55,6 +56,7 @@ class SceneUpdate(BaseModel):
     trim_end: Optional[float] = None
     duration: Optional[float] = None
     narrator_text: Optional[str] = None
+    look_feel: Optional[LookFeel] = None
 
 
 class Scene(BaseModel):
@@ -98,6 +100,7 @@ class Scene(BaseModel):
     trim_end: Optional[float] = None
     duration: Optional[float] = None
     narrator_text: Optional[str] = None
+    look_feel: Optional[LookFeel] = None
 
     created_at: Optional[str] = None
     updated_at: Optional[str] = None

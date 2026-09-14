@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { WSEvent } from '../types'
+import { getApiKey } from './apiKey'
 
 export function useWebSocket(onMessage?: (event: WSEvent) => void) {
   const [isConnected, setIsConnected] = useState(false)
@@ -13,7 +14,10 @@ export function useWebSocket(onMessage?: (event: WSEvent) => void) {
 
   const connect = useCallback(() => {
     const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const ws = new WebSocket(`${proto}//${window.location.host}/ws/dashboard`)
+    // Browsers can't set headers on a WebSocket, so the key rides in the query string.
+    const key = getApiKey()
+    const query = key ? `?api_key=${encodeURIComponent(key)}` : ''
+    const ws = new WebSocket(`${proto}//${window.location.host}/ws/dashboard${query}`)
     wsRef.current = ws
 
     ws.onopen = () => {

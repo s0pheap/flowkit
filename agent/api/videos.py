@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from agent.models.video import Video, VideoCreate, VideoUpdate
 from agent.sdk.persistence.sqlite_repository import SQLiteRepository
 from dataclasses import asdict
+from agent import auth
 
 router = APIRouter(prefix="/videos", tags=["videos"])
 
@@ -33,18 +34,21 @@ def _video_to_flat(sdk_video) -> dict:
 
 @router.post("", response_model=Video)
 async def create(body: VideoCreate):
+    await auth.require_project(body.project_id)
     sdk_video = await _repo.create_video(**body.model_dump(exclude_none=True))
     return _video_to_flat(sdk_video)
 
 
 @router.get("", response_model=list[Video])
 async def list_by_project(project_id: str):
+    await auth.require_project(project_id)
     videos = await _repo.list_videos(project_id)
     return [_video_to_flat(v) for v in videos]
 
 
 @router.get("/{vid}", response_model=Video)
 async def get(vid: str):
+    await auth.require_video(vid)
     sdk_video = await _repo.get_video(vid)
     if not sdk_video:
         raise HTTPException(404, "Video not found")
@@ -53,6 +57,7 @@ async def get(vid: str):
 
 @router.patch("/{vid}", response_model=Video)
 async def update(vid: str, body: VideoUpdate):
+    await auth.require_video(vid)
     row = await _repo.update("video", vid, **body.model_dump(exclude_unset=True))
     if not row:
         raise HTTPException(404, "Video not found")
@@ -62,6 +67,7 @@ async def update(vid: str, body: VideoUpdate):
 
 @router.delete("/{vid}")
 async def delete(vid: str):
+    await auth.require_video(vid)
     if not await _repo.delete("video", vid):
         raise HTTPException(404, "Video not found")
     return {"ok": True}

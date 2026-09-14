@@ -9,6 +9,7 @@ import { useTranslation } from './i18n/useTranslation'
 import { LANGS, LANG_LABELS, type Lang } from './i18n/translations'
 import type { TranslationKey } from './i18n/translations'
 import { fetchAPI } from './api/client'
+import { ApiKeyGate, ApiKeyStatus } from './components/ApiKeyGate'
 import type { Project } from './types'
 import DashboardPage from './pages/DashboardPage'
 import ProjectsPage from './pages/ProjectsPage'
@@ -124,6 +125,7 @@ function Sidebar() {
       </nav>
 
       <div className="mt-auto px-4 py-3.5 border-t flex flex-col gap-2.5" style={{ borderColor: 'var(--border)' }}>
+        <ApiKeyStatus />
         <LanguageSwitcher />
         <div className="flex items-center justify-between text-[10px] tracking-wide" style={{ color: 'var(--muted)' }}>
           <span>{t('app.workers')}</span>
@@ -198,11 +200,13 @@ export default function App() {
   return (
     <BrowserRouter>
       <LanguageProvider>
-        <WebSocketProvider>
-          <TooltipProvider>
-            <Layout />
-          </TooltipProvider>
-        </WebSocketProvider>
+        <ApiKeyGate>
+          <WebSocketProvider>
+            <TooltipProvider>
+              <Layout />
+            </TooltipProvider>
+          </WebSocketProvider>
+        </ApiKeyGate>
       </LanguageProvider>
     </BrowserRouter>
   )

@@ -1,5 +1,21 @@
 Diagnose any FlowKit error and prescribe a fix. Knows the full error taxonomy across Google Flow, the Chrome extension, the FastAPI layer, the worker, and the YouTube upload pipeline.
 
+## Connection
+
+These commands work against a local agent or a shared server. The Flow Kit
+installer (`<server>/install.sh` or `install.ps1`) writes `~/.flowkit/env` with
+`FLOWKIT_URL` and `FLOWKIT_API_KEY`; without that file they default to
+`http://127.0.0.1:8100` and no key. Shell state does not carry
+over between commands, so **start every command with this line**:
+
+```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+```
+
+Then call the API as `curl -s "$FK/api/..." -H "$KEY"`. A `401` means the key is
+missing or wrong; a `404` on an id you were given means it belongs to another user.
+In PowerShell use `$env:FLOWKIT_URL` and `-Headers @{"X-API-Key"=$env:FLOWKIT_API_KEY}`.
+
 ## When to use this skill
 
 **TRIGGER (auto-invoke) when:**
@@ -8,7 +24,7 @@ Diagnose any FlowKit error and prescribe a fix. Knows the full error taxonomy ac
 - `GET /health` returns `extension_connected: false`
 - User reports any error string containing: `UNSAFE_GENERATION`, `QUOTA`, `not found`, `CAPTCHA`, `UNUSUAL_ACTIVITY`, `NO_AT_TOKEN`, `NO_FLOW_PROJECT`, `UNSUPPORTED_ON_BATCH_API`, `NO_FLOW_KEY`, `NO_FLOW_TAB`, `FLOW_TAB_DISCARDED`, `extension_switched`, `Failed to fetch`, `MODEL_ACCESS_DENIED`, `PAYGATE_TIER_TWO`, `invalidTags`, `quotaExceeded`, `invalid_grant`
 - User asks "why did X fail", "what's wrong with the pipeline", "why is this stuck", "tại sao X lỗi", "lỗi gì vậy"
-- An HTTP 4xx/5xx reaches the main agent from any endpoint under `127.0.0.1:8100`
+- An HTTP 4xx/5xx reaches the main agent from any Flow Kit API endpoint (`$FLOWKIT_URL`, default `127.0.0.1:8100`)
 - A YouTube upload returns `HttpError` from `googleapiclient`
 - `cryptography` / architecture / import errors surface during setup
 
@@ -23,6 +39,16 @@ Diagnose any FlowKit error and prescribe a fix. Knows the full error taxonomy ac
 - `/fk-doctor <request_id>` — diagnose a single request by ID
 - `/fk-doctor "<error message>"` — lookup a specific error string and return the handling playbook
 
+## Shared server: who fixes what
+
+When `FLOWKIT_URL` points at someone else's server (`GET /api/auth/me` shows
+`is_admin: false`), you can fix prompts, scenes, entities and requests in your own
+projects. Anything about the extension, the Flow tab, cookies, CAPTCHA,
+`NO_FLOW_PROJECT`, quotas, models or `.env` is on the server — give the user the
+diagnosis and ask them to send it to the server admin instead of trying to fix it.
+`401` = missing or wrong API key; `403` = admin-only action; `404` on an id = not
+one of your projects.
+
 ## How to work
 
 You are the on-call doctor for the FlowKit pipeline. Never guess — always consult the taxonomy below and the actual code. When the user reports a symptom:
@@ -35,15 +61,16 @@ You are the on-call doctor for the FlowKit pipeline. Never guess — always cons
 ## Mode 1: Triage (no args)
 
 ```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
 # Health
-curl -s http://127.0.0.1:8100/health
-curl -s http://127.0.0.1:8100/api/flow/status
+curl -s "$FK/health" -H "$KEY"
+curl -s "$FK/api/flow/status" -H "$KEY"
 
 # Recent failures
-curl -s "http://127.0.0.1:8100/api/requests?status=FAILED&limit=20"
+curl -s "$FK/api/requests?status=FAILED&limit=20" -H "$KEY"
 
 # Stuck in PROCESSING > 10 min
-curl -s "http://127.0.0.1:8100/api/requests?status=PROCESSING"
+curl -s "$FK/api/requests?status=PROCESSING" -H "$KEY"
 ```
 
 Bucket the failures by `error_message` prefix, print a table, and for each bucket give the fix from the taxonomy.
@@ -51,7 +78,8 @@ Bucket the failures by `error_message` prefix, print a table, and for each bucke
 ## Mode 2: Single request (`/fk-doctor <RID>`)
 
 ```bash
-curl -s http://127.0.0.1:8100/api/requests/<RID>
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/requests/<RID>" -H "$KEY"
 ```
 
 Read:
@@ -73,9 +101,11 @@ Since Flow moved to `flow.google.com` (September 2026) there are two paths, and
 the taxonomy below splits on which one is live:
 
 ```bash
-python3 -c "from agent.config import USE_BATCH_RPC, FLOW_PROJECT_ID; \
-  print('batch' if USE_BATCH_RPC else 'legacy REST', '| project:', FLOW_PROJECT_ID or 'UNPINNED')"
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/flow/status" -H "$KEY"
 ```
+
+`transport` is `batch` or `legacy_rest`; `flow_project_id` is the Flow project in use.
 
 - **batch** (default) — the agent builds an `f.req` envelope, the extension runs
   it inside a signed-in `flow.google.com` tab. No bearer token exists on this

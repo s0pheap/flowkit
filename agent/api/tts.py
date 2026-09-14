@@ -7,7 +7,10 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 
-from agent.config import TTS_TEMPLATES_DIR, SHARED_OUTPUT_DIR, OUTPUT_DIR
+from agent import auth
+
+from agent.config import BASE_DIR, TTS_TEMPLATES_DIR, SHARED_OUTPUT_DIR, OUTPUT_DIR
+from agent.utils.paths import scene_tts_path
 from agent.utils.slugify import slugify
 from agent.db.crud import get_video, list_scenes, get_project
 from agent.models.tts import (
@@ -20,7 +23,7 @@ from agent.models.tts import (
     VoiceTemplateResponse,
     VoiceTemplateListItem,
 )
-from agent.services.tts import generate_speech, generate_video_narration
+from agent.services.tts import generate_speech, generate_video_narration, write_word_timings
 from agent.services.post_process import add_narration
 
 logger = logging.getLogger(__name__)
@@ -64,15 +67,53 @@ def _validate_ref_audio(ref_audio: str) -> None:
         raise HTTPException(400, "ref_audio must be within allowed directories")
 
 
+def _validate_output_path(output_path: str) -> Path:
+    """Raise 400 unless output_path is a .wav inside output/."""
+    try:
+        candidate = Path(output_path)
+        resolved = (candidate if candidate.is_absolute() else BASE_DIR / candidate).resolve()
+    except Exception:
+        raise HTTPException(400, "Invalid output_path")
+    if resolved.suffix.lower() != ".wav" or not resolved.is_relative_to(OUTPUT_DIR.resolve()):
+        raise HTTPException(400, "output_path must be a .wav file inside the output/ directory")
+    resolved.parent.mkdir(parents=True, exist_ok=True)
+    return resolved
+
+
+async def _require_readable_audio(path: str) -> None:
+    """Shared voice templates are readable by everyone; other reference audio only by its project's users."""
+    try:
+        if Path(path).resolve().is_relative_to(TEMPLATES_DIR.resolve()):
+            return
+    except (OSError, ValueError):
+        pass
+    await auth.require_output_path(path)
+
+
 @router.post("/tts/generate", response_model=TTSGenerateResponse)
 async def tts_generate(body: TTSGenerateRequest):
     """Generate speech for a single text string. Returns path to WAV file."""
     if body.ref_audio:
         _validate_ref_audio(body.ref_audio)
+        await _require_readable_audio(body.ref_audio)
 
-    SHARED_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    import uuid as _uuid
-    out_path = str(SHARED_OUTPUT_DIR / f"{_uuid.uuid4()}.wav")
+    if body.scene_id:
+        # The server knows where narration for a scene belongs, so a remote caller never needs a path.
+        scene = await auth.require_scene(body.scene_id)
+        video = await get_video(scene["video_id"])
+        project = await get_project(video["project_id"]) if video else None
+        if not project:
+            raise HTTPException(404, "Project not found")
+        wav = scene_tts_path(slugify(project.get("name") or "unnamed_project"), scene["display_order"], scene["id"])
+        wav.parent.mkdir(parents=True, exist_ok=True)
+        out_path = str(wav)
+    elif body.output_path:
+        await auth.require_output_path(body.output_path)
+        out_path = str(_validate_output_path(body.output_path))
+    else:
+        SHARED_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        import uuid as _uuid
+        out_path = str(SHARED_OUTPUT_DIR / f"{_uuid.uuid4()}.wav")
 
     async with _TTS_SEMAPHORE:
         try:
@@ -85,13 +126,22 @@ async def tts_generate(body: TTSGenerateRequest):
                 speed=body.speed,
                 lang=body.lang,
                 tld=body.tld,
+                voice=body.voice,
+                style=body.style,
             )
         except Exception as e:
             logger.exception("TTS generation failed")
-            raise HTTPException(500, "TTS generation failed")
+            raise HTTPException(500, f"TTS generation failed: {str(e)[:300]}")
 
-    duration = _wav_duration(audio_path)
-    return TTSGenerateResponse(audio_path=audio_path, duration=duration)
+        timing = await write_word_timings(audio_path, body.text) if body.with_timings else {}
+
+    return TTSGenerateResponse(
+        audio_path=audio_path,
+        duration=timing.get("duration") or _wav_duration(audio_path),
+        words=timing.get("words"),
+        timing_source=timing.get("timing_source"),
+        timings_path=timing.get("timings_path"),
+    )
 
 
 @router.post("/videos/{vid}/narrate", response_model=NarrateVideoResponse)
@@ -99,14 +149,14 @@ async def narrate_video(vid: str, body: NarrateVideoRequest):
     """Generate narration WAVs for all scenes in a video and optionally mix into video files."""
     if body.ref_audio:
         _validate_ref_audio(body.ref_audio)
+        await _require_readable_audio(body.ref_audio)
 
-    video = await get_video(vid)
-    if not video:
-        raise HTTPException(404, "Video not found")
-
-    project = await get_project(body.project_id)
+    video = await auth.require_video(vid)
+    project = await auth.require_project(body.project_id)
     if not project:
         raise HTTPException(404, "Project not found")
+    if not auth.current_principal().is_admin and video["project_id"] != body.project_id:
+        raise HTTPException(400, "Video is not in that project")
 
     scenes = await list_scenes(vid)
     if not scenes:
@@ -168,6 +218,8 @@ async def narrate_video(vid: str, body: NarrateVideoRequest):
             speed=body.speed,
             lang=lang,
             tld=tld,
+            voice=body.voice,
+            style=body.style,
         )
 
     orientation = body.orientation.upper()
@@ -180,6 +232,8 @@ async def narrate_video(vid: str, body: NarrateVideoRequest):
             narrator_text=r.get("narrator_text"),
             audio_path=r.get("audio_path"),
             duration=r.get("duration"),
+            timings_path=r.get("timings_path"),
+            timing_source=r.get("timing_source"),
             status=r["status"],
             error=r.get("error"),
         )
@@ -224,6 +278,7 @@ async def narrate_video(vid: str, body: NarrateVideoRequest):
 @router.post("/tts/templates", response_model=VoiceTemplateResponse)
 async def create_voice_template(body: VoiceTemplateRequest):
     """Generate and save a voice template for consistent narration."""
+    auth.require_admin()  # templates are shared by every user
     # name already validated by Pydantic pattern — double-check here for defense-in-depth
     _validate_template_name(body.name)
 
@@ -285,6 +340,7 @@ async def get_voice_template(name: str):
 @router.delete("/tts/templates/{name}")
 async def delete_voice_template(name: str):
     """Delete a voice template."""
+    auth.require_admin()
     _validate_template_name(name)
     meta = _load_templates_meta()
     if name not in meta:

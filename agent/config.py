@@ -31,6 +31,27 @@ _load_env()
 API_HOST = os.environ.get("API_HOST", "127.0.0.1")
 API_PORT = int(os.environ.get("API_PORT", "8100"))
 
+# ─── API keys (multi-user) ───────────────────────────────────
+# Off by default: a local agent trusts every caller. Turn on before exposing
+# :8100 to anyone else. Then every /api and /ws call needs `X-API-Key` (or
+# `Authorization: Bearer`), users see only the Flow projects granted to them,
+# and settings that apply to the whole server are admin-only.
+AUTH_ENABLED = os.environ.get("AUTH_ENABLED", "0") == "1"
+# Bootstrap admin key, so there is a way in before any user exists. Users and
+# their keys are then managed with `python -m agent.users` or /api/admin/users.
+ADMIN_API_KEY = os.environ.get("ADMIN_API_KEY", "")
+# The address users reach this agent at (https://flowkit.example.com). Written
+# into the install scripts; derived from the request when unset.
+PUBLIC_URL = os.environ.get("PUBLIC_URL", "")
+# Built dashboard (cd dashboard && npm run build). Served at / when present.
+DASHBOARD_DIST = Path(os.environ.get("DASHBOARD_DIST", Path(__file__).parent.parent / "dashboard" / "dist"))
+
+# ─── Server-side final render ────────────────────────────────
+# Font file for burned-in text overlays and font name for burned subtitles.
+# Empty = pick one for the OS (Malgun Gothic on Windows, Noto CJK on Linux).
+OVERLAY_FONT = os.environ.get("OVERLAY_FONT", "")
+SUBTITLE_FONT = os.environ.get("SUBTITLE_FONT", "")
+
 # ─── WebSocket Server (extension connects here) ─────────────
 WS_HOST = os.environ.get("WS_HOST", "127.0.0.1")
 WS_PORT = int(os.environ.get("WS_PORT", "9222"))
@@ -105,13 +126,21 @@ SHARED_OUTPUT_DIR = OUTPUT_DIR / "_shared"
 TTS_TEMPLATES_DIR = SHARED_OUTPUT_DIR / "tts_templates"
 MUSIC_OUTPUT_DIR = SHARED_OUTPUT_DIR / "music"
 
-# ─── TTS (Google TTS / OmniVoice) ───────────────────────────
-TTS_ENGINE = os.environ.get("TTS_ENGINE", "google")  # "google" (default, via gTTS) or "omnivoice"
+# ─── TTS (Gemini / Google TTS / OmniVoice) ──────────────────
+TTS_ENGINE = os.environ.get("TTS_ENGINE", "gemini")  # "gemini" (default), "google" (free gTTS) or "omnivoice"
 TTS_LANG = os.environ.get("TTS_LANG", "en")          # default language (e.g. "en", "vi", "ja", "fr")
 TTS_TLD = os.environ.get("TTS_TLD", "com")           # domain/accent: "com" (US), "co.uk" (UK), "ca", "co.in"
 TTS_MODEL = os.environ.get("TTS_MODEL", "k2-fsa/OmniVoice")
 TTS_DEVICE = os.environ.get("TTS_DEVICE", "cpu")     # MPS produces gibberish; CPU+fp32 works
 TTS_SAMPLE_RATE = int(os.environ.get("TTS_SAMPLE_RATE", "24000"))
+
+# Gemini TTS speaks the narration; a second Gemini audio model reports word
+# timings for subtitles (Gemini TTS itself returns audio only).
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+GEMINI_TTS_MODEL = os.environ.get("GEMINI_TTS_MODEL", "gemini-3.1-flash-tts-preview")
+GEMINI_TTS_VOICE = os.environ.get("GEMINI_TTS_VOICE", "Kore")
+GEMINI_TIMING_MODEL = os.environ.get("GEMINI_TIMING_MODEL", "gemini-2.5-flash")
+GEMINI_TTS_CONCURRENCY = int(os.environ.get("GEMINI_TTS_CONCURRENCY", "2"))
 
 # ─── Review / Claude Vision ──────────────────────────────────
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")

@@ -4,6 +4,7 @@ import { fetchAPI, patchAPI } from '../api/client'
 import type { Project, Character, Video, Scene, Request } from '../types'
 import EditableText from '../components/projects/EditableText'
 import PipelineView from '../components/pipeline/PipelineView'
+import FinalVideoPanel from '../components/projects/FinalVideoPanel'
 import { count, charStatus, videoStageBreakdown, type SceneStage } from '../lib/stageStats'
 import { useTranslation } from '../i18n/useTranslation'
 import { statusLabel, stateLabel, projectStatusLabel, stageLowerLabel } from '../i18n/labels'
@@ -276,6 +277,9 @@ export default function ProjectDetailPage({ projectId, onBack }: Props) {
               </CardContent>
             </Card>
           )}
+          <div className="flex flex-col gap-4 mt-4">
+            {videos.map(v => <FinalVideoPanel key={v.id} videoId={v.id} title={v.title} />)}
+          </div>
         </TabsContent>
 
         <TabsContent value="pipeline" className="pt-4">

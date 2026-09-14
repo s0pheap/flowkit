@@ -29,7 +29,7 @@ _COLUMNS = {
               "horizontal_video_url", "horizontal_video_media_id", "horizontal_video_status",
               "horizontal_upscale_url", "horizontal_upscale_media_id", "horizontal_upscale_status",
               "vertical_end_scene_media_id", "horizontal_end_scene_media_id",
-              "trim_start", "trim_end", "duration", "display_order", "source", "transition_prompt", "narrator_text", "updated_at"},
+              "trim_start", "trim_end", "duration", "display_order", "source", "transition_prompt", "narrator_text", "look_feel", "updated_at"},
     "request": {"status", "request_id", "media_id", "output_url", "error_message", "retry_count", "next_retry_at", "source_media_id", "updated_at"},
 }
 
@@ -338,3 +338,86 @@ async def list_materials() -> list[dict]:
     db = await get_db()
     cur = await db.execute("SELECT * FROM material ORDER BY created_at")
     return [dict(r) for r in await cur.fetchall()]
+
+
+# ─── API users + project grants ─────────────────────────────
+
+async def create_api_user(name: str, key_hash: str, key_prefix: str, is_admin: bool = False) -> dict:
+    db = await get_db()
+    uid, now = _uuid(), _now()
+    async with _db_lock:
+        await db.execute(
+            "INSERT INTO api_user (id,name,key_hash,key_prefix,is_admin,created_at) VALUES (?,?,?,?,?,?)",
+            (uid, name, key_hash, key_prefix, int(is_admin), now))
+        await db.commit()
+    return await get_api_user(uid)
+
+async def get_api_user(uid: str) -> Optional[dict]:
+    db = await get_db()
+    cur = await db.execute("SELECT * FROM api_user WHERE id=?", (uid,))
+    row = await cur.fetchone()
+    return dict(row) if row else None
+
+async def get_api_user_by_name(name: str) -> Optional[dict]:
+    db = await get_db()
+    cur = await db.execute("SELECT * FROM api_user WHERE name=?", (name,))
+    row = await cur.fetchone()
+    return dict(row) if row else None
+
+async def get_api_user_by_key_hash(key_hash: str) -> Optional[dict]:
+    db = await get_db()
+    cur = await db.execute("SELECT * FROM api_user WHERE key_hash=?", (key_hash,))
+    row = await cur.fetchone()
+    return dict(row) if row else None
+
+async def list_api_users() -> list[dict]:
+    db = await get_db()
+    cur = await db.execute("SELECT * FROM api_user ORDER BY created_at")
+    return [dict(r) for r in await cur.fetchall()]
+
+async def update_api_user(uid: str, **kw) -> Optional[dict]:
+    allowed = {k: v for k, v in kw.items() if k in {"name", "key_hash", "key_prefix", "is_admin", "disabled", "last_used_at"}}
+    if allowed:
+        sets = ", ".join(f"{k}=?" for k in allowed)
+        db = await get_db()
+        async with _db_lock:
+            await db.execute(f"UPDATE api_user SET {sets} WHERE id=?", [*allowed.values(), uid])
+            await db.commit()
+    return await get_api_user(uid)
+
+async def delete_api_user(uid: str) -> bool:
+    db = await get_db()
+    async with _db_lock:
+        cur = await db.execute("DELETE FROM api_user WHERE id=?", (uid,))
+        await db.commit()
+    return cur.rowcount > 0
+
+async def grant_project(user_id: str, project_id: str) -> None:
+    db = await get_db()
+    async with _db_lock:
+        await db.execute("INSERT OR IGNORE INTO user_project (user_id,project_id,created_at) VALUES (?,?,?)",
+                         (user_id, project_id, _now()))
+        await db.commit()
+
+async def revoke_project(user_id: str, project_id: str) -> bool:
+    db = await get_db()
+    async with _db_lock:
+        cur = await db.execute("DELETE FROM user_project WHERE user_id=? AND project_id=?", (user_id, project_id))
+        await db.commit()
+    return cur.rowcount > 0
+
+async def list_granted_project_ids(user_id: str) -> list[str]:
+    db = await get_db()
+    cur = await db.execute("SELECT project_id FROM user_project WHERE user_id=? ORDER BY created_at", (user_id,))
+    return [r[0] for r in await cur.fetchall()]
+
+async def set_character_owner(cid: str, user_id: str) -> None:
+    db = await get_db()
+    async with _db_lock:
+        await db.execute("UPDATE character SET owner_user_id=? WHERE id=?", (user_id, cid))
+        await db.commit()
+
+async def list_character_project_ids(cid: str) -> list[str]:
+    db = await get_db()
+    cur = await db.execute("SELECT project_id FROM project_character WHERE character_id=?", (cid,))
+    return [r[0] for r in await cur.fetchall()]

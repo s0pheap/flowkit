@@ -140,13 +140,15 @@ _PIPELINE_OVERVIEW = """\
                      Wait for done=true, verify all entities have media_id
 6. Gen scene images  POST /api/requests/batch → poll /batch-status?video_id=<VID>
                      Wait for done=true, verify image_media_id = UUID
-7. Gen videos        POST /api/requests/batch → poll /batch-status?video_id=<VID>
+6.5 Narration        /fk-gen-narrator — Gemini TTS wav + word timings → POST /api/videos/{vid}/subtitles
+6.7 Look & feel      /fk-review-board — per scene: Veo or ffmpeg, pan/zoom, transition, length
+7. Gen videos        Veo scenes: POST /api/requests/batch → poll /batch-status?video_id=<VID>
+                     ffmpeg scenes: POST /api/scenes/{sid}/motion (never queued to Veo)
                      Wait for done=true (videos take 2-5 min each)
 7.5 Review videos    POST /api/videos/{vid}/review?mode=light (Claude Vision quality check)
                      Pass: score >= 7.5 | Fail: update video_prompt → regen → re-review (max 2 cycles)
 8. (Optional) 4K     POST /api/requests/batch (TIER_TWO only)
-9. (Optional) TTS    Create voice template → POST /api/videos/{vid}/narrate
-10. Concat           ffmpeg normalize + concat
+9. Concat            /fk-concat-fit-narrator — GET /api/videos/{vid}/assembly-plan, transitions, captions
 ```
 """
 

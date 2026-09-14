@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from agent.models.scene import Scene, SceneCreate, SceneUpdate
 from agent.sdk.persistence.sqlite_repository import SQLiteRepository
 import json
+from agent import auth
 
 router = APIRouter(prefix="/scenes", tags=["scenes"])
 
@@ -20,6 +21,7 @@ def _scene_to_flat(sdk_scene) -> dict:
     flat["chain_type"] = sdk_scene.chain_type
     flat["source"] = sdk_scene.source
     flat["character_names"] = sdk_scene.character_names
+    flat["look_feel"] = sdk_scene.look_feel
     flat["created_at"] = sdk_scene.created_at
     flat["updated_at"] = sdk_scene.updated_at
     return flat
@@ -27,6 +29,9 @@ def _scene_to_flat(sdk_scene) -> dict:
 
 @router.post("", response_model=Scene)
 async def create(body: SceneCreate):
+    await auth.require_video(body.video_id)
+    if body.parent_scene_id:
+        await auth.require_scene(body.parent_scene_id)
     # Auto-prepend material scene_prefix if project has a material set
     if body.video_id and body.prompt:
         video = await _repo.get_video(body.video_id)
@@ -62,12 +67,14 @@ async def create(body: SceneCreate):
 
 @router.get("", response_model=list[Scene])
 async def list_by_video(video_id: str):
+    await auth.require_video(video_id)
     scenes = await _repo.list_scenes(video_id)
     return [_scene_to_flat(s) for s in scenes]
 
 
 @router.get("/{sid}", response_model=Scene)
 async def get(sid: str):
+    await auth.require_scene(sid)
     sdk_scene = await _repo.get_scene(sid)
     if not sdk_scene:
         raise HTTPException(404, "Scene not found")
@@ -78,9 +85,14 @@ async def get(sid: str):
 async def update(sid: str, body: SceneUpdate):
     # Use exclude_unset (not exclude_none) so explicit null clears fields
     # e.g. {"vertical_video_url": null} → sets DB column to NULL
+    await auth.require_scene(sid)
     data = body.model_dump(exclude_unset=True)
+    if data.get("parent_scene_id"):
+        await auth.require_scene(data["parent_scene_id"])
     if "character_names" in data and isinstance(data["character_names"], list):
         data["character_names"] = json.dumps(data["character_names"])
+    if "look_feel" in data:
+        data["look_feel"] = json.dumps(data["look_feel"]) if data["look_feel"] is not None else None
     row = await _repo.update("scene", sid, **data)
     if not row:
         raise HTTPException(404, "Scene not found")
@@ -90,6 +102,7 @@ async def update(sid: str, body: SceneUpdate):
 
 @router.delete("/{sid}")
 async def delete(sid: str):
+    await auth.require_scene(sid)
     if not await _repo.delete("scene", sid):
         raise HTTPException(404, "Scene not found")
     return {"ok": True}
@@ -98,6 +111,7 @@ async def delete(sid: str):
 @router.delete("")
 async def cleanup(video_id: str, source: str = "system"):
     """Delete all scenes with given source and re-compact display_order."""
+    await auth.require_video(video_id)
     if source not in ("system", "user"):
         raise HTTPException(400, "Can only cleanup 'system' or 'user' scenes")
     scenes = await _repo.list_scenes(video_id)

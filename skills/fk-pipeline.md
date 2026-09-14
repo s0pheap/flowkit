@@ -214,6 +214,8 @@ Batch 5 at a time. Poll every 15s. Submit next batch when current batch complete
 
 Only run after all scene images COMPLETED.
 
+Only Veo scenes (`look_feel.mode` missing or `"generate"`) are queued. Scenes set to `"ffmpeg"` are rendered with `POST /api/scenes/<SID>/motion` instead — see `/fk-gen-videos` Step 3b. Submitting an ffmpeg scene to Veo returns 400.
+
 ```bash
 curl -X POST http://127.0.0.1:8100/api/requests \
   -H "Content-Type: application/json" \
@@ -287,22 +289,23 @@ Batch 5. **Resubmit failed upscales** once automatically.
 
 ### Stage 4 — TTS Narration (parallel)
 
-Runs in parallel with Stage 2 or 3. Requires `narrator_text` on scenes and a voice template.
+Requires `narrator_text` on scenes and `GEMINI_API_KEY` in `.env` (narration is Gemini TTS; see `/fk-gen-narrator` for voice and style).
+
+Runs in parallel with Stage 2 or 3 — **but** if any scene is (or will be) set to ffmpeg look & feel, run narration before Stage 2: ffmpeg scenes take their length from the narration, and `/fk-review-board` needs it to show real lengths.
 
 ```bash
-# Check templates
-curl -s http://127.0.0.1:8100/api/tts/templates
-# Pick template name (e.g. vi_male_narrator)
-
-# Trigger narration for video
+# Narrate every scene with one voice/style; writes wav + .words.json timings
 curl -X POST http://127.0.0.1:8100/api/videos/<VID>/narrate \
   -H "Content-Type: application/json" \
-  -d '{"template":"<template_name>"}'
+  -d '{"project_id":"<PID>","voice":"<VOICE>","style":"<STYLE>","mix":false}'
+
+# Scene-local + whole-video subtitles
+curl -X POST http://127.0.0.1:8100/api/videos/<VID>/subtitles -H "Content-Type: application/json" -d '{}'
 ```
 
-Poll `output/<slug>/tts/` for WAV files as they appear.
+Poll `output/<slug>/tts/` for WAV and `.words.json` files as they appear.
 
-**If no template exists:** Pause and instruct user to run `/fk-gen-tts-template` or `/fk-import-voice` first.
+**If `GEMINI_API_KEY` is missing:** Pause and ask the user to add it to `.env` and restart the agent.
 
 ---
 
@@ -338,9 +341,10 @@ ffprobe -v quiet -show_entries format=duration -of csv=p=0 "<file>"
 
 ### Stage 6 — Concat
 
-Run after UPSCALE + DOWNLOAD + TTS all complete. Delegates to `/fk-concat`.
+Run after UPSCALE + DOWNLOAD + TTS all complete.
 
-Invoke: `/fk-concat --4k --with-tts` (or appropriate flags based on what was run).
+With narration: `/fk-concat-fit-narrator <VID> [--4k]` — follows the assembly plan (look & feel lengths and transitions) and embeds subtitles.
+Without narration: `/fk-concat --4k`.
 
 ---
 
@@ -402,7 +406,7 @@ while stages_to_run:
 | Upscale FAILED | `horizontal_upscale_status == FAILED` | Resubmit `UPSCALE_VIDEO` once |
 | Download 4KB (XML error) | `ffprobe` returns 0s or non-numeric | Re-download (URL still valid for ~8h) |
 | Worker stalled | pending > 0, processing = 0 for 2+ min | Print warning; suggest server restart |
-| TTS no template | `GET /api/tts/templates` returns empty | Pause; prompt user to create template |
+| TTS no Gemini key | narrate/generate returns `GEMINI_API_KEY is not set` | Pause; ask user to add it to `.env` and restart |
 
 **Max retries:** 2 per scene per stage. After 2 failures, log and skip — report at end.
 
@@ -444,8 +448,8 @@ Use the Agent tool with `oh-my-claudecode:executor` for Track B:
 ```
 Agent(
   subagent_type="oh-my-claudecode:executor",
-  prompt="Run TTS narration for video <VID> using template <template>.
-          Poll output/<slug>/tts/ every 30s until all <N> WAV files appear.
+  prompt="Run TTS narration for video <VID> with Gemini voice <VOICE> (POST /api/videos/<VID>/narrate).
+          Poll output/<slug>/tts/ every 30s until all <N> WAV and .words.json files appear.
           Report done when complete."
 )
 ```

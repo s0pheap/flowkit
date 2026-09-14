@@ -14,6 +14,8 @@ import logging
 import ssl
 from typing import TYPE_CHECKING, Optional
 
+from agent.models.look_feel import camera_direction, parse_look_feel
+
 
 def _build_continuation_prompt(base_prompt: str) -> str:
     """Build a transformation-focused prompt for CONTINUATION scene images.
@@ -900,8 +902,12 @@ class OperationService:
 # ------------------------------------------------------------------
 
 async def _build_video_prompt(base_prompt: str, scene: dict, project_id: str | None) -> str:
-    """Enhance video prompt with Veo 3 audio instructions and negative prompt."""
+    """Enhance video prompt with camera direction, Veo 3 audio instructions and negative prompt."""
     parts = [base_prompt.strip()]
+
+    look = parse_look_feel(scene.get("look_feel"))
+    if look and look.mode == "generate":
+        parts.append(camera_direction(look))
 
     # Only append voice context when video_prompt contains dialogue (verb-based detection)
     dialogue_verbs = ("says", "whispers", "shouts", "asks", "replies", "murmurs", "exclaims", "gasps", "laughs", "mutters")

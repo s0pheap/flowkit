@@ -4,20 +4,38 @@ Usage: `/fk-gen-images <project_id> <video_id>`
 
 If not provided, ask or list projects/videos.
 
+## Connection
+
+These commands work against a local agent or a shared server. The Flow Kit
+installer (`<server>/install.sh` or `install.ps1`) writes `~/.flowkit/env` with
+`FLOWKIT_URL` and `FLOWKIT_API_KEY`; without that file they default to
+`http://127.0.0.1:8100` and no key. Shell state does not carry
+over between commands, so **start every command with this line**:
+
+```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+```
+
+Then call the API as `curl -s "$FK/api/..." -H "$KEY"`. A `401` means the key is
+missing or wrong; a `404` on an id you were given means it belongs to another user.
+In PowerShell use `$env:FLOWKIT_URL` and `-Headers @{"X-API-Key"=$env:FLOWKIT_API_KEY}`.
+
 ## Step 0: Detect orientation
 
 ```bash
-PROJ_OUT=$(curl -s http://127.0.0.1:8100/api/projects/<PID>/output-dir)
-OUTDIR=$(echo "$PROJ_OUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['path'])")
-ORI=$(cat ${OUTDIR}/meta.json | python3 -c "import sys,json; print(json.load(sys.stdin).get('orientation','HORIZONTAL'))")
-ori=$(echo "$ORI" | tr '[:upper:]' '[:lower:]')
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/videos/<VID>" -H "$KEY"
 ```
+
+Read `orientation` from the response: `ORI` is `HORIZONTAL` or `VERTICAL`, and `ori` is the
+same in lowercase. If it is `null`, ask the user which one the video is.
 **NEVER hardcode VERTICAL or HORIZONTAL.** Use `${ORI}` for API params, `${ori}_*` for DB field lookups.
 
 ## Step 1: Pre-check — all references must be ready
 
 ```bash
-curl -s http://127.0.0.1:8100/api/projects/<PID>/characters
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/projects/<PID>/characters" -H "$KEY"
 ```
 
 **ABORT** if any entity is missing `media_id`. Tell user to run `/fk-gen-refs <PID>` first.
@@ -25,7 +43,8 @@ curl -s http://127.0.0.1:8100/api/projects/<PID>/characters
 ## Step 2: Get scenes and classify by chain_type
 
 ```bash
-curl -s "http://127.0.0.1:8100/api/scenes?video_id=<VID>"
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/scenes?video_id=<VID>" -H "$KEY"
 ```
 
 Filter to scenes where `${ori}_image_status` != `"COMPLETED"` or `${ori}_image_media_id` is missing/not UUID.
@@ -48,7 +67,8 @@ Build the wave map by walking the `parent_scene_id` chain. Scenes in the same wa
 ### Wave 1 — ROOT scenes (GENERATE_IMAGE)
 
 ```bash
-curl -X POST http://127.0.0.1:8100/api/requests/batch \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -X POST "$FK/api/requests/batch" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "requests": [
@@ -61,7 +81,8 @@ curl -X POST http://127.0.0.1:8100/api/requests/batch \
 Poll until Wave 1 completes:
 
 ```bash
-curl -s "http://127.0.0.1:8100/api/requests/batch-status?video_id=<VID>&type=GENERATE_IMAGE"
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/requests/batch-status?video_id=<VID>&type=GENERATE_IMAGE" -H "$KEY"
 # Wait for: "done": true
 ```
 
@@ -70,7 +91,8 @@ curl -s "http://127.0.0.1:8100/api/requests/batch-status?video_id=<VID>&type=GEN
 After the parent wave completes, submit CONTINUATION scenes whose parents now have completed images:
 
 ```bash
-curl -X POST http://127.0.0.1:8100/api/requests/batch \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -X POST "$FK/api/requests/batch" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "requests": [
@@ -85,7 +107,8 @@ The worker auto-resolves `source_media_id` from the parent scene's `${ori}_image
 Poll until wave completes, then submit next wave. Repeat until all waves done.
 
 ```bash
-curl -s "http://127.0.0.1:8100/api/requests/batch-status?video_id=<VID>&type=EDIT_IMAGE"
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/requests/batch-status?video_id=<VID>&type=EDIT_IMAGE" -H "$KEY"
 # Wait for: "done": true
 ```
 
@@ -95,13 +118,15 @@ curl -s "http://127.0.0.1:8100/api/requests/batch-status?video_id=<VID>&type=EDI
 
 After all waves complete, check each scene:
 ```bash
-curl -s "http://127.0.0.1:8100/api/scenes?video_id=<VID>"
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/scenes?video_id=<VID>" -H "$KEY"
 ```
 
 If any `${ori}_image_media_id` starts with `CAMS` or is not UUID format, fix it by extracting UUID from `${ori}_image_url`:
 ```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
 # Extract UUID from URL path: /image/{UUID}?...
-curl -X PATCH http://127.0.0.1:8100/api/scenes/<SID> \
+curl -X PATCH "$FK/api/scenes/<SID>" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{"${ori}_image_media_id": "<extracted_uuid>"}'
 ```
@@ -112,7 +137,7 @@ Print results table:
 | Scene | Order | chain_type | request_type | image_status | media_id (UUID) |
 |-------|-------|-----------|-------------|-------------|----------------|
 
-Print: "All scene images ready. Run /fk-gen-videos <PID> <VID> to generate videos."
+Print: "All scene images ready — they are visible in the dashboard under Projects. Run /fk-gen-videos <PID> <VID> to generate videos."
 
 ## Important rules
 

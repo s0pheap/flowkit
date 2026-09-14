@@ -7,7 +7,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 
-from agent import config
+from agent import auth, config
 from agent.services.video_reviewer import PROVIDER_BINARIES
 
 router = APIRouter(prefix="/api/providers", tags=["providers"])
@@ -53,6 +53,7 @@ async def get_providers(live: bool = False):
 @router.patch("")
 async def patch_providers(body: dict):
     """Switch the active CLI provider. Body: {"active": "claude"|"agy"|"codex"}."""
+    auth.require_admin()
     provider = body.get("active")
     if provider not in PROVIDER_BINARIES:
         raise HTTPException(400, f"Unknown provider '{provider}'. Known: {list(PROVIDER_BINARIES)}")

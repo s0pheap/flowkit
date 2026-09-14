@@ -5,7 +5,7 @@ from pathlib import Path
 
 from fastapi import APIRouter
 
-from agent import config
+from agent import auth, config
 
 router = APIRouter(prefix="/api/models", tags=["models"])
 logger = logging.getLogger(__name__)
@@ -67,6 +67,7 @@ async def patch_models(body: dict):
       }
     }
     """
+    auth.require_admin()
     current = _read_models()
 
     if "default_image_model" in body:

@@ -206,6 +206,26 @@
     flex: 1;
   }
 
+  .card-look {
+    padding: 0 10px 8px;
+    font-size: 10px;
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mode-tag {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    margin-right: 4px;
+  }
+  .mode-tag.mode-generate { background: #2a3a6e; color: #8ab4ff; }
+  .mode-tag.mode-ffmpeg { background: #1f4a33; color: var(--good); }
+
   .card-feedback-indicator {
     width: 10px;
     height: 10px;
@@ -286,6 +306,7 @@
   .detail-info {
     padding: 12px;
     flex: 1;
+    min-height: 120px;
     overflow-y: auto;
   }
 
@@ -322,6 +343,51 @@
 
   .chain-badge.root { background: #2a3a6e; color: #8ab4ff; }
   .chain-badge.continuation { background: #3a2a6e; color: #b88aff; }
+
+  /* ── Look & Feel Section ── */
+  .lookfeel-section {
+    padding: 12px;
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .lf-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .lf-status { font-size: 11px; color: var(--text-dim); }
+  .lf-status.error { color: var(--redo); }
+  .lf-seg { display: flex; gap: 6px; margin-bottom: 10px; }
+  .lf-seg button {
+    flex: 1;
+    padding: 6px 8px;
+    border: 2px solid var(--border);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    text-align: left;
+  }
+  .lf-seg button small { display: block; font-weight: 400; font-size: 10px; color: var(--text-dim); }
+  .lf-seg button.active { border-color: var(--accent); background: #5b7fff20; }
+  .lf-seg button[data-mode="ffmpeg"].active { border-color: var(--good); background: #3ddc8420; }
+  .lf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .lf-grid label { display: flex; flex-direction: column; gap: 3px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); }
+  .lf-grid select, .lf-grid input[type="number"] {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--text);
+    padding: 5px 6px;
+    font-size: 12px;
+    font-family: inherit;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  .lf-grid select:disabled, .lf-grid input:disabled { opacity: 0.45; }
+  .lf-length-row { display: flex; gap: 6px; align-items: center; }
+  .lf-length-row input[type="number"] { flex: 1; min-width: 0; }
+  .lf-auto { display: flex; align-items: center; gap: 3px; font-size: 11px; color: var(--text); text-transform: none; letter-spacing: 0; white-space: nowrap; }
+  .lf-hint { font-size: 11px; color: var(--text-dim); line-height: 1.5; margin: 8px 0; }
+  .lf-actions { display: flex; gap: 6px; }
 
   /* ── Feedback Section ── */
   .feedback-section {
@@ -601,6 +667,33 @@
         </div>
       </div>
       <div class="detail-info" id="detail-info"></div>
+      <div class="lookfeel-section" id="lookfeel">
+        <div class="lf-head">
+          <span class="info-label">Look &amp; feel</span>
+          <span class="lf-status" id="lf-status"></span>
+        </div>
+        <div class="lf-seg" id="lf-mode">
+          <button data-mode="generate" onclick="setLookField('mode', 'generate')">Veo<small>animates the keyframe</small></button>
+          <button data-mode="ffmpeg" onclick="setLookField('mode', 'ffmpeg')">ffmpeg<small>pan / zoom &middot; no cost</small></button>
+        </div>
+        <div class="lf-grid">
+          <label>Motion<select id="lf-motion" onchange="setLookField('motion', this.value)"></select></label>
+          <label>Strength<select id="lf-strength" onchange="setLookField('strength', this.value)"></select></label>
+          <label>Transition to next<select id="lf-transition" onchange="setLookField('transition', this.value)"></select></label>
+          <label>Transition (s)<input type="number" id="lf-transition-duration" min="0.1" max="2" step="0.1" onchange="setLookField('transition_duration', this.value)"></label>
+          <label style="grid-column: span 2">Length (s)
+            <span class="lf-length-row">
+              <span class="lf-auto"><input type="checkbox" id="lf-auto" onchange="toggleAutoLength(this.checked)"> Follow narration</span>
+              <input type="number" id="lf-duration" min="0.6" max="60" step="0.1" onchange="setLookField('duration', this.value)">
+            </span>
+          </label>
+        </div>
+        <div class="lf-hint" id="lf-hint"></div>
+        <div class="lf-actions">
+          <button class="btn" id="lf-preview-btn" onclick="previewMotion()">Preview motion</button>
+          <button class="btn" onclick="applyLookToAll()" title="Copy mode, motion, strength and transition to every scene">Apply to all scenes</button>
+        </div>
+      </div>
       <div class="feedback-section">
         <div class="rating-btns">
           <button class="rating-btn" data-rating="good" onclick="setRating('good')">Good</button>
@@ -632,8 +725,43 @@
 
 <script>
 // ── Config ──
-const BOARD_BASE = location.origin; // review_server.py at :8200
-const API_BASE = 'http://127.0.0.1:8100';
+// The agent serves this page at /review-board, so the API is this page's own origin (?api= overrides).
+const API_BASE = new URLSearchParams(location.search).get('api') || location.origin;
+// Same key the dashboard stores when you sign in on this address.
+const KEY_STORAGE = 'flowkit.apiKey';
+let mediaToken = null;   // for <video src>, which can't send the key header
+let _askedForKey = false;
+
+function storedKey() {
+  try { return localStorage.getItem(KEY_STORAGE); } catch (e) { return null; }
+}
+
+function askForKey() {
+  if (_askedForKey) return;
+  _askedForKey = true;
+  const key = prompt('This Flow Kit server needs your API key (the one you use on the dashboard):');
+  if (key && key.trim()) {
+    try { localStorage.setItem(KEY_STORAGE, key.trim()); } catch (e) {}
+    location.reload();
+  }
+}
+
+async function api(path, opts = {}) {
+  const headers = { ...(opts.headers || {}) };
+  const key = storedKey();
+  if (key) headers['X-API-Key'] = key;
+  const res = await fetch(`${API_BASE}${path}`, { ...opts, headers });
+  if (res.status === 401) {
+    askForKey();
+    throw new Error('API key missing or not accepted');
+  }
+  return res;
+}
+
+function mediaUrl(path) {
+  if (!mediaToken) return `${API_BASE}${path}`;
+  return `${API_BASE}${path}${path.includes('?') ? '&' : '?'}token=${encodeURIComponent(mediaToken)}`;
+}
 // Resolved at init(): URL ?video_id= → active project → null
 let VIDEO_ID = new URLSearchParams(location.search).get('video_id') || null;
 const CARD_W = 260, CARD_H = 200, GAP_X = 60, GAP_Y = 40, PAD = 60;
@@ -641,7 +769,6 @@ const CARD_W = 260, CARD_H = 200, GAP_X = 60, GAP_Y = 40, PAD = 60;
 // ── State ──
 let scenes = [];
 let sceneMap = {};
-let videoFileMap = {}; // scene_id -> local video filename
 let positions = {};
 let selectedId = null;
 let feedback = {};
@@ -649,13 +776,30 @@ let zoom = 1, panX = 0, panY = 0;
 let isPanning = false, panStartX = 0, panStartY = 0, panStartPanX = 0, panStartPanY = 0;
 let _saveTimer = null;
 
+// Look & feel
+let plan = null;          // GET /api/videos/<vid>/assembly-plan
+let lfOptions = null;     // GET /api/look-feel/options
+let orientation = 'HORIZONTAL';
+let _lfTimer = null;
+const MOTION_LABELS = {
+  static: 'Static', zoom_in: 'Zoom in', zoom_out: 'Zoom out',
+  pan_left: 'Pan left', pan_right: 'Pan right', pan_up: 'Tilt up', pan_down: 'Tilt down',
+};
+const STRENGTH_LABELS = { subtle: 'Subtle', medium: 'Medium', strong: 'Strong' };
+const TRANSITION_LABELS = {
+  cut: 'Cut', fade: 'Crossfade', fadeblack: 'Fade through black', fadewhite: 'Fade through white',
+  dissolve: 'Dissolve', wipeleft: 'Wipe left', wiperight: 'Wipe right', slideleft: 'Slide left',
+  slideright: 'Slide right', smoothleft: 'Smooth left', smoothright: 'Smooth right',
+  circleopen: 'Circle open', zoomin: 'Zoom in',
+};
+
 // ── Init ──
 async function init() {
   try {
     // If no ?video_id= query param, resolve from /api/active-project
     if (!VIDEO_ID) {
       try {
-        const aRes = await fetch(`${API_BASE}/api/active-project`);
+        const aRes = await api('/api/active-project');
         if (aRes.ok) {
           const a = await aRes.json();
           VIDEO_ID = a.video_id || null;
@@ -666,42 +810,37 @@ async function init() {
       document.body.innerHTML = '<div style="padding:40px;font-family:sans-serif;color:#900">No video_id resolved. Pass <code>?video_id=&lt;id&gt;</code> in the URL or set an active project via <code>PUT /api/active-project</code>.</div>';
       return;
     }
-    // Fetch scenes and local video file list in parallel
-    const [scenesRes, filesRes] = await Promise.all([
-      fetch(`${BOARD_BASE}/api/scenes?video_id=${VIDEO_ID}`),
-      fetch(`${BOARD_BASE}/api/video-files`)
+    const [scenesRes, tokenRes] = await Promise.all([
+      api(`/api/scenes?video_id=${VIDEO_ID}`),
+      api('/api/auth/media-token'),
     ]);
+    if (!scenesRes.ok) throw new Error(scenesRes.status === 404 ? 'Video not found, or not one of your projects' : `HTTP ${scenesRes.status}`);
     scenes = await scenesRes.json();
     scenes.sort((a, b) => a.display_order - b.display_order);
     scenes.forEach(s => sceneMap[s.id] = s);
-
-    // Map scene_id -> local video file (format: scene_NNN_shortid.mp4)
-    const filesData = await filesRes.json();
-    const localFiles = filesData.files || [];
-    scenes.forEach(s => {
-      const order = String(s.display_order).padStart(3, '0');
-      const shortId = (s.horizontal_video_media_id || s.id).substring(0, 8);
-      const match = localFiles.find(f => f.startsWith(`scene_${order}_`));
-      if (match) videoFileMap[s.id] = match;
-    });
+    if (tokenRes.ok) mediaToken = (await tokenRes.json()).token;
 
     // Load project name
     try {
-      const pRes = await fetch(`${API_BASE}/api/projects/${scenes[0]?.project_id || ''}`);
-      if (pRes.ok) {
+      const vRes = await api(`/api/videos/${VIDEO_ID}`);
+      const video = vRes.ok ? await vRes.json() : null;
+      const pRes = video ? await api(`/api/projects/${video.project_id}`) : null;
+      if (pRes && pRes.ok) {
         const proj = await pRes.json();
         document.getElementById('project-title').textContent = proj.name || 'Scene Review Board';
       }
     } catch(e) {}
 
-    // Load saved feedback from server (persisted JSON file)
+    // Load saved feedback from the server (kept per video)
     try {
-      const fbRes = await fetch(`${BOARD_BASE}/api/feedback`);
+      const fbRes = await api(`/api/videos/${VIDEO_ID}/review-feedback`);
       if (fbRes.ok) {
         const serverFb = await fbRes.json();
         if (Object.keys(serverFb).length > 0) feedback = serverFb;
       }
     } catch(e) {}
+
+    await loadLookFeel();
 
     computeLayout();
     render();
@@ -709,7 +848,7 @@ async function init() {
     document.getElementById('loading').style.display = 'none';
     zoomFit();
   } catch(err) {
-    document.getElementById('loading').innerHTML = `<span style="color:var(--redo)">Error: ${err.message}<br>Make sure review_server.py is running:<br><code>python3 tools/review_server.py</code></span>`;
+    document.getElementById('loading').innerHTML = `<span style="color:var(--redo)">Error: ${err.message}<br>Check that the video id is right and that you are signed in on this address.</span>`;
   }
 }
 
@@ -815,7 +954,7 @@ function renderNodes() {
     if (fb?.rating) card.classList.add(`feedback-${fb.rating}`);
     if (s.id === selectedId) card.classList.add('selected');
 
-    const imgUrl = s.horizontal_image_url;
+    const imgUrl = s[`${orientation.toLowerCase()}_image_url`] || s.horizontal_image_url;
     const promptSnippet = (s.video_prompt || s.prompt || '').substring(0, 60);
     const chainClass = s.chain_type === 'CONTINUATION' ? 'chain-cont' : '';
 
@@ -829,6 +968,7 @@ function renderNodes() {
         <span class="card-prompt" title="${escHtml(s.prompt || '')}">${escHtml(promptSnippet)}</span>
         ${fb?.rating ? `<div class="card-feedback-indicator dot-${fb.rating}"></div>` : ''}
       </div>
+      <div class="card-look" id="card-look-${s.id}">${cardLookHtml(s.id)}</div>
     `;
 
     card.addEventListener('click', () => selectScene(s.id));
@@ -896,15 +1036,17 @@ function selectScene(id) {
   const content = document.getElementById('detail-content');
   content.style.display = 'flex';
 
-  // Video — prefer local file, fallback to GCS URL
+  // Video — the agent serves its local copy, or redirects to Flow's signed link
   const video = document.getElementById('detail-video');
   video.pause();
-  const localFile = videoFileMap[s.id];
-  if (localFile) {
-    video.src = `${BOARD_BASE}/videos/${localFile}`;
+  const seg = segmentFor(s.id);
+  const prefix = orientation.toLowerCase();
+  const hasVeo = s[`${prefix}_video_url`] || s[`${prefix}_upscale_url`];
+  if (seg?.mode === 'ffmpeg' && seg.motion_rendered) {
+    video.src = mediaUrl(`/api/scenes/${s.id}/motion.mp4?t=${Date.now()}`);
     video.load();
-  } else if (s.horizontal_video_url) {
-    video.src = s.horizontal_video_url;
+  } else if (hasVeo) {
+    video.src = mediaUrl(`/api/scenes/${s.id}/clip.mp4?orientation=${orientation}`);
     video.load();
   } else {
     video.removeAttribute('src');
@@ -943,6 +1085,8 @@ function selectScene(id) {
 
   // Done button — show only when scene has an active rating
   document.getElementById('mark-done-btn').style.display = fb.rating ? 'inline-block' : 'none';
+
+  renderLookFeel(id);
 
   // History
   renderHistory(id);
@@ -1019,8 +1163,8 @@ function saveFeedback() {
   // Debounce: save to server after 500ms of no changes
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(() => {
-    fetch(`${BOARD_BASE}/api/feedback`, {
-      method: 'POST',
+    api(`/api/videos/${VIDEO_ID}/review-feedback`, {
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(feedback)
     }).catch(e => console.warn('Failed to save feedback to server:', e));
@@ -1114,6 +1258,9 @@ function updateStats() {
     <div class="stat-badge"><div class="dot dot-skip"></div> ${skip} Skip</div>
     <div class="stat-badge"><div class="dot dot-pending"></div> ${pending} Pending</div>
     <div class="stat-badge">${scenes.length} Total</div>
+    ${plan ? `<div class="stat-badge" title="Planned runtime after transitions">&#9201; ${formatRuntime(plan.total_duration)}</div>
+    <div class="stat-badge"><span class="mode-tag mode-generate">VEO</span>${plan.veo_scenes}</div>
+    <div class="stat-badge"><span class="mode-tag mode-ffmpeg">FFMPEG</span>${plan.ffmpeg_scenes}</div>` : ''}
   `;
 }
 
@@ -1187,7 +1334,7 @@ function resetView() { zoom = 1; panX = 0; panY = 0; applyTransform(); }
 
 // ── Keyboard ──
 document.addEventListener('keydown', e => {
-  if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+  if (['TEXTAREA', 'INPUT', 'SELECT'].includes(e.target.tagName)) return;
 
   switch(e.key) {
     case 'ArrowLeft': navPrev(); e.preventDefault(); break;
@@ -1280,7 +1427,9 @@ function exportFeedback() {
       history: fb.history || [],
       prompt: s.prompt,
       video_prompt: s.video_prompt,
-      transition_prompt: s.transition_prompt
+      transition_prompt: s.transition_prompt,
+      look_feel: lookFor(s.id),
+      planned_duration: segmentFor(s.id)?.duration ?? null
     };
   });
 
@@ -1305,6 +1454,234 @@ function copyFeedback() {
   const btn = event.target;
   btn.textContent = 'Copied!';
   setTimeout(() => btn.textContent = 'Copy to Clipboard', 1500);
+}
+
+// ── Look & Feel ──
+async function loadLookFeel() {
+  try {
+    const [oRes, pRes] = await Promise.all([
+      api('/api/look-feel/options'),
+      api(`/api/videos/${VIDEO_ID}/assembly-plan`),
+    ]);
+    if (!oRes.ok || !pRes.ok) throw new Error(`HTTP ${oRes.status}/${pRes.status}`);
+    lfOptions = await oRes.json();
+    plan = await pRes.json();
+    orientation = plan.orientation || orientation;
+  } catch (e) {
+    console.warn('Look & feel unavailable', e);
+    document.getElementById('lookfeel').style.display = 'none';
+    return;
+  }
+  fillSelect('lf-motion', lfOptions.motions, MOTION_LABELS);
+  fillSelect('lf-strength', lfOptions.strengths, STRENGTH_LABELS);
+  fillSelect('lf-transition', lfOptions.transitions, TRANSITION_LABELS);
+}
+
+async function refreshPlan() {
+  try {
+    const res = await api(`/api/videos/${VIDEO_ID}/assembly-plan`);
+    if (res.ok) plan = await res.json();
+  } catch (e) {}
+  scenes.forEach(s => {
+    const el = document.getElementById(`card-look-${s.id}`);
+    if (el) el.innerHTML = cardLookHtml(s.id);
+  });
+  updateStats();
+  if (selectedId) renderLookFeel(selectedId);
+}
+
+function fillSelect(id, values, labels) {
+  document.getElementById(id).innerHTML = values
+    .map(v => `<option value="${v}">${escHtml(labels[v] || v)}</option>`).join('');
+}
+
+function segmentFor(id) {
+  return plan?.segments?.find(seg => seg.scene_id === id) || null;
+}
+
+function lookFor(id) {
+  return { ...(lfOptions?.defaults || {}), ...(sceneMap[id]?.look_feel || {}) };
+}
+
+function cardLookHtml(id) {
+  if (!lfOptions) return '';
+  const look = lookFor(id);
+  const seg = segmentFor(id);
+  const parts = [MOTION_LABELS[look.motion] || look.motion];
+  if (seg && seg.transition !== 'cut') parts.push(`&rarr; ${TRANSITION_LABELS[seg.transition] || seg.transition}`);
+  if (seg) parts.push(`${seg.duration.toFixed(1)}s`);
+  const tag = look.mode === 'ffmpeg' ? 'FFMPEG' : 'VEO';
+  return `<span class="mode-tag mode-${look.mode}">${tag}</span>${parts.join(' &middot; ')}`;
+}
+
+function renderLookFeel(id) {
+  if (!lfOptions) return;
+  const look = lookFor(id);
+  const seg = segmentFor(id);
+  const isLast = scenes[scenes.length - 1]?.id === id;
+
+  document.querySelectorAll('#lf-mode button').forEach(b =>
+    b.classList.toggle('active', b.dataset.mode === look.mode));
+  document.getElementById('lf-motion').value = look.motion;
+  const strength = document.getElementById('lf-strength');
+  strength.value = look.strength;
+  strength.disabled = look.motion === 'static';
+  const transition = document.getElementById('lf-transition');
+  transition.value = look.transition;
+  transition.disabled = isLast;
+  const tDur = document.getElementById('lf-transition-duration');
+  tDur.value = look.transition_duration;
+  tDur.disabled = isLast || look.transition === 'cut';
+  const auto = look.duration == null;
+  document.getElementById('lf-auto').checked = auto;
+  const dur = document.getElementById('lf-duration');
+  dur.disabled = auto;
+  dur.value = auto ? (seg ? seg.duration : '') : look.duration;
+
+  const hint = [];
+  if (seg) {
+    let line = `Runs ${seg.duration.toFixed(2)}s from ${formatRuntime(seg.start)}`;
+    if (seg.narration_duration) line += ` &middot; narration ${seg.narration_duration.toFixed(2)}s`;
+    else line += ' &middot; no narration yet';
+    hint.push(line);
+    if (look.mode === 'generate' && look.duration == null && seg.narration_duration
+        && seg.duration < seg.narration_duration + plan.buffer - 0.01) {
+      hint.push('<span style="color:var(--skip)">Narration is longer than the Veo clip, so it will be cut off. Switch to ffmpeg or shorten the line.</span>');
+    }
+  }
+  if (look.mode === 'ffmpeg') {
+    hint.push(seg?.motion_rendered
+      ? 'Motion clip rendered.'
+      : 'Not rendered yet &mdash; /fk-gen-videos renders ffmpeg scenes, no Flow call.');
+  } else {
+    hint.push('Veo gets this move as a camera direction. Preview renders it with ffmpeg for reference.');
+  }
+  if (isLast) hint.push('Last scene &mdash; no transition after it.');
+  document.getElementById('lf-hint').innerHTML = hint.join('<br>');
+}
+
+function setLookField(field, value) {
+  if (!selectedId || !lfOptions) return;
+  const look = lookFor(selectedId);
+  if (field === 'transition_duration' || field === 'duration') {
+    const n = parseFloat(value);
+    if (!Number.isFinite(n)) return;
+    value = n;
+  }
+  look[field] = value;
+  sceneMap[selectedId].look_feel = look;
+  renderLookFeel(selectedId);
+  const el = document.getElementById(`card-look-${selectedId}`);
+  if (el) el.innerHTML = cardLookHtml(selectedId);
+  scheduleLookSave(selectedId);
+}
+
+function toggleAutoLength(auto) {
+  if (!selectedId) return;
+  const look = lookFor(selectedId);
+  look.duration = auto ? null : (segmentFor(selectedId)?.duration || 5);
+  sceneMap[selectedId].look_feel = look;
+  renderLookFeel(selectedId);
+  scheduleLookSave(selectedId);
+}
+
+function scheduleLookSave(id) {
+  setLfStatus('Unsaved…');
+  clearTimeout(_lfTimer);
+  _lfTimer = setTimeout(() => saveLookFeel(id), 400);
+}
+
+async function saveLookFeel(id) {
+  clearTimeout(_lfTimer);
+  _lfTimer = null;
+  setLfStatus('Saving…');
+  try {
+    const res = await api(`/api/scenes/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ look_feel: lookFor(id) }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(apiError(body, res.status));
+    sceneMap[id].look_feel = body.look_feel;
+    setLfStatus('Saved');
+    await refreshPlan();
+    return true;
+  } catch (e) {
+    setLfStatus(`Save failed: ${e.message}`, true);
+    return false;
+  }
+}
+
+async function previewMotion() {
+  if (!selectedId) return;
+  const id = selectedId;
+  const btn = document.getElementById('lf-preview-btn');
+  if (_lfTimer && !(await saveLookFeel(id))) return;
+  btn.disabled = true;
+  btn.textContent = 'Rendering…';
+  try {
+    const res = await api(`/api/scenes/${id}/motion`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ preview: true, orientation }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(apiError(body, res.status));
+    if (selectedId === id) {
+      const video = document.getElementById('detail-video');
+      video.src = mediaUrl(`${body.url}&t=${Date.now()}`);
+      video.load();
+      video.play().catch(() => {});
+      setLfStatus(`Preview ${body.duration.toFixed(1)}s`);
+    }
+  } catch (e) {
+    setLfStatus(`Preview failed: ${e.message}`, true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Preview motion';
+  }
+}
+
+async function applyLookToAll() {
+  if (!selectedId || !lfOptions) return;
+  const { duration, ...shared } = lookFor(selectedId);
+  const n = scenes.length;
+  if (!confirm(`Apply mode, motion, strength and transition to all ${n} scenes? Each scene keeps its own length.`)) return;
+  setLfStatus(`Applying to ${n} scenes…`);
+  let failed = 0;
+  for (const s of scenes) {
+    const look = { ...lookFor(s.id), ...shared };
+    try {
+      const res = await api(`/api/scenes/${s.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ look_feel: look }),
+      });
+      if (!res.ok) { failed++; continue; }
+      sceneMap[s.id].look_feel = (await res.json()).look_feel;
+    } catch (e) { failed++; }
+  }
+  setLfStatus(failed ? `${failed} of ${n} failed to save` : `Applied to ${n} scenes`, failed > 0);
+  await refreshPlan();
+}
+
+function setLfStatus(text, isError = false) {
+  const el = document.getElementById('lf-status');
+  el.textContent = text;
+  el.classList.toggle('error', isError);
+}
+
+function apiError(body, status) {
+  const d = body?.detail;
+  if (Array.isArray(d)) return d.map(x => x.msg).join('; ');
+  return d || `HTTP ${status}`;
+}
+
+function formatRuntime(seconds) {
+  const s = Math.max(0, seconds || 0);
+  const m = Math.floor(s / 60);
+  return `${m}:${(s - m * 60).toFixed(1).padStart(4, '0')}`;
 }
 
 // ── Helpers ──

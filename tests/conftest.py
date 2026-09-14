@@ -3,6 +3,14 @@
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _auth_off_unless_asked(monkeypatch):
+    """A developer's .env may turn API keys on; tests that want them set it themselves."""
+    from agent import config
+    monkeypatch.setattr(config, "AUTH_ENABLED", False)
+    monkeypatch.setattr(config, "ADMIN_API_KEY", "")
+
+
 @pytest.fixture
 def sample_uuid():
     return "550e8400-e29b-41d4-a716-446655440000"

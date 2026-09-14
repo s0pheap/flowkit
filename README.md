@@ -131,7 +131,8 @@ Each project goes through: **story → entities → reference images → scene i
 | Scene images | Composed using all referenced entities |
 | 8-second video clips | Generated from scene images with camera motion + sound effects |
 | 4K upscale | Optional upscale to 4K resolution |
-| Narrator TTS | Voice-cloned narration per scene |
+| Narrator TTS | Gemini TTS narration per scene, with word timings |
+| Subtitles | SRT captions from the word timings, embedded or burned in |
 | Final video | All clips concatenated, trimmed to narrator timing |
 | Thumbnails | YouTube-optimized with text overlays + branding |
 | YouTube metadata | SEO-optimized title, description, tags, hashtags |
@@ -150,7 +151,7 @@ Each project goes through: **story → entities → reference images → scene i
 
 ### Web Dashboard — Ops Console
 
-A local React dashboard (`dashboard/`) for monitoring and driving the pipeline — real-time KPIs, per-video stage progress, a scene-level pipeline view with AI review, and a setup guide, all backed by the same FastAPI agent. Supports English, Vietnamese, Hindi, Indonesian, Chinese, Korean, and Japanese.
+A local React dashboard (`dashboard/`) for monitoring and driving the pipeline — real-time KPIs, per-video stage progress, a scene-level pipeline view with AI review, and a setup guide, all backed by the same FastAPI agent. Supports English and Korean.
 
 <p align="center">
   <img src="docs/images/dashboard_overview.png" width="800" alt="Dashboard home screen with KPI cards, pipeline throughput table, needs-attention panel, and live event stream" />
@@ -682,7 +683,11 @@ agent/
 ├── services/
 │   ├── flow_client.py   # WS bridge to extension
 │   ├── headers.py       # Randomized browser headers
-│   ├── tts.py           # OmniVoice TTS (subprocess-based)
+│   ├── tts.py           # Narration TTS (Gemini / gTTS / OmniVoice) + word-timing sidecars
+│   ├── gemini_tts.py    # Gemini TTS + word timings
+│   ├── subtitles.py     # SRT cues from word timings
+│   ├── motion.py        # ffmpeg pan/zoom renders from keyframes
+│   ├── assembly.py      # Timeline: scene lengths, starts, transitions
 │   ├── scene_chain.py   # Continuation scene logic
 │   ├── video_reviewer.py # AI vision review — contact sheet + claude/agy/codex CLI dispatch
 │   └── post_process.py  # ffmpeg trim/merge/music
@@ -705,9 +710,41 @@ AGENTS.md                # AI agent instructions (Codex CLI)
 GEMINI.md                # AI agent instructions (Gemini CLI)
 ```
 
-## TTS Narration (OmniVoice)
+## TTS Narration, Subtitles and Look & Feel
 
-Optional narrator voice for scenes. Uses [OmniVoice](https://github.com/tuannguyenhoangit-droid/OmniVoice) — multilingual zero-shot TTS with voice cloning (600+ languages).
+Narration is spoken by **Gemini TTS** (`TTS_ENGINE=gemini`, the default). Gemini returns audio only, so a second Gemini audio call reports when each word is spoken; the timings are mapped back onto the script and saved beside each wav as `scene_NNN_<id>.words.json`. Subtitles are built from those timings.
+
+```bash
+# .env
+GEMINI_API_KEY=...            # https://aistudio.google.com/apikey
+GEMINI_TTS_VOICE=Kore         # any prebuilt Gemini voice
+```
+
+### Workflow
+
+```
+/fk-gen-narrator     → narrator_text, Gemini TTS wav + word timings, subtitles/*.srt
+/fk-review-board     → per-scene Look & feel: Veo or ffmpeg, pan/zoom, transition, length
+/fk-gen-videos       → Veo scenes generate; ffmpeg scenes render from the keyframe (no Flow cost)
+/fk-concat-fit-narrator → trims to the plan, applies transitions, embeds captions
+```
+
+| Endpoint | What it does |
+|----------|--------------|
+| `POST /api/tts/generate` | One line → wav + `words` (`voice`, `style`, `output_path`) |
+| `POST /api/videos/{vid}/narrate` | Every scene's `narrator_text` → wavs + timings |
+| `PATCH /api/scenes/{sid}` `{"look_feel": {...}}` | `mode` (`generate`/`ffmpeg`), `motion`, `strength`, `transition`, `transition_duration`, `duration` |
+| `GET /api/videos/{vid}/assembly-plan` | Per-scene start, length, source clip, transition, and ready `xfade` filters |
+| `POST /api/scenes/{sid}/motion` | Render the keyframe's pan/zoom with ffmpeg (`preview: true` for a quick low-res one) |
+| `POST /api/videos/{vid}/subtitles` | Per-scene SRTs + `captions.srt` placed on the assembly timeline |
+
+A scene's length follows its narration (+0.5s) unless its look & feel fixes one. Veo scenes can't run past their 7s usable clip; ffmpeg scenes can run as long as the narration.
+
+`TTS_ENGINE=google` switches back to the free gTTS voice; word timings still come from Gemini when a key is set.
+
+## OmniVoice (optional voice cloning)
+
+`TTS_ENGINE=omnivoice` uses [OmniVoice](https://github.com/tuannguyenhoangit-droid/OmniVoice) — multilingual zero-shot TTS with voice cloning (600+ languages).
 
 ### Setup
 

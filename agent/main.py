@@ -7,8 +7,11 @@ from contextlib import asynccontextmanager
 
 import websockets
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import HTTPException
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
+from agent import auth, config
 from agent.config import API_HOST, API_PORT, WS_HOST, WS_PORT
 from agent.db.schema import init_db, close_db
 from agent.api.characters import router as characters_router
@@ -24,6 +27,10 @@ from agent.api.music import router as music_router
 from agent.api.models import router as models_router
 from agent.api.providers import router as providers_router
 from agent.api.active_project import router as active_project_router
+from agent.api.look_feel import router as look_feel_router
+from agent.api.admin import router as admin_router
+from agent.api import install as install_api
+from agent.api.render import router as render_router, review_board_page
 from agent.worker.processor import get_worker_controller
 from agent.services.flow_client import get_flow_client
 from agent.services.event_bus import event_bus
@@ -88,6 +95,7 @@ async def lifespan(app: FastAPI):
     ops = init_sdk(get_flow_client())
     logger.info("SDK initialized (OperationService ready)")
     logger.info("Flow Kit starting on %s:%d", API_HOST, API_PORT)
+    _warn_about_exposure()
 
     controller = get_worker_controller()
 
@@ -113,8 +121,23 @@ async def lifespan(app: FastAPI):
     logger.info("Flow Kit stopped")
 
 
+_LOOPBACK = ("127.0.0.1", "::1", "localhost")
+
+
+def _warn_about_exposure():
+    if config.AUTH_ENABLED:
+        if not config.ADMIN_API_KEY:
+            logger.warning("AUTH_ENABLED=1 without ADMIN_API_KEY: only users made with `python -m agent.users` can sign in")
+        if WS_HOST not in _LOOPBACK:
+            logger.warning("WS_HOST=%s: the extension socket has no key check, keep it on 127.0.0.1", WS_HOST)
+    elif API_HOST not in _LOOPBACK:
+        logger.warning("API_HOST=%s with AUTH_ENABLED=0: anyone who can reach :%d controls this agent", API_HOST, API_PORT)
+
+
 app = FastAPI(title="Flow Kit", version="1.1.0", lifespan=lifespan)
 
+# Added before CORS so CORS stays outermost and answers preflights itself.
+app.add_middleware(auth.AuthMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -132,6 +155,13 @@ app.include_router(reviews_router, prefix="/api")
 app.include_router(tts_router, prefix="/api")
 app.include_router(materials_router, prefix="/api")
 app.include_router(music_router, prefix="/api")
+app.include_router(look_feel_router, prefix="/api")
+app.include_router(admin_router, prefix="/api")
+app.include_router(render_router, prefix="/api")
+app.include_router(install_api.router)
+app.add_api_route("/review-board", review_board_page, methods=["GET"], include_in_schema=False)
+app.add_api_route("/install.sh", install_api.install_sh, methods=["GET"], include_in_schema=False)
+app.add_api_route("/install.ps1", install_api.install_ps1, methods=["GET"], include_in_schema=False)
 app.include_router(models_router)
 app.include_router(providers_router)
 app.include_router(active_project_router)
@@ -149,6 +179,10 @@ async def ext_callback(request: Request):
     Extension POSTs {id, status, data, error} here instead of sending via WS.
     Requires X-Callback-Secret header matching the secret sent to extension on WS connect.
     """
+    if config.AUTH_ENABLED and not (_is_direct_local(request) and _has_callback_secret(request)):
+        # The extension posts straight to 127.0.0.1 with the secret it got on the
+        # socket. Anything else could forge a Flow result, so refuse it.
+        return JSONResponse({"ok": False, "reason": "callback is only accepted from the local extension"}, status_code=403)
     data = await request.json()
     client = get_flow_client()
     req_id = data.get("id")
@@ -166,6 +200,16 @@ async def ext_callback(request: Request):
     return {"ok": False, "reason": "no matching pending request"}
 
 
+def _has_callback_secret(request: Request) -> bool:
+    import hmac
+    return hmac.compare_digest(request.headers.get("x-callback-secret", ""), _CALLBACK_SECRET)
+
+
+def _is_direct_local(request: Request) -> bool:
+    forwarded = any(h in request.headers for h in ("x-forwarded-for", "forwarded", "x-real-ip", "cf-connecting-ip"))
+    return bool(request.client) and request.client.host in _LOOPBACK and not forwarded
+
+
 @app.get("/health")
 async def health():
     client = get_flow_client()
@@ -179,26 +223,48 @@ async def health():
 
 # ─── Dashboard WebSocket ──────────────────────────────────────
 
+# Events that carry no per-project data, so every signed-in user may see them.
+_SHARED_EVENTS = {"worker_tick", "urls_refreshed"}
+
+
+async def _event_visible(msg: str, allowed: set[str]) -> bool:
+    """Whether a non-admin dashboard should get this event."""
+    from agent.db import crud
+    event = json.loads(msg)
+    if event.get("type") in _SHARED_EVENTS:
+        return True
+    if event.get("type") == "request_update":
+        row = await crud.get_request((event.get("data") or {}).get("id") or "")
+        return bool(row) and row.get("project_id") in allowed
+    return False
+
+
 @app.websocket("/ws/dashboard")
 async def dashboard_ws(websocket: WebSocket):
     """WebSocket endpoint for dashboard clients (Chrome extension side panel)."""
-    # Reject cross-origin connections (only allow localhost)
+    # Without keys, reject cross-origin connections (only allow localhost).
+    # With keys, the key (checked in AuthMiddleware) is what keeps other pages out.
     origin = (websocket.headers.get("origin") or "").lower()
-    if origin and not any(origin.startswith(p) for p in (
+    if not config.AUTH_ENABLED and origin and not any(origin.startswith(p) for p in (
         "http://127.0.0.1", "http://localhost", "chrome-extension://",
     )):
         await websocket.close(code=4003, reason="Origin not allowed")
         return
     await websocket.accept()
 
+    principal = auth.current_principal()
     q = event_bus.subscribe()
     try:
         # Send initial snapshot
         client = get_flow_client()
         controller = get_worker_controller()
         from agent.db import crud
+        allowed = await auth.allowed_project_ids(principal)
         pending_requests = await crud.list_requests(status="PENDING")
         processing_requests = await crud.list_requests(status="PROCESSING")
+        if allowed is not None:
+            pending_requests = [r for r in pending_requests if r.get("project_id") in allowed]
+            processing_requests = [r for r in processing_requests if r.get("project_id") in allowed]
         snapshot = {
             "type": "snapshot",
             "health": {
@@ -217,7 +283,8 @@ async def dashboard_ws(websocket: WebSocket):
         while True:
             try:
                 msg = await asyncio.wait_for(q.get(), timeout=30.0)
-                await websocket.send_text(msg)
+                if allowed is None or await _event_visible(msg, allowed):
+                    await websocket.send_text(msg)
             except asyncio.TimeoutError:
                 # Send keepalive ping
                 await websocket.send_text(json.dumps({"type": "ping"}))
@@ -227,6 +294,26 @@ async def dashboard_ws(websocket: WebSocket):
         logger.debug("Dashboard WS client disconnected: %s", e)
     finally:
         event_bus.unsubscribe(q)
+
+
+# ─── Dashboard (built) ────────────────────────────────────────
+# Registered last so every API, WebSocket and install route wins. Anything else
+# is a dashboard file or a client-side route, which gets index.html.
+
+_NOT_DASHBOARD = ("api/", "ws/", "install/", "review-board")
+
+
+@app.get("/{path:path}", include_in_schema=False)
+async def dashboard(path: str):
+    dist = config.DASHBOARD_DIST
+    index = dist / "index.html"
+    if path.startswith(_NOT_DASHBOARD) or path in ("api", "ws", "install") or not index.is_file():
+        raise HTTPException(404, "Not found")
+    if path:
+        candidate = (dist / path).resolve()
+        if candidate.is_file() and candidate.is_relative_to(dist.resolve()):
+            return FileResponse(candidate)
+    return FileResponse(index, headers={"Cache-Control": "no-cache"})
 
 
 if __name__ == "__main__":
