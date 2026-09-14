@@ -1,16 +1,25 @@
 """Video review engine — frame extraction + Claude Vision analysis.
 
-Two analysis backends:
-  1. CLI subprocess (claude/agy/codex, default) — no API key needed, uses contact sheets
-  2. Anthropic SDK (if ANTHROPIC_API_KEY set) — direct API, individual frames
+Three ways to get the vision analysis:
+  1. The caller's own AI agent: the server prepares contact sheets and the prompt
+     (prepare_scene_review), the agent looks at them and posts its JSON back
+     (finish_scene_review). Nothing runs on the host.
+  2. A CLI on the host (claude/agy/codex): no API key needed, uses contact sheets.
+     A request can pick the CLI; otherwise the server-wide active provider is used.
+  3. Anthropic SDK (ANTHROPIC_API_KEY set and no CLI asked for): individual frames.
+All three are scored the same way (scene_review_from_analysis).
 """
 import asyncio
 import base64
 import json
 import logging
 import os
+import re
+import shutil
 import subprocess
 import tempfile
+import time
+import uuid
 from pathlib import Path
 
 import ssl
@@ -189,6 +198,17 @@ def _frame_to_base64(path: Path) -> str:
     return base64.standard_b64encode(path.read_bytes()).decode()
 
 
+def _link_or_copy(src: Path, dest: Path) -> None:
+    """Symlinks need a privilege on Windows; a hard link or a copy works everywhere."""
+    for make in (os.symlink, os.link):
+        try:
+            make(src, dest)
+            return
+        except OSError:
+            continue
+    shutil.copyfile(src, dest)
+
+
 def _create_contact_sheets(video_path: str, fps: float, out_dir: str) -> tuple[list[Path], int]:
     """Extract all frames (timestamped) and tile them into REVIEW_SHEET_COLSxREVIEW_SHEET_ROWS sheets.
 
@@ -223,7 +243,7 @@ def _create_contact_sheets(video_path: str, fps: float, out_dir: str) -> tuple[l
         chunk_dir = Path(out_dir) / f"_chunk_{sheet_idx:02d}"
         chunk_dir.mkdir(exist_ok=True)
         for i, frame_path in enumerate(chunk, start=1):
-            os.symlink(frame_path.resolve(), chunk_dir / f"f_{i:04d}.jpg")
+            _link_or_copy(frame_path.resolve(), chunk_dir / f"f_{i:04d}.jpg")
         output = Path(out_dir) / f"sheet_{sheet_idx:02d}.jpg"
         # Pick the largest divisor of the chunk size (up to REVIEW_SHEET_COLS) as the
         # column count, so every cell in the tile is filled — zero unfilled cells for any
@@ -331,18 +351,15 @@ def _build_prompt(n_frames: int, fps: float, n_sheets: int, scene: dict) -> str:
 
 
 def _parse_json_response(raw: str) -> dict:
-    """Extract JSON from a response that may contain markdown fences."""
+    """Extract JSON from a response that may wrap it in prose or markdown fences."""
     raw = raw.strip()
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-    # Also try to find JSON object in free text
-    raw = raw.strip()
-    if not raw.startswith("{"):
-        start = raw.find("{")
-        if start >= 0:
-            raw = raw[start:]
+    fenced = re.search(r"```(?:json)?\s*(.*?)```", raw, re.DOTALL)
+    if fenced:
+        raw = fenced.group(1).strip()
+    # Otherwise take the outermost object out of free text.
+    start, end = raw.find("{"), raw.rfind("}")
+    if start >= 0 and end > start:
+        raw = raw[start:end + 1]
     return json.loads(raw)
 
 
@@ -410,24 +427,33 @@ async def _run_codex_cli(prompt: str, contact_sheets: list[Path]) -> str:
         out_path.unlink(missing_ok=True)
 
 
+def host_providers() -> dict[str, bool]:
+    """Each known CLI provider and whether its binary is on this host's PATH."""
+    return {name: shutil.which(binary) is not None for name, binary in PROVIDER_BINARIES.items()}
+
+
+def _sheet_intro(n_sheets: int, n_frames: int, fps: float) -> str:
+    if n_sheets == 1:
+        return f"It is a contact sheet of {n_frames} video frames at {fps}fps with timestamps."
+    return (
+        f"These are {n_sheets} sequential contact sheets covering {n_frames} video frames "
+        f"at {fps}fps with timestamps, in chronological order (sheet 1 is earliest)."
+    )
+
+
 async def _analyze_cli(
     contact_sheets: list[Path],
     n_frames: int,
     fps: float,
     scene: dict,
+    provider: str | None = None,
 ) -> dict:
-    """Analyze contact sheets via the active CLI provider (claude/agy/codex)."""
+    """Analyze contact sheets via a host CLI: ``provider``, else the active one."""
     n_sheets = len(contact_sheets)
     base_prompt = _build_prompt(n_frames, fps, n_sheets, scene)
-    provider = config.CLI_PROVIDERS["active"]
+    provider = provider or config.CLI_PROVIDERS["active"]
     logger.info("Calling %s CLI for vision analysis (%d frames, %d sheets)", provider, n_frames, n_sheets)
-    if n_sheets == 1:
-        sheet_intro = f"It is a contact sheet of {n_frames} video frames at {fps}fps with timestamps."
-    else:
-        sheet_intro = (
-            f"These are {n_sheets} sequential contact sheets covering {n_frames} video frames "
-            f"at {fps}fps with timestamps, in chronological order (sheet 1 is earliest)."
-        )
+    sheet_intro = _sheet_intro(n_sheets, n_frames, fps)
     if provider == "codex":
         full_prompt = f"{sheet_intro}\n\n{base_prompt}"
         raw = await _run_codex_cli(full_prompt, contact_sheets)
@@ -484,39 +510,41 @@ async def _analyze_sdk(
 
 # ─── Public API ───────────────────────────────────────────────
 
+async def _download_scene_clip(scene: dict, orientation: str, video_path: Path) -> None:
+    orient_prefix = "vertical" if orientation.upper() == "VERTICAL" else "horizontal"
+    video_url = scene.get(f"{orient_prefix}_video_url")
+    if not video_url:
+        raise ValueError(f"No video URL found for scene {scene['id']} ({orientation})")
+    logger.info("Downloading video for scene %s from %s", scene["id"], video_url[:80])
+    try:
+        await _download_video(video_url, video_path)
+    except (_URLExpiredError, Exception) as e:
+        # URL expired or download failed — fall back to get_media API
+        media_id = scene.get(f"{orient_prefix}_video_media_id")
+        if not media_id:
+            raise ValueError(f"No media_id to refresh URL for scene {scene['id']}")
+        logger.info("URL download failed for scene %s (%s), fetching via get_media %s",
+                    scene["id"], type(e).__name__, media_id[:12])
+        await _download_via_get_media(media_id, video_path)
+
+
 async def review_scene_video(
     scene: dict,
     characters: list,
     mode: str = "light",
     orientation: str = "VERTICAL",
     project_id: str = None,
+    provider: str | None = None,
 ) -> SceneReview:
-    """Review a single scene's video via frame extraction + Claude Vision."""
+    """Review one scene's video on the host: a CLI (``provider`` or the active one), or the SDK."""
     fps = REVIEW_FPS_DEEP if mode == "deep" else REVIEW_FPS_LIGHT
-
-    orient_prefix = "vertical" if orientation.upper() == "VERTICAL" else "horizontal"
-    video_url = scene.get(f"{orient_prefix}_video_url")
-
-    if not video_url:
-        raise ValueError(f"No video URL found for scene {scene['id']} ({orientation})")
 
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
         video_path = tmp_path / "scene.mp4"
+        await _download_scene_clip(scene, orientation, video_path)
 
-        logger.info("Downloading video for scene %s from %s", scene["id"], video_url[:80])
-        try:
-            await _download_video(video_url, video_path)
-        except (_URLExpiredError, Exception) as e:
-            # URL expired or download failed — fall back to get_media API
-            media_id = scene.get(f"{orient_prefix}_video_media_id")
-            if not media_id:
-                raise ValueError(f"No media_id to refresh URL for scene {scene['id']}")
-            logger.info("URL download failed for scene %s (%s), fetching via get_media %s",
-                        scene["id"], type(e).__name__, media_id[:12])
-            await _download_via_get_media(media_id, video_path)
-
-        if ANTHROPIC_API_KEY:
+        if ANTHROPIC_API_KEY and not provider:
             # SDK path: individual frames
             logger.info("Extracting frames at %sfps (SDK mode)", fps)
             frames = await asyncio.get_event_loop().run_in_executor(
@@ -539,8 +567,15 @@ async def review_scene_video(
             if not contact_sheets or not all(s.exists() for s in contact_sheets):
                 raise RuntimeError(f"Contact sheets not created for scene {scene['id']}")
             logger.info("Analyzing %d frames across %d sheets via CLI provider", n_frames, len(contact_sheets))
-            result = await _analyze_cli(contact_sheets, n_frames, fps, scene)
+            result = await _analyze_cli(contact_sheets, n_frames, fps, scene, provider=provider)
 
+    return scene_review_from_analysis(scene["id"], result, n_frames, fps)
+
+
+def scene_review_from_analysis(scene_id: str, result: dict, n_frames: int, fps: float) -> SceneReview:
+    """Score a vision analysis (the prompt's JSON) the same way whichever model produced it."""
+    if not isinstance(result, dict):
+        raise ValueError("The analysis must be a JSON object with dimensions, errors and usable_segments")
     # Parse structured errors with severity
     errors = []
     for e in result.get("errors", []):
@@ -584,7 +619,7 @@ async def review_scene_video(
     ]
 
     return SceneReview(
-        scene_id=scene["id"],
+        scene_id=scene_id,
         overall_score=overall,
         verdict=_verdict(overall),
         dimensions=dims,
@@ -603,6 +638,7 @@ async def review_video(
     mode: str = "light",
     orientation: str = "VERTICAL",
     scene_ids: list[str] | None = None,
+    provider: str | None = None,
 ) -> VideoReview:
     """Review all scenes (or a subset by scene_ids) in a video."""
     scenes = await list_scenes(video_id)
@@ -624,7 +660,8 @@ async def review_video(
             continue
 
         try:
-            review = await review_scene_video(scene, characters, mode=mode, orientation=orientation, project_id=project_id)
+            review = await review_scene_video(scene, characters, mode=mode, orientation=orientation,
+                                              project_id=project_id, provider=provider)
             scene_reviews.append(review)
         except Exception as e:
             logger.error("Failed to review scene %s: %s", scene["id"], e)
@@ -643,3 +680,105 @@ async def review_video(
         scenes_reviewed=len(scene_reviews),
         scenes_skipped=skipped,
     )
+
+
+# ─── Own-agent review: the caller's AI does the vision analysis ─────
+
+#: Prepared contact sheets wait here until the agent posts its analysis (or they expire).
+REVIEW_JOBS_DIR = config.SHARED_OUTPUT_DIR / "review_jobs"
+REVIEW_JOB_TTL_S = 24 * 3600
+_JOB_ID = re.compile(r"^[0-9a-f]{32}$")
+
+
+def _job_dir(job_id: str) -> Path | None:
+    return REVIEW_JOBS_DIR / job_id if _JOB_ID.match(job_id or "") else None
+
+
+def purge_review_jobs(now: float | None = None) -> int:
+    """Delete prepared jobs older than REVIEW_JOB_TTL_S. Returns how many went."""
+    now = now or time.time()
+    removed = 0
+    if REVIEW_JOBS_DIR.is_dir():
+        for folder in REVIEW_JOBS_DIR.iterdir():
+            if folder.is_dir() and now - folder.stat().st_mtime > REVIEW_JOB_TTL_S:
+                shutil.rmtree(folder, ignore_errors=True)
+                removed += 1
+    return removed
+
+
+async def prepare_scene_review(scene: dict, video_id: str, project_id: str,
+                               mode: str = "light", orientation: str = "VERTICAL") -> dict:
+    """Make the contact sheets and the vision prompt for an agent to analyse; nothing is analysed here."""
+    purge_review_jobs()
+    fps = REVIEW_FPS_DEEP if mode == "deep" else REVIEW_FPS_LIGHT
+    job_id = uuid.uuid4().hex
+    folder = REVIEW_JOBS_DIR / job_id
+    folder.mkdir(parents=True)
+    try:
+        clip = folder / "scene.mp4"
+        await _download_scene_clip(scene, orientation, clip)
+        sheets, n_frames = await asyncio.get_event_loop().run_in_executor(
+            None, _create_contact_sheets, str(clip), fps, str(folder)
+        )
+        if not sheets:
+            raise RuntimeError(f"Contact sheets not created for scene {scene['id']}")
+        # Keep only the sheets: the clip and loose frames are not needed again.
+        clip.unlink(missing_ok=True)
+        for leftover in folder.iterdir():
+            if leftover.is_dir():
+                shutil.rmtree(leftover, ignore_errors=True)
+    except Exception:
+        shutil.rmtree(folder, ignore_errors=True)
+        raise
+    prompt = (
+        f"Look at the {len(sheets)} contact sheet image(s) in order. "
+        f"{_sheet_intro(len(sheets), n_frames, fps)}\n\n{_build_prompt(n_frames, fps, len(sheets), scene)}"
+    )
+    job = {
+        "review_id": job_id,
+        "video_id": video_id,
+        "project_id": project_id,
+        "scene_id": scene["id"],
+        "display_order": scene.get("display_order"),
+        "mode": mode,
+        "orientation": orientation,
+        "fps": fps,
+        "n_frames": n_frames,
+        "sheet_count": len(sheets),
+        "prompt": prompt,
+        "created_at": time.time(),
+    }
+    (folder / "job.json").write_text(json.dumps(job, ensure_ascii=False), encoding="utf-8")
+    return job
+
+
+def load_review_job(job_id: str) -> dict | None:
+    folder = _job_dir(job_id)
+    meta = folder / "job.json" if folder else None
+    if not meta or not meta.exists():
+        return None
+    try:
+        return json.loads(meta.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def review_job_sheet(job_id: str, index: int) -> Path | None:
+    """Sheet ``index`` (1-based, chronological) of a prepared job."""
+    folder = _job_dir(job_id)
+    if not folder or index < 1:
+        return None
+    path = folder / f"sheet_{index - 1:02d}.jpg"
+    return path if path.exists() else None
+
+
+def finish_scene_review(job: dict, analysis) -> SceneReview:
+    """Score the agent's analysis (a JSON object, or its text reply) and close the job."""
+    if isinstance(analysis, str):
+        analysis = _parse_json_response(analysis)
+    review = scene_review_from_analysis(job["scene_id"], analysis, job["n_frames"], job["fps"])
+    folder = _job_dir(job["review_id"])
+    if folder:
+        shutil.rmtree(folder, ignore_errors=True)
+    return review
+

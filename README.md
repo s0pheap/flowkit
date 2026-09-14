@@ -578,6 +578,8 @@ curl -X PATCH http://127.0.0.1:8100/api/providers \
 
 Or just run `/fk-change-provider` for an interactive picker. Full details in `skills/fk-change-provider.md`.
 
+**Use your own AI agent instead of the host.** On a shared server, a user's own agent (Claude Code, Codex, Gemini CLI) can do the vision analysis: `POST /api/videos/<VID>/review/prepare` returns each scene's contact sheets and prompt, the agent looks at them and posts its JSON to the returned `result_url`, and the server scores it exactly like a host review. Any user key can also pick the host CLI per request with `?provider=claude|agy` on `POST …/review`, without changing the server-wide default. `/fk-review-video` tries the user's agent first and falls back to the host.
+
 ## Video Generation Techniques
 
 | Technique | API Type | Use Case |

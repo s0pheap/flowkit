@@ -86,10 +86,10 @@ class TestCreateContactSheetsChunking:
                 chunk_dir = Path(out_dir) / f"_chunk_{sheet_idx:02d}"
                 symlinks = sorted(chunk_dir.glob("f_*.jpg"))
                 assert len(symlinks) == len(expected_chunk)
+                # Symlink, hard link or copy (Windows) — the entry must hold the selected frame.
                 for link, expected_target in zip(symlinks, expected_chunk):
-                    assert link.resolve() == expected_target.resolve(), (
-                        f"chunk {sheet_idx} symlink {link.name} points to "
-                        f"{link.resolve()}, expected {expected_target.resolve()}"
+                    assert link.read_bytes() == expected_target.read_bytes(), (
+                        f"chunk {sheet_idx} entry {link.name} is not {expected_target.name}"
                     )
         finally:
             shutil.rmtree(out_dir, ignore_errors=True)
