@@ -29,6 +29,18 @@ class TestSceneDuration:
     def test_follows_narration_plus_buffer(self):
         assert assembly.scene_duration(_item(0, narration=5.86)) == 6.36
 
+    def test_fixed_length_stretches_a_veo_clip_in_slow_motion(self):
+        item = _item(0, narration=9.3, duration=10.0)
+        assert assembly.scene_duration(item) == 10.0
+        assert assembly.clip_speed(item, 10.0) == 0.7
+        # Never slower than VEO_MIN_SPEED: 7s usable / 0.6 = 11.667s at most.
+        assert assembly.scene_duration(_item(0, duration=20.0)) == 11.667
+        # Narration alone still caps, and ffmpeg scenes never change speed.
+        assert assembly.clip_speed(_item(0, narration=5.0), 5.5) == 1.0
+        assert assembly.clip_speed(_item(0, mode="ffmpeg", duration=10.0), 10.0) == 1.0
+        segment = assembly.plan_timeline([item])[0]
+        assert segment["speed"] == 0.7 and segment["duration"] == 10.0
+
     def test_veo_scene_is_capped_at_usable_clip(self):
         assert assembly.scene_duration(_item(0, narration=9.0)) == 7.0
         assert assembly.scene_duration(_item(0, narration=9.0, clip=10.0)) == 9.0

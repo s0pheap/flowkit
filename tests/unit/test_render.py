@@ -63,6 +63,25 @@ class TestHelpers:
         assert cmd[cmd.index("-t", cmd.index("-map")) + 1] == "2.5"
         assert "-ar 48000 -ac 2" in joined
 
+    def test_segment_command_slows_a_stretched_clip_and_its_sound(self, tmp_path):
+        seg = {"duration": 10.0, "trim_start": 1.0, "speed": 0.7}
+        joined = " ".join(render.segment_command(seg, "clip.mp4", True, tmp_path / "o.mp4", 1920, 1080, "n.wav", []))
+        assert "[0:v]setpts=(PTS-STARTPTS)/0.7,scale=" in joined
+        assert "[0:a]atempo=0.7[slow];[slow]volume=0.3" in joined
+        normal = " ".join(render.segment_command({"duration": 5.0, "trim_start": 1.0}, "clip.mp4", True,
+                                                 tmp_path / "o.mp4", 1920, 1080, None, []))
+        assert "setpts" not in normal and "atempo" not in normal
+
+    @pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg not installed")
+    def test_stretched_segment_really_lasts_the_fixed_length(self, tmp_path):
+        ff("-f", "lavfi", "-i", "testsrc2=size=640x360:rate=24:duration=3", "-f", "lavfi", "-i",
+           "sine=frequency=330:duration=3", "-shortest", "-c:v", "libx264", "-c:a", "aac", str(tmp_path / "c.mp4"))
+        out = tmp_path / "o.mp4"
+        seg = {"duration": 4.0, "trim_start": 1.0, "speed": 0.5}
+        subprocess.run(render.segment_command(seg, str(tmp_path / "c.mp4"), True, out, 640, 360, None, []), check=True)
+        length = float(json.loads(probe(out, "format=duration"))["format"]["duration"])
+        assert abs(length - 4.0) < 0.15
+
     def test_music_command_loops_fades_and_ducks(self, tmp_path):
         cmd = render.music_command(tmp_path / "v.mp4", tmp_path / "m.mp3", tmp_path / "o.mp4", 20.0, volume=0.2)
         joined = " ".join(cmd)
@@ -324,6 +343,34 @@ class TestRenderApi:
         assert status["status"] == "done", status
         kinds = {s["codec_type"] for s in json.loads(probe(root / status["output_path"], "stream=codec_type"))["streams"]}
         assert kinds == {"video", "audio"}
+
+    @pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg not installed")
+    async def test_each_video_of_a_project_keeps_its_own_render(self, env):
+        root, client = env
+        video, _ = await seed_video(root)
+        other = await crud.create_video(project_id=PROJECT, title="khmer", orientation="HORIZONTAL")
+        key = {"X-API-Key": ADMIN_KEY}
+        await client.post(f"/api/videos/{video['id']}/render", headers=key, json={"subs": "none"})
+        status = await wait_for(client, video["id"], key)
+        assert status["status"] == "done", status
+        assert video["id"][:8] in status["output_path"]
+        assert (root / "output" / "render_test" / "render_status" / f"{video['id']}.json").exists()
+        # The other video in the same project has no render and cannot download this one.
+        assert (await client.get(f"/api/videos/{other['id']}/render", headers=key)).json()["status"] == "none"
+        assert (await client.get(f"/api/videos/{other['id']}/final.mp4", headers=key)).status_code == 404
+        assert (await client.get(f"/api/videos/{video['id']}/final.mp4", headers=key)).status_code == 200
+
+    async def test_legacy_project_status_answers_only_for_its_video(self, env):
+        root, _client = env
+        folder = root / "output" / "legacy"
+        folder.mkdir(parents=True)
+        (folder / "legacy_narrator_cut.mp4").write_bytes(b"x")
+        (folder / "render_status.json").write_text(json.dumps({
+            "video_id": "aaaa1111-0000", "slug": "legacy", "status": "done",
+            "output_path": "output/legacy/legacy_narrator_cut.mp4"}), encoding="utf-8")
+        assert render.get_job("aaaa1111-0000", "legacy").status == "done"
+        assert render.final_file("aaaa1111-0000", "legacy").name == "legacy_narrator_cut.mp4"
+        assert render.get_job("bbbb2222-0000", "legacy") is None
 
     @pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg not installed")
     async def test_render_with_background_music(self, env):

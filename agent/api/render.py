@@ -95,8 +95,8 @@ async def render_status(vid: str):
 @router.get("/videos/{vid}/final.mp4")
 async def final_video(vid: str, download: bool = False):
     _video, _project, slug = await _slug(vid)
-    path = render.final_path(slug)
-    if not path.exists():
+    path = render.final_file(vid, slug)
+    if not path or not path.exists():
         raise HTTPException(404, "No final video yet. Start one with POST /api/videos/{vid}/render.")
     return FileResponse(path, media_type="video/mp4", filename=path.name if download else None,
                         headers={"Cache-Control": "no-cache"})
@@ -105,9 +105,7 @@ async def final_video(vid: str, download: bool = False):
 @router.get("/videos/{vid}/captions.srt")
 async def final_captions(vid: str, download: bool = False):
     _video, _project, slug = await _slug(vid)
-    path = render.final_captions_path(slug)
-    if not path.exists():
-        path = project_dir(slug) / "subtitles" / "captions.srt"
+    path = render.final_captions_file(vid, slug) or project_dir(slug) / "subtitles" / "captions.srt"
     if not path.exists():
         raise HTTPException(404, "No captions yet. Narrate the video, then build subtitles or render.")
     return FileResponse(path, media_type="application/x-subrip; charset=utf-8",

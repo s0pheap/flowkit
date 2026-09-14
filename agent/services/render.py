@@ -103,12 +103,15 @@ class RenderJob:
 
 # ─── Paths ───────────────────────────────────────────────────
 
-def final_path(slug: str) -> Path:
-    return project_dir(slug) / f"{slug}_narrator_cut.mp4"
+# Each video of a project gets its own final cut and status (a project can hold several
+# videos, e.g. one per narration language), named with the first 8 characters of its id.
+
+def final_path(slug: str, video_id: str) -> Path:
+    return project_dir(slug) / f"{slug}_{video_id[:8]}_narrator_cut.mp4"
 
 
-def final_captions_path(slug: str) -> Path:
-    return project_dir(slug) / f"{slug}_narrator_cut.srt"
+def final_captions_path(slug: str, video_id: str) -> Path:
+    return project_dir(slug) / f"{slug}_{video_id[:8]}_narrator_cut.srt"
 
 
 def music_dir(slug: str) -> Path:
@@ -136,7 +139,12 @@ def music_file(slug: str, name: str) -> Optional[Path]:
     return path
 
 
-def _status_file(slug: str) -> Path:
+def _status_file(slug: str, video_id: str) -> Path:
+    return project_dir(slug) / "render_status" / f"{video_id}.json"
+
+
+def _legacy_status_file(slug: str) -> Path:
+    """Before per-video files, one status per project; it still answers for the video it names."""
     return project_dir(slug) / "render_status.json"
 
 
@@ -161,19 +169,39 @@ def get_job(video_id: str, slug: str) -> Optional[RenderJob]:
     """The live job, else the last one recorded on disk (a restart marks a running job failed)."""
     if video_id in _jobs:
         return _jobs[video_id]
-    status = _status_file(slug)
-    if not status.exists():
-        return None
-    try:
-        data = json.loads(status.read_text(encoding="utf-8"))
-        job = RenderJob(**{k: v for k, v in data.items() if k in RenderJob.__dataclass_fields__})
-    except (OSError, ValueError, TypeError):
+    job = None
+    for status in (_status_file(slug, video_id), _legacy_status_file(slug)):
+        if not status.exists():
+            continue
+        try:
+            data = json.loads(status.read_text(encoding="utf-8"))
+            candidate = RenderJob(**{k: v for k, v in data.items() if k in RenderJob.__dataclass_fields__})
+        except (OSError, ValueError, TypeError):
+            continue
+        if candidate.video_id == video_id:
+            job = candidate
+            break
+    if job is None:
         return None
     if job.status in ("queued", "running"):
         job.status, job.error = "failed", "The agent restarted during this render. Start it again."
-    if job.status == "done" and not final_path(slug).exists():
+    if job.status == "done" and not (job.output_path and (config.BASE_DIR / job.output_path).exists()):
         return None
     return job
+
+
+def final_file(video_id: str, slug: str) -> Optional[Path]:
+    """The finished cut for this video, if there is one."""
+    job = get_job(video_id, slug)
+    return config.BASE_DIR / job.output_path if job and job.status == "done" and job.output_path else None
+
+
+def final_captions_file(video_id: str, slug: str) -> Optional[Path]:
+    job = get_job(video_id, slug)
+    if not (job and job.status == "done" and job.captions_path):
+        return None
+    path = config.BASE_DIR / job.captions_path
+    return path if path.exists() else None
 
 
 def is_active(video_id: str) -> bool:
@@ -183,7 +211,7 @@ def is_active(video_id: str) -> bool:
 
 def _save(job: RenderJob) -> None:
     try:
-        path = _status_file(job.slug)
+        path = _status_file(job.slug, job.video_id)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(asdict(job), indent=2), encoding="utf-8")
     except OSError as e:
@@ -371,11 +399,17 @@ def segment_command(seg: dict, source: str, has_audio: bool, out: Path, width: i
         cmd += ["-i", narration]
         narration_idx, inputs = inputs, inputs + 1
     bg = "0:a"
+    slow_audio = ""
     if not has_audio:
         cmd += ["-f", "lavfi", "-t", f"{duration}", "-i", "anullsrc=r=48000:cl=stereo"]
         bg = f"{inputs}:a"
+    # A clip stretched to a fixed scene length plays slower; its own sound follows (pitch kept).
+    speed = seg.get("speed") or 1.0
+    slow_video = f"setpts=(PTS-STARTPTS)/{speed}," if speed < 1 else ""
+    if speed < 1 and has_audio:
+        slow_audio, bg = f"[0:a]atempo={max(speed, 0.5)}[slow];", "slow"
 
-    video = (f"[0:v]scale={width}:{height}:force_original_aspect_ratio=decrease,"
+    video = (f"[0:v]{slow_video}scale={width}:{height}:force_original_aspect_ratio=decrease,"
              f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps={FPS},format=yuv420p")
     if overlays:
         video += "," + ",".join(overlays)
@@ -387,7 +421,7 @@ def segment_command(seg: dict, source: str, has_audio: bool, out: Path, width: i
         audio = f"[{bg}]anull[aout]"
 
     return cmd + [
-        "-filter_complex", f"{video};{audio}",
+        "-filter_complex", f"{video};{slow_audio}{audio}",
         "-map", "[vout]", "-map", "[aout]", "-t", f"{duration}",
         "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2",
@@ -505,7 +539,7 @@ async def _render(job: RenderJob, plan: dict, language: str) -> None:
 
     # 4. Concat.
     _progress(job, "joining all scenes", advance=False)
-    final = final_path(slug)
+    final = final_path(slug, job.video_id)
     listing = work / "concat.txt"
     listing.write_text("".join(f"file '{p.name}'\n" for p in pieces), encoding="utf-8")
     staged = work / "final.tmp.mp4"
@@ -533,8 +567,8 @@ async def _render(job: RenderJob, plan: dict, language: str) -> None:
         result = await write_captions(job.video_id, orientation, job.buffer)
         captions = config.BASE_DIR / result["captions_path"]
         if result["cue_count"] and captions.exists():
-            shutil.copyfile(captions, final_captions_path(slug))
-            job.captions_path = _rel(final_captions_path(slug))
+            shutil.copyfile(captions, final_captions_path(slug, job.video_id))
+            job.captions_path = _rel(final_captions_path(slug, job.video_id))
             if result.get("estimated_timing_scenes"):
                 job.warnings.append(f"{len(result['estimated_timing_scenes'])} scene(s) have estimated caption timing.")
             subbed = work / "final.subs.mp4"

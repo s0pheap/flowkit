@@ -17,6 +17,8 @@ VEO_CLIP_SECONDS = 8.0
 #: An ffmpeg scene with no narration and no fixed length.
 DEFAULT_MOTION_SECONDS = 5.0
 NARRATION_BUFFER = 0.5
+#: A Veo scene given a fixed length longer than its clip plays the clip slower, down to this speed.
+VEO_MIN_SPEED = 0.6
 
 
 @dataclass
@@ -42,10 +44,22 @@ def scene_duration(item: SceneTiming, buffer: float = NARRATION_BUFFER) -> float
         duration = DEFAULT_MOTION_SECONDS
 
     if look.mode == "generate":
-        # A Veo clip can be cut short but never stretched.
-        usable = (item.clip_duration or VEO_CLIP_SECONDS) - VEO_SKIP_HEAD
-        duration = min(duration, usable)
+        # Narration alone never stretches a Veo clip. A fixed length does, in slow motion,
+        # as far as VEO_MIN_SPEED allows.
+        usable = _usable(item)
+        duration = min(duration, usable / VEO_MIN_SPEED if look.duration else usable)
     return round(max(duration, 0.5), 3)
+
+
+def _usable(item: SceneTiming) -> float:
+    return (item.clip_duration or VEO_CLIP_SECONDS) - VEO_SKIP_HEAD
+
+
+def clip_speed(item: SceneTiming, duration: float) -> float:
+    """Playback speed of the scene's clip: below 1.0 when a Veo clip is stretched to a fixed length."""
+    if item.look.mode != "generate" or duration <= 0:
+        return 1.0
+    return round(min(1.0, _usable(item) / duration), 4)
 
 
 def plan_timeline(items: list[SceneTiming], buffer: float = NARRATION_BUFFER) -> list[dict]:
@@ -76,6 +90,7 @@ def plan_timeline(items: list[SceneTiming], buffer: float = NARRATION_BUFFER) ->
             "duration": duration,
             "end": round(start + duration, 3),
             "trim_start": VEO_SKIP_HEAD if item.look.mode == "generate" else 0.0,
+            "speed": clip_speed(item, duration),
             "narration_duration": item.narration_duration,
             "transition": transition,
             "transition_duration": overlap,
