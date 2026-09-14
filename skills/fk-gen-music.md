@@ -1,204 +1,156 @@
 # fk-gen-music — Generate Music via Suno
 
-Generate background music or songs for video projects using the Suno API (sunoapi.org).
+Generate background music (or songs) for a video with the Suno API (sunoapi.org) and save it to the project, where `/fk-concat-fit-narrator` lays it under the final video.
 
-## Prerequisites
+Usage: `/fk-gen-music <video_id> [description] [--template <id>] [--vocals]`
 
-- GLA server running: `curl http://127.0.0.1:8100/health`
-- Suno API key configured: `export SUNO_API_KEY=your-key`
-- Get API key at https://sunoapi.org/api-key
+Suno runs with the **server's** `SUNO_API_KEY`, so every generation uses the server owner's Suno credits.
 
-## Workflow
+## Connection
 
-### Step 1: Choose a Template (Optional)
-
-Browse available song templates to find the right style:
+These commands work against a local agent or a shared server. The Flow Kit
+installer (`<server>/install.sh` or `install.ps1`) writes `~/.flowkit/env` with
+`FLOWKIT_URL` and `FLOWKIT_API_KEY`; without that file they default to
+`http://127.0.0.1:8100` and no key. Shell state does not carry
+over between commands, so **start every command with this line**:
 
 ```bash
-# List all templates
-curl -s http://127.0.0.1:8100/api/music/templates | python3 -m json.tool
-
-# Get a specific template (see style, tags, example lyrics)
-curl -s http://127.0.0.1:8100/api/music/templates/cinematic_epic
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
 ```
 
-Available categories: Children & Family, Love & Romance, Pop, Rock, Hip-Hop, Electronic, Country & Folk, Cinematic, Motivational.
+Then call the API as `curl -s "$FK/api/..." -H "$KEY"`. A `401` means the key is
+missing or wrong; a `404` on an id you were given means it belongs to another user.
+In PowerShell use `$env:FLOWKIT_URL` and `-Headers @{"X-API-Key"=$env:FLOWKIT_API_KEY}`.
 
-### Step 2: Generate Music
-
-**Three modes:**
-
-#### Mode A: Template-based (recommended for video projects)
-
-Use a template to auto-fill style tags. Provide custom lyrics or let the template's example lyrics run:
+## Step 1: Find the project
 
 ```bash
-# With custom lyrics + template style
-curl -X POST http://127.0.0.1:8100/api/music/generate \
-  -H "Content-Type: application/json" \
-  -d '{
-    "template_id": "cinematic_epic",
-    "prompt": "[Verse]\nFrom the shadows they emerge\nAcross the ancient sea\n[Chorus]\nRise, rise to glory\nThe world will hear our story",
-    "title": "Rise to Glory",
-    "poll": true
-  }'
-
-# Template defaults (uses example lyrics + suno_tags)
-curl -X POST http://127.0.0.1:8100/api/music/generate \
-  -H "Content-Type: application/json" \
-  -d '{
-    "template_id": "lullaby_gentle",
-    "title": "Goodnight Luna",
-    "poll": true
-  }'
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/videos/<VID>" -H "$KEY"
+curl -s "$FK/api/videos/<VID>/music" -H "$KEY"
 ```
 
-#### Mode B: Custom (full control)
+Note `project_id` (`<PID>`) from the video. If the project already has tracks, show them and ask whether a new one is still wanted.
 
-Provide your own lyrics and style tags:
+For the mood, read the project's `story` (`GET $FK/api/projects/<PID>`) and the video's total length (`total_duration` from `GET $FK/api/videos/<VID>/assembly-plan`). A track shorter than the video loops, so aim for at least the video's length where the model allows (see **Models**).
+
+## Step 2: Describe the music
+
+Background music under narration should be **instrumental** (vocals fight the narrator) and calm enough to sit under speech. Unless `--vocals` was given, always send `"instrumental": true`.
+
+Propose a one-line description from the story and ask the user to confirm or change it, e.g.:
+
+- "tense, slow-building orchestral underscore for a naval documentary, low strings and soft percussion, no vocals"
+- "warm, gentle piano and strings for a heartfelt family story"
+- "light, curious electronic pulse for a science explainer"
+
+Or use a template's style. List them:
 
 ```bash
-curl -X POST http://127.0.0.1:8100/api/music/generate \
-  -H "Content-Type: application/json" \
-  -d '{
-    "prompt": "[Verse]\nWalking through the rain\nSearching for the light\n[Chorus]\nWe will find our way\nThrough the darkest night",
-    "style": "lo-fi hip hop, chill, piano, rainy, 90 BPM",
-    "title": "Rainy Night",
-    "poll": true
-  }'
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/music/templates" -H "$KEY"
 ```
 
-#### Mode C: Description (AI writes everything)
+For background music `cinematic_epic` and `cinematic_emotional` work well; for children's content `lullaby_gentle` or `children_adventure`.
 
-Just describe what you want in natural language:
+## Step 3: Generate
+
+**Description mode** (recommended for background music — Suno writes the music from the description):
 
 ```bash
-curl -X POST http://127.0.0.1:8100/api/music/generate \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s -m 700 -X POST "$FK/api/music/generate" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "prompt": "an epic orchestral track for a military documentary about naval battles, dramatic and heroic",
+    "prompt": "<description>",
     "instrumental": true,
     "custom_mode": false,
     "poll": true
   }'
 ```
 
-### Step 3: Check Results
-
-Each generation produces **2 clips** (variations). When `poll: true`, the response waits for completion.
+**Template style**:
 
 ```bash
-# If poll was false, check status manually:
-curl -s http://127.0.0.1:8100/api/music/tasks/<TASK_ID>
-
-# Poll until complete:
-curl -X POST http://127.0.0.1:8100/api/music/tasks/<TASK_ID>/poll
-```
-
-**Task statuses:** `PENDING` → `GENERATING` → `SUCCESS` or `FAILED`
-
-### Step 4: Download
-
-```bash
-curl -X POST http://127.0.0.1:8100/api/music/tasks/<TASK_ID>/download
-# Returns: {"task_id": "...", "downloaded": [{"clip_id": "...", "path": "output/_shared/music/title_abcd1234.mp3", ...}]}
-```
-
-### Step 5: Use in Video (Optional)
-
-Add the downloaded music as background for your concat video:
-
-```bash
-# Get project output directory
-PROJ_OUT=$(curl -s http://127.0.0.1:8100/api/projects/<PID>/output-dir)
-OUTDIR=$(echo "$PROJ_OUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['path'])")
-SLUG=$(echo "$PROJ_OUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['slug'])")
-
-# Mix music with concat video using ffmpeg
-ffmpeg -y -i "${OUTDIR}/${SLUG}_final.mp4" -i output/_shared/music/track.mp3 \
-  -filter_complex "[1:a]volume=0.3[bg]; [0:a][bg]amix=inputs=2:duration=first[out]" \
-  -map 0:v -map "[out]" -c:v copy -c:a aac "${OUTDIR}/${SLUG}_with_music.mp4"
-```
-
-## Extend a Track
-
-Continue or extend an existing clip from a previous generation:
-
-```bash
-curl -X POST http://127.0.0.1:8100/api/music/extend \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s -m 700 -X POST "$FK/api/music/generate" -H "$KEY" \
   -H "Content-Type: application/json" \
-  -d '{
-    "audio_id": "<AUDIO_ID from clip>",
-    "prompt": "[Chorus]\nKeep the fire burning bright",
-    "continue_at": 120,
-    "poll": true
-  }'
+  -d '{"template_id": "cinematic_emotional", "title": "<short title>", "instrumental": true, "poll": true}'
 ```
 
-## Vocal Removal (Stem Separation)
+**Custom mode** (a song with lyrics, only with `--vocals`): send `"prompt"` as lyrics with `[Verse]`/`[Chorus]` markers, plus `"style"` and `"title"`, and `"instrumental": false`.
 
-Separate vocals from instrumental:
+Each generation makes **2 variations** and takes about 30-120 s. With `"poll": true` the reply waits and contains `task_id` and `task.status`. If the call times out, check later:
 
 ```bash
-curl -X POST http://127.0.0.1:8100/api/music/vocal-removal \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s -X POST "$FK/api/music/tasks/<TASK_ID>/poll" -H "$KEY"
+```
+
+Statuses: `PENDING` → `GENERATING` → `SUCCESS` or `FAILED`.
+
+## Step 4: Save it to the project
+
+```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s -X POST "$FK/api/music/tasks/<TASK_ID>/download?project_id=<PID>" -H "$KEY"
+```
+
+Always pass `project_id`: the tracks land in the project's music folder, which the render reads. Suno deletes its copies after 15 days, so save promptly.
+
+Then list them with their names and lengths:
+
+```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/videos/<VID>/music" -H "$KEY"
+```
+
+To listen to one on this computer before choosing:
+
+```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -fL "$FK<track.url>" -H "$KEY" -o "<track.name>"
+```
+
+Delete the variation the user doesn't want (URL-encode spaces as `%20`):
+
+```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s -X DELETE "$FK<track.url>" -H "$KEY"
+```
+
+Print:
+
+```
+Music ready: <project_name>
+  Tracks: <name> (2:41), <name> (3:05)
+  Next:   /fk-concat-fit-narrator <VID>  — pick a track and a volume (0.15 sits under narration)
+```
+
+## Extend a track
+
+When the track is much shorter than the video, extend it instead of letting it loop:
+
+```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s -m 700 -X POST "$FK/api/music/extend" -H "$KEY" \
   -H "Content-Type: application/json" \
-  -d '{
-    "task_id": "<TASK_ID>",
-    "audio_id": "<AUDIO_ID>",
-    "poll": true
-  }'
-# Returns: instrumental_url + vocal_url
+  -d '{"audio_id": "<clip id from task.response>", "continue_at": 120, "poll": true}'
 ```
 
-## Convert to WAV
+Then save it with Step 4 using the new `task_id`.
 
-Get lossless WAV from a generated clip:
+## Other Suno tools
 
-```bash
-curl -X POST http://127.0.0.1:8100/api/music/convert-to-wav \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task_id": "<TASK_ID>",
-    "audio_id": "<AUDIO_ID>",
-    "poll": true
-  }'
-```
+All take `"poll": true` and return a new task; save results with Step 4.
 
-## Generate Lyrics Only
-
-Ask Suno's AI to write lyrics from a description, optionally guided by a template:
-
-```bash
-curl -X POST http://127.0.0.1:8100/api/music/generate-lyrics \
-  -H "Content-Type: application/json" \
-  -d '{
-    "prompt": "a song about a cat astronaut exploring a candy planet",
-    "template_id": "children_adventure",
-    "poll": true
-  }'
-```
-
-## Check Credits
-
-```bash
-curl -s http://127.0.0.1:8100/api/music/credits
-```
-
-## API Reference
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/music/templates` | GET | List all song templates |
-| `/api/music/templates/{id}` | GET | Get template details |
-| `/api/music/generate` | POST | Generate music (returns taskId, 2 clips) |
-| `/api/music/tasks/{id}` | GET | Get task status + clips |
-| `/api/music/tasks/{id}/poll` | POST | Poll task until complete |
-| `/api/music/tasks/{id}/download` | POST | Download all clips to local |
-| `/api/music/generate-lyrics` | POST | Generate lyrics from prompt |
-| `/api/music/extend` | POST | Extend/continue existing track |
-| `/api/music/vocal-removal` | POST | Separate vocals from instrumental |
-| `/api/music/convert-to-wav` | POST | Convert clip to WAV format |
-| `/api/music/credits` | GET | Check Suno credits/quota |
+| Endpoint | Body | Does |
+|----------|------|------|
+| `POST /api/music/vocal-removal` | `{"task_id", "audio_id"}` | Splits vocals from the instrumental — use it to make a song usable under narration |
+| `POST /api/music/convert-to-wav` | `{"task_id", "audio_id"}` | Lossless WAV of a clip |
+| `POST /api/music/generate-lyrics` | `{"prompt", "template_id"?}` | Lyrics only |
+| `GET /api/music/credits` | — | Suno credits left on the server's account |
+| `GET /api/music/tasks/<TASK_ID>` | — | Task status and clips |
 
 ## Models
 
@@ -211,34 +163,20 @@ curl -s http://127.0.0.1:8100/api/music/credits
 | V5 | 8 min | Faster generation |
 | V5_5 | 8 min | Custom model tailoring |
 
-Default: `V4` (set via `SUNO_MODEL` env var).
+Default: `V4` (the server's `SUNO_MODEL`). Pass `"model": "V4_5"` in the generate body for videos longer than 4 minutes.
 
-## Template → Suno Mapping
+## Common Issues
 
-| Template Field | Suno API Field | Purpose |
-|---------------|---------------|---------|
-| `suno_tags` | `style` | Musical style descriptors |
-| `example_lyrics` | `prompt` | Lyrics with section markers |
-| `vocal_style` | (embedded in style) | Voice character |
-| `bpm_range` | (embedded in style) | Tempo |
+| Issue | Cause | Fix |
+|-------|-------|-----|
+| `503` "SUNO_API_KEY" | The server has no Suno key | Admin adds `SUNO_API_KEY` to `.env` (https://sunoapi.org/api-key) and restarts |
+| `400` "Task not complete" on download | Still generating | Poll the task, then download |
+| `504` on generate | Suno took longer than the server waits | Poll `task_id` later |
+| Credits error from Suno | Server's Suno account is empty | Tell the admin; or upload a royalty-free track in `/fk-concat-fit-narrator` |
+| Vocals under the narration | Generated without `instrumental` | Generate again with `"instrumental": true`, or use vocal removal |
 
-## Tips
+## Notes
 
-- Each generation costs ~10 credits (5 per clip) and produces 2 variations
-- Use `instrumental: true` for background music (no vocals)
-- `poll: true` waits for completion (~30-120s) — use for scripted workflows
-- `poll: false` returns immediately with taskId — use for interactive/async workflows
-- For video background music, `cinematic_epic` or `cinematic_emotional` templates work well
-- For children's content, use `lullaby_gentle`, `children_adventure`, or `nursery_rhyme`
-- Generated files are stored by Suno for 15 days — download promptly
-
-## Important Notes
-
-- Suno generates ~2-8 min tracks (depends on model). For shorter clips, trim with ffmpeg
-- Each generation creates 2 clip variations — listen and pick the best one
-- Credits are per-account. Check `/api/music/credits` before batch generation
-- The `[Verse]`, `[Chorus]`, `[Bridge]`, `[Outro]` markers in lyrics control song structure
-- Use `[Instrumental]`, `[Soft]`, `[Powerful]`, `[Whispered]` tags for dynamics
-- Style field: max 200 chars (V4) or 1000 chars (V4.5+)
-- Title field: max 80 chars (V4/V4_5ALL) or 100 chars (others)
-- Prompt field: max 3000 chars (V4) or 5000 chars (V4.5+)
+- Each generation costs about 10 credits (5 per clip).
+- Commercial use of generated music depends on the Suno plan behind the server's API key. Check it before monetizing.
+- Style: max 200 chars (V4) or 1000 (V4.5+). Title: max 80-100 chars. Prompt: max 3000 chars (V4) or 5000 (V4.5+).

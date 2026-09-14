@@ -63,6 +63,31 @@ class TestHelpers:
         assert cmd[cmd.index("-t", cmd.index("-map")) + 1] == "2.5"
         assert "-ar 48000 -ac 2" in joined
 
+    def test_music_command_loops_fades_and_ducks(self, tmp_path):
+        cmd = render.music_command(tmp_path / "v.mp4", tmp_path / "m.mp3", tmp_path / "o.mp4", 20.0, volume=0.2)
+        joined = " ".join(cmd)
+        assert "-stream_loop -1 -i" in joined and "-c:v copy" in joined
+        graph = cmd[cmd.index("-filter_complex") + 1]
+        assert "atrim=0:20.000" in graph and "volume=0.200" in graph
+        assert "afade=t=in:st=0:d=1.00" in graph and "afade=t=out:st=17.000:d=3.00" in graph
+        assert "sidechaincompress" in graph and "normalize=0" in graph
+        plain = render.music_command(tmp_path / "v.mp4", tmp_path / "m.mp3", tmp_path / "o.mp4", 2.0,
+                                     duck=False, fade_in=0, fade_out=5)
+        graph = plain[plain.index("-filter_complex") + 1]
+        assert "sidechaincompress" not in graph and "afade=t=in" not in graph and "st=1.000:d=1.00" in graph
+
+    def test_music_file_stays_in_the_project_folder(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(paths, "OUTPUT_DIR", tmp_path)
+        folder = render.music_dir("proj")
+        folder.mkdir(parents=True)
+        (folder / "bed.mp3").write_bytes(b"x")
+        (folder / "notes.txt").write_bytes(b"x")
+        (tmp_path / "proj" / "secret.mp3").write_bytes(b"x")
+        assert render.music_file("proj", "bed.mp3") == (folder / "bed.mp3").resolve()
+        for bad in ("notes.txt", "../secret.mp3", "..\\secret.mp3","", ".bed.mp3", "C:bed.mp3", "missing.mp3"):
+            assert render.music_file("proj", bad) is None, bad
+        assert [p.name for p in render.list_music("proj")] == ["bed.mp3"]
+
     def test_overlay_text_goes_through_files(self, tmp_path, monkeypatch):
         font = tmp_path / "font.ttf"
         font.write_bytes(b"")
@@ -208,6 +233,37 @@ class TestRenderApi:
         await client.put(f"/api/videos/{video['id']}/review-feedback", headers=alice, json={"s1": {"rating": "good"}})
         assert (await client.get(f"/api/videos/{video['id']}/review-feedback", headers=alice)).json() == {"s1": {"rating": "good"}}
 
+    @pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg not installed")
+    async def test_music_tracks_upload_list_and_delete(self, env):
+        root, client = env
+        await crud.create_project(name="Mine", id=PROJECT)
+        video = await crud.create_video(project_id=PROJECT, title="v")
+        vid = video["id"]
+        alice = await make_user(client, "alice", PROJECT)
+        bob = await make_user(client, "bob", OTHER)
+        ff("-f", "lavfi", "-i", "sine=frequency=220:duration=2", str(root / "bed.mp3"))
+        data = (root / "bed.mp3").read_bytes()
+
+        assert (await client.put(f"/api/videos/{vid}/music/bed.mp3", headers=bob, content=data)).status_code == 404
+        assert (await client.put(f"/api/videos/{vid}/music/bed.exe", headers=alice, content=data)).status_code == 400
+        assert (await client.put(f"/api/videos/{vid}/music/fake.mp3", headers=alice, content=b"not audio")).status_code == 400
+        up = await client.put(f"/api/videos/{vid}/music/My Song (v2).mp3", headers=alice, content=data)
+        assert up.status_code == 200, up.text
+        assert up.json()["name"] == "My Song (v2).mp3" and up.json()["duration"] == pytest.approx(2, abs=0.2)
+
+        tracks = (await client.get(f"/api/videos/{vid}/music", headers=alice)).json()["tracks"]
+        assert [t["name"] for t in tracks] == ["My Song (v2).mp3"]
+        assert not list((root / "output" / "mine" / "music").glob(".*"))  # no partial upload left behind
+        token = (await client.get("/api/auth/media-token", headers=alice)).json()["token"]
+        played = await client.get(f"{tracks[0]['url']}?token={token}")
+        assert played.status_code == 200 and played.headers["content-type"] == "audio/mpeg"
+
+        missing = await client.post(f"/api/videos/{vid}/render", headers=alice, json={"music": {"track": "nope.mp3"}})
+        assert missing.status_code in (404, 409)
+        assert (await client.delete(f"/api/videos/{vid}/music/My Song (v2).mp3", headers=bob)).status_code == 404
+        assert (await client.delete(f"/api/videos/{vid}/music/My Song (v2).mp3", headers=alice)).json() == {"ok": True}
+        assert (await client.get(f"/api/videos/{vid}/music", headers=alice)).json() == {"tracks": []}
+
     async def test_duplicate_project_names_are_refused(self, env):
         _root, client = env
         await crud.create_project(name="Moon Base", id=PROJECT)
@@ -268,3 +324,62 @@ class TestRenderApi:
         assert status["status"] == "done", status
         kinds = {s["codec_type"] for s in json.loads(probe(root / status["output_path"], "stream=codec_type"))["streams"]}
         assert kinds == {"video", "audio"}
+
+    @pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg not installed")
+    async def test_render_with_background_music(self, env):
+        root, client = env
+        video, _ = await seed_video(root)
+        vid = video["id"]
+        key = {"X-API-Key": ADMIN_KEY}
+        none_yet = await client.post(f"/api/videos/{vid}/render", headers=key, json={"music": {}})
+        assert none_yet.status_code == 409 and "no music" in none_yet.text
+        ff("-f", "lavfi", "-i", "sine=frequency=110:duration=1.5", str(root / "bed.mp3"))
+        await client.put(f"/api/videos/{vid}/music/bed.mp3", headers=key, content=(root / "bed.mp3").read_bytes())
+
+        started = await client.post(f"/api/videos/{vid}/render", headers=key,
+                                    json={"subs": "none", "music": {"volume": 0.3}})
+        assert started.status_code == 202, started.text
+        assert started.json()["music"]["track"] == "bed.mp3"  # the newest track when none is named
+        status = await wait_for(client, vid, key)
+        assert status["status"] == "done", status
+        assert status["done_steps"] == status["total_steps"]
+        out = root / status["output_path"]
+        kinds = {s["codec_type"] for s in json.loads(probe(out, "stream=codec_type"))["streams"]}
+        assert kinds == {"video", "audio"}
+        # The mute middle scene now carries the (looped) music bed.
+        level = subprocess.run(["ffmpeg", "-hide_banner", "-ss", "3.2", "-t", "1", "-i", str(out), "-af", "volumedetect",
+                                "-f", "null", "-"], capture_output=True, text=True).stderr
+        mean = float(next(l for l in level.splitlines() if "mean_volume" in l).split(":")[1].split()[0])
+        assert mean > -45, level
+
+
+class TestBurnedSubtitleStyle:
+    def test_khmer_captions_pick_a_khmer_font_in_an_english_project(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(config, "SUBTITLE_FONT", "")
+        monkeypatch.setattr(config, "SUBTITLE_FONTS_DIR", tmp_path / "none")
+        assert render.captions_language("1\n00:00:00,000 --> 00:00:01,000\nភ្នំស្រី\n", "en") == "km"
+        assert render.captions_language("1\n00:00:00,000 --> 00:00:01,000\nHello.\n", "en") == "en"
+        monkeypatch.setattr(render.platform, "system", lambda: "Windows")
+        assert render.subtitle_font("km") == "Khmer UI"
+        monkeypatch.setattr(render.platform, "system", lambda: "Linux")
+        assert render.subtitle_font("km") == "Noto Sans Khmer"
+
+    def test_styled_ass_replaces_only_the_default_style(self):
+        ass = ("[V4+ Styles]\nFormat: Name, Fontname, Fontsize\n"
+               "Style: Default,Arial,16,&Hffffff,&Hffffff,&H0,&H0,0,0,0,0,100,100,0,0,1,1,0,2,10,10,10,1\n"
+               "[Events]\nDialogue: 0,0:00:00.00,0:00:01.00,Default,,0,0,0,,Style: Default,kept\n")
+        out = render.styled_ass(ass, "Khmer UI", 18, 40)
+        assert "Style: Default,Khmer UI,18," in out and out.count("Khmer UI") == 1
+        assert ",10,10,40,0\n" in out
+        assert "Default,,0,0,0,,Style: Default,kept" in out
+
+    def test_bundled_khmer_font_is_preferred_when_its_file_is_there(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(config, "SUBTITLE_FONT", "")
+        monkeypatch.setattr(config, "SUBTITLE_FONTS_DIR", tmp_path)
+        monkeypatch.setattr(render.platform, "system", lambda: "Windows")
+        assert (render.subtitle_font("km"), render.subtitle_size("km", 18)) == ("Khmer UI", 18)
+        (tmp_path / "KantumruyPro-Bold.ttf").write_bytes(b"")
+        assert (render.subtitle_font("km"), render.subtitle_size("km", 18)) == ("Kantumruy Pro", 22)
+        assert (render.subtitle_font("en"), render.subtitle_size("en", 18)) == ("Arial", 18)
+        monkeypatch.setattr(config, "SUBTITLE_FONT", "Battambang")
+        assert (render.subtitle_font("km"), render.subtitle_size("km", 18)) == ("Battambang", 18)

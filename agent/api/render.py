@@ -2,13 +2,16 @@
 
 Everything here works for a remote user: nothing needs the caller's disk.
 """
+import asyncio
 import json
+import re
+import subprocess
 from pathlib import Path
 from typing import Literal, Optional
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 from urllib.request import url2pathname
 
-from fastapi import APIRouter, Body, HTTPException
+from fastapi import APIRouter, Body, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
@@ -25,12 +28,24 @@ router = APIRouter(tags=["render"])
 REVIEW_BOARD_HTML = Path(__file__).resolve().parent.parent.parent / "tools" / "review_board.html"
 OVERLAY_STYLES = set(render.OVERLAY_STYLES)
 MAX_FEEDBACK_BYTES = 1_000_000
+MAX_MUSIC_BYTES = 60_000_000
+_MUSIC_TYPES = {".mp3": "audio/mpeg", ".wav": "audio/wav", ".m4a": "audio/mp4", ".aac": "audio/aac",
+                ".ogg": "audio/ogg", ".flac": "audio/flac"}
+
+
+class MusicMix(BaseModel):
+    track: Optional[str] = Field(None, max_length=200)  # a name from GET /api/videos/{vid}/music; default: the newest
+    volume: float = Field(0.15, ge=0, le=1)  # 0.1-0.2 sits under narration
+    duck: bool = True  # lower the music while anyone speaks
+    fade_in: float = Field(1.0, ge=0, le=10)
+    fade_out: float = Field(3.0, ge=0, le=15)
 
 
 class RenderRequest(BaseModel):
     orientation: Optional[Orientation] = None
     buffer: float = Field(assembly.NARRATION_BUFFER, ge=0, le=3)
     subs: Literal["soft", "burn", "none"] = "soft"
+    music: Optional[MusicMix] = None  # background music under the whole video; omit for none
 
 
 async def _slug(vid: str) -> tuple[dict, dict, str]:
@@ -53,7 +68,20 @@ async def start_render(vid: str, body: RenderRequest):
     issues = render.problems(plan)
     if issues:
         raise HTTPException(409, {"message": "The video isn't ready to render.", "problems": issues})
-    job = render.start(vid, plan, project.get("language") or "en", body.subs, body.buffer)
+    music = None
+    if body.music:
+        if body.music.track:
+            track = render.music_file(_slug_, body.music.track)
+            if not track:
+                raise HTTPException(404, f"No music track {body.music.track!r}. List them with GET /api/videos/{vid}/music.")
+        else:
+            tracks = render.list_music(_slug_)
+            if not tracks:
+                raise HTTPException(409, "This project has no music yet. Upload a track (PUT /api/videos/{vid}/music/<name>) "
+                                         "or make one with /fk-gen-music.")
+            track = tracks[0]
+        music = {**body.music.model_dump(), "track": track.name}
+    job = render.start(vid, plan, project.get("language") or "en", body.subs, body.buffer, music)
     return job.public()
 
 
@@ -84,6 +112,85 @@ async def final_captions(vid: str, download: bool = False):
         raise HTTPException(404, "No captions yet. Narrate the video, then build subtitles or render.")
     return FileResponse(path, media_type="application/x-subrip; charset=utf-8",
                         filename=f"{slug}.srt" if download else None, headers={"Cache-Control": "no-cache"})
+
+
+# ─── Background music ────────────────────────────────────────
+
+def _ffprobe(*args: str) -> str:
+    try:
+        return subprocess.run(["ffprobe", "-v", "error", *args], capture_output=True, text=True, timeout=30).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+
+
+async def _track_info(vid: str, path: Path) -> dict:
+    out = await asyncio.to_thread(_ffprobe, "-show_entries", "format=duration", "-of", "csv=p=0", str(path))
+    try:
+        duration = round(float(out.strip()), 1)
+    except ValueError:
+        duration = None
+    return {"name": path.name, "size_bytes": path.stat().st_size, "duration": duration,
+            "url": f"/api/videos/{vid}/music/{quote(path.name)}"}
+
+
+@router.get("/videos/{vid}/music")
+async def list_music(vid: str):
+    """Tracks that can go under this video, newest first. They belong to the project, so every video in it shares them."""
+    _video, _project, slug = await _slug(vid)
+    return {"tracks": await asyncio.gather(*(_track_info(vid, p) for p in render.list_music(slug)))}
+
+
+@router.get("/videos/{vid}/music/{name}")
+async def get_music(vid: str, name: str):
+    _video, _project, slug = await _slug(vid)
+    path = render.music_file(slug, name)
+    if not path:
+        raise HTTPException(404, "No such music track")
+    return FileResponse(path, media_type=_MUSIC_TYPES.get(path.suffix.lower(), "application/octet-stream"))
+
+
+@router.put("/videos/{vid}/music/{name}")
+async def upload_music(vid: str, name: str, request: Request):
+    """Upload a track as the raw request body: `curl -T song.mp3 "$FK/api/videos/<VID>/music/song.mp3" -H "$KEY"`.
+
+    Only use music you have the rights to (your own, or royalty-free with a licence for your channel).
+    """
+    _video, _project, slug = await _slug(vid)
+    clean = re.sub(r"[^\w .()\-]", "_", Path(name).name).strip(" .")
+    if not clean or Path(clean).suffix.lower() not in _MUSIC_TYPES:
+        raise HTTPException(400, f"The file name must end in one of {', '.join(_MUSIC_TYPES)}")
+    folder = render.music_dir(slug)
+    folder.mkdir(parents=True, exist_ok=True)
+    target = folder / clean
+    partial = folder / f".{clean}.part"
+    size = 0
+    try:
+        with partial.open("wb") as fh:
+            async for chunk in request.stream():
+                size += len(chunk)
+                if size > MAX_MUSIC_BYTES:
+                    raise HTTPException(413, f"Music files are limited to {MAX_MUSIC_BYTES // 1_000_000} MB")
+                fh.write(chunk)
+        if size == 0:
+            raise HTTPException(400, "Empty upload. Send the file as the request body.")
+        probe = await asyncio.to_thread(_ffprobe, "-select_streams", "a", "-show_entries", "stream=codec_type",
+                                        "-of", "csv=p=0", str(partial))
+        if "audio" not in probe:
+            raise HTTPException(400, "That file has no audio ffmpeg can read")
+        partial.replace(target)
+    finally:
+        partial.unlink(missing_ok=True)
+    return await _track_info(vid, target)
+
+
+@router.delete("/videos/{vid}/music/{name}")
+async def delete_music(vid: str, name: str):
+    _video, _project, slug = await _slug(vid)
+    path = render.music_file(slug, name)
+    if not path:
+        raise HTTPException(404, "No such music track")
+    path.unlink()
+    return {"ok": True}
 
 
 # ─── Text overlays (/fk-gen-text-overlays) ───────────────────

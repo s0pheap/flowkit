@@ -192,19 +192,30 @@ Manage keys with `python -m agent.users list | revoke | rotate-key | disable | d
 
 ## What users can and cannot do
 
-Installed skills (API calls only; the work and the files stay on the server):
+Installed skills (API calls only; the work and the files stay on the server, except
+`fk-research`, which only runs web searches and saves its report on the user's machine):
 
 | Stage | Skills |
 |-------|--------|
-| Project | `fk-create-project`, `fk-switch-project`, `fk-status` |
+| Project | `fk-research`, `fk-create-project`, `fk-switch-project`, `fk-status` |
 | Images and video | `fk-gen-refs`, `fk-gen-images`, `fk-gen-videos`, `fk-camera-guide` |
-| Narration and final video | `fk-gen-narrator`, `fk-gen-text-overlays`, `fk-review-board`, `fk-concat-fit-narrator` |
+| Narration, music and final video | `fk-gen-narrator`, `fk-gen-text-overlays`, `fk-gen-music`, `fk-review-board`, `fk-concat-fit-narrator` |
 | Fixing | `fk-refresh-urls`, `fk-doctor` |
 
 The list lives in `agent/api/install.py` (`REMOTE_SKILLS`).
 
 - **Narration** uses the server's `GEMINI_API_KEY`, so every user's narration
-  counts against your Gemini quota.
+  counts against your Gemini quota. To avoid that, use the same Gemini voices through
+  the Mindlogic gateway (`TTS_ENGINE=mindlogic`, `MINDLOGIC_API_KEY`), or run a Kokoro-82M server and set
+  `TTS_ENGINE=kokoro` and `KOKORO_URL` (see `.env.example`); Kokoro has no Korean or
+  Khmer, so those lines go to `TTS_FALLBACK_ENGINE=piper,google`. When the quota runs out, narration switches
+  to Piper, a free voice that runs on the VM (`TTS_FALLBACK_ENGINE=piper`, the
+  default; it comes with `requirements.txt`). Each voice downloads once, about
+  60 MB, into `output\_shared\piper_voices`. Replies say which scenes it spoke,
+  and users can redo them with Gemini later.
+- **Music** from `/fk-gen-music` uses the server's `SUNO_API_KEY` and credits.
+  Users can also upload their own tracks. The render lays the chosen track under
+  the whole video and turns it down while the narrator speaks.
 - **Final videos** are rendered by ffmpeg on the VM, one at a time. Users
   download them with `/fk-concat-fit-narrator`, or watch and download them in the
   dashboard under **Projects → Videos**.

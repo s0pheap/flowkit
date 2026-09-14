@@ -11,7 +11,9 @@ Steps, per video:
      own audio, burn text overlays
   3. per transition group: the plan's xfade/acrossfade filter
   4. concat the groups
-  5. captions.srt on the same plan, embedded (soft) or burned in
+  5. optional background music under the whole cut, looped, faded, and ducked
+     while the narrator speaks
+  6. captions.srt on the same plan, embedded (soft) or burned in
 
 One render runs at a time; they are CPU-heavy and share the machine with Chrome.
 """
@@ -20,6 +22,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import platform
 import re
 import shutil
@@ -41,6 +44,7 @@ FPS = 24
 BASE_SIZE = {"HORIZONTAL": (1920, 1080), "VERTICAL": (1080, 1920)}
 SFX_VOLUME = 0.3
 NARRATION_VOLUME = 1.5
+MUSIC_EXTS = (".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac")
 
 # Overlay styles from /fk-gen-text-overlays: (size at 1080p, colour).
 OVERLAY_STYLES = {
@@ -52,7 +56,12 @@ OVERLAY_STYLES = {
 
 # ISO 639-1 project language → ISO 639-2 for the subtitle track.
 SUB_LANG = {"en": "eng", "ko": "kor", "vi": "vie", "ja": "jpn", "zh": "zho", "es": "spa",
-            "fr": "fra", "de": "deu", "th": "tha", "ar": "ara", "hi": "hin", "pt": "por", "ru": "rus"}
+            "fr": "fra", "de": "deu", "th": "tha", "ar": "ara", "hi": "hin", "pt": "por", "ru": "rus",
+            "km": "khm"}
+
+# Scripts that settle the captions' language whatever the project language says
+# (a Khmer narration in an English project still needs a Khmer font).
+_CAPTION_SCRIPTS = [(re.compile(r"[ក-៿᧠-᧿]"), "km")]
 
 _gate = asyncio.Semaphore(1)
 _jobs: dict[str, "RenderJob"] = {}
@@ -81,6 +90,7 @@ class RenderJob:
     captions_path: Optional[str] = None
     duration: Optional[float] = None
     size_bytes: Optional[int] = None
+    music: Optional[dict] = None  # {"track", "volume", "duck", "fade_in", "fade_out"}
     warnings: list[str] = field(default_factory=list)
 
     def public(self) -> dict:
@@ -99,6 +109,31 @@ def final_path(slug: str) -> Path:
 
 def final_captions_path(slug: str) -> Path:
     return project_dir(slug) / f"{slug}_narrator_cut.srt"
+
+
+def music_dir(slug: str) -> Path:
+    """Background tracks for a project: uploads and /fk-gen-music downloads both land here."""
+    return project_dir(slug) / "music"
+
+
+def list_music(slug: str) -> list[Path]:
+    """The project's tracks, newest first."""
+    folder = music_dir(slug)
+    if not folder.is_dir():
+        return []
+    tracks = [p for p in folder.iterdir() if p.is_file() and p.suffix.lower() in MUSIC_EXTS]
+    return sorted(tracks, key=lambda p: p.stat().st_mtime, reverse=True)
+
+
+def music_file(slug: str, name: str) -> Optional[Path]:
+    """The track called ``name`` in the project's music folder, or None. Never a path outside it."""
+    if not name or name.startswith(".") or any(c in name for c in '/\\:'):
+        return None
+    folder = music_dir(slug).resolve()
+    path = (folder / name).resolve()
+    if path.parent != folder or path.suffix.lower() not in MUSIC_EXTS or not path.is_file():
+        return None
+    return path
 
 
 def _status_file(slug: str) -> Path:
@@ -245,13 +280,58 @@ def overlay_font() -> Optional[Path]:
     return next((Path(c) for c in candidates if Path(c).exists()), None)
 
 
+# Fonts that look better than the OS default, used when their files are in SUBTITLE_FONTS_DIR:
+# language -> (family, file prefix, size scale so the letters match the default font's height).
+BUNDLED_SUBTITLE_FONTS = {"km": ("Kantumruy Pro", "KantumruyPro", 1.2)}
+
+
+def _bundled_font(language: str) -> Optional[tuple[str, float]]:
+    entry = BUNDLED_SUBTITLE_FONTS.get(language)
+    if not entry or not config.SUBTITLE_FONTS_DIR.is_dir():
+        return None
+    family, prefix, scale = entry
+    return (family, scale) if any(config.SUBTITLE_FONTS_DIR.glob(f"{prefix}*.[ot]tf")) else None
+
+
+def _fonts_dir_arg(cwd: Path) -> str:
+    """SUBTITLE_FONTS_DIR for a filter run in ``cwd``: relative when it can be, since a drive colon breaks filter parsing."""
+    try:
+        return Path(os.path.relpath(config.SUBTITLE_FONTS_DIR.resolve(), cwd.resolve())).as_posix()
+    except ValueError:  # another drive: quote the escaped absolute path
+        return f"'{_filter_path(config.SUBTITLE_FONTS_DIR.resolve())}'"
+
+
+def subtitle_size(language: str, size: int) -> int:
+    bundled = None if config.SUBTITLE_FONT else _bundled_font(language)
+    return round(size * bundled[1]) if bundled else size
+
+
 def subtitle_font(language: str) -> str:
     if config.SUBTITLE_FONT:
         return config.SUBTITLE_FONT
+    bundled = _bundled_font(language)
+    if bundled:
+        return bundled[0]
     system = platform.system()
     if language in ("ko", "ja", "zh"):
         return {"Windows": "Malgun Gothic", "Darwin": "Apple SD Gothic Neo"}.get(system, "Noto Sans CJK KR")
+    if language == "km":
+        return {"Windows": "Khmer UI", "Darwin": "Khmer Sangam MN"}.get(system, "Noto Sans Khmer")
     return {"Windows": "Arial", "Darwin": "Arial"}.get(system, "DejaVu Sans")
+
+
+def captions_language(text: str, language: str) -> str:
+    """The captions' language: their script when it gives it away, else the project language."""
+    for pattern, lang in _CAPTION_SCRIPTS:
+        if pattern.search(text):
+            return lang
+    return language
+
+
+def styled_ass(ass: str, font: str, size: int, margin: int) -> str:
+    """Restyle the Default style of an ffmpeg-converted .ass: bold white text, 2px outline, no shadow."""
+    style = f"Style: Default,{font},{size},&Hffffff,&Hffffff,&H0,&H0,-1,0,0,0,100,100,0,0,1,2,0,2,10,10,{margin},0"
+    return re.sub(r"^Style: Default,.*$", lambda _: style, ass, count=1, flags=re.MULTILINE)
 
 
 def overlay_filters(items: list[dict], work_dir: Path, stem: str, duration: float, width: int) -> list[str]:
@@ -315,6 +395,34 @@ def segment_command(seg: dict, source: str, has_audio: bool, out: Path, width: i
     ]
 
 
+def music_command(video: Path, track: Path, out: Path, duration: float, volume: float = 0.15,
+                  duck: bool = True, fade_in: float = 1.0, fade_out: float = 3.0) -> list[str]:
+    """Lay ``track`` under the finished cut: looped to length, faded, and ducked while anyone speaks.
+
+    The video stream is copied; only the audio is mixed again.
+    """
+    fade_in, fade_out = min(fade_in, duration / 2), min(fade_out, duration / 2)
+    bed = (f"[1:a]aresample=48000,aformat=channel_layouts=stereo,atrim=0:{duration:.3f},"
+           f"asetpts=PTS-STARTPTS,volume={volume:.3f}")
+    if fade_in > 0:
+        bed += f",afade=t=in:st=0:d={fade_in:.2f}"
+    if fade_out > 0:
+        bed += f",afade=t=out:st={max(duration - fade_out, 0):.3f}:d={fade_out:.2f}"
+    if duck:
+        graph = (f"[0:a]asplit=2[main][key];{bed}[bed];"
+                 "[bed][key]sidechaincompress=threshold=0.03:ratio=8:attack=20:release=500[ducked];"
+                 "[main][ducked]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[aout]")
+    else:
+        graph = f"{bed}[bed];[0:a][bed]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[aout]"
+    return [
+        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+        "-i", str(video), "-stream_loop", "-1", "-i", str(track),
+        "-filter_complex", graph, "-map", "0:v", "-map", "[aout]", "-t", f"{duration:.3f}",
+        "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2",
+        "-movflags", "+faststart", str(out),
+    ]
+
+
 def load_overlays(slug: str) -> dict[int, list[dict]]:
     path = project_dir(slug) / "text_overlays.json"
     if not path.exists():
@@ -342,7 +450,8 @@ async def _render(job: RenderJob, plan: dict, language: str) -> None:
 
     to_render = [s for s in segments if s["mode"] == "ffmpeg" and s["needs_render"]]
     multi_groups = [g for g in plan["groups"] if len(g["segments"]) > 1]
-    job.total_steps = len(to_render) + len(segments) + len(multi_groups) + 1 + (0 if job.subs == "none" else 1)
+    job.total_steps = (len(to_render) + len(segments) + len(multi_groups) + 1
+                       + (1 if job.music else 0) + (0 if job.subs == "none" else 1))
     job.status, job.started_at = "running", time.time()
     _progress(job, "starting", advance=False)
 
@@ -404,7 +513,21 @@ async def _render(job: RenderJob, plan: dict, language: str) -> None:
                 "-i", listing.name, "-c", "copy", "-movflags", "+faststart", staged.name], cwd=work)
     job.done_steps += 1
 
-    # 5. Subtitles on the same plan.
+    # 5. Background music.
+    if job.music:
+        _progress(job, "adding background music", advance=False)
+        track = music_file(slug, job.music["track"])
+        if not track:
+            raise RenderError(f"The music track {job.music['track']!r} is no longer in the project. Pick another one.")
+        length = await _duration(staged) or plan["total_duration"]
+        opts = {k: job.music[k] for k in ("volume", "duck", "fade_in", "fade_out") if k in job.music}
+        mixed = work / "final.music.mp4"
+        await _run(music_command(staged, track, mixed, length, **opts))
+        staged.unlink()
+        mixed.rename(staged)
+        job.done_steps += 1
+
+    # 6. Subtitles on the same plan.
     if job.subs != "none":
         _progress(job, "adding subtitles", advance=False)
         result = await write_captions(job.video_id, orientation, job.buffer)
@@ -415,18 +538,25 @@ async def _render(job: RenderJob, plan: dict, language: str) -> None:
             if result.get("estimated_timing_scenes"):
                 job.warnings.append(f"{len(result['estimated_timing_scenes'])} scene(s) have estimated caption timing.")
             subbed = work / "final.subs.mp4"
+            sub_language = captions_language(captions.read_text(encoding="utf-8"), language)
             if job.subs == "soft":
                 await _run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", str(staged),
                             "-i", str(captions), "-map", "0", "-map", "1", "-c", "copy", "-c:s", "mov_text",
-                            "-metadata:s:s:0", f"language={SUB_LANG.get(language, 'und')}",
+                            "-metadata:s:s:0", f"language={SUB_LANG.get(sub_language, 'und')}",
                             "-movflags", "+faststart", str(subbed)])
             else:
                 size, margin = (12, 120) if orientation == "VERTICAL" else (18, 40)
-                style = (f"FontName={subtitle_font(language)},FontSize={size},Bold=1,Outline=2,"
-                         f"Shadow=0,MarginV={margin}")
-                # Relative path from inside the project folder: no drive colon to escape.
+                # Through .ass so libass can shape with HarfBuzz: without it Khmer (and other scripts whose
+                # vowels and subscripts stack) come out as detached marks. Paths are relative to the
+                # project folder, so there is no drive colon to escape.
+                ass = captions.with_suffix(".ass")
+                await _run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                            "-i", "subtitles/captions.srt", "subtitles/captions.ass"], cwd=out_dir)
+                ass.write_text(styled_ass(ass.read_text(encoding="utf-8"), subtitle_font(sub_language),
+                                          subtitle_size(sub_language, size), margin), encoding="utf-8")
+                fonts = f":fontsdir={_fonts_dir_arg(out_dir)}" if config.SUBTITLE_FONTS_DIR.is_dir() else ""
                 await _run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", str(staged),
-                            "-vf", f"subtitles=subtitles/captions.srt:force_style='{style}'",
+                            "-vf", f"ass=subtitles/captions.ass{fonts}:shaping=complex",
                             "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p",
                             "-c:a", "copy", "-movflags", "+faststart", str(subbed)], cwd=out_dir)
             staged.unlink()
@@ -441,8 +571,9 @@ async def _render(job: RenderJob, plan: dict, language: str) -> None:
     job.size_bytes = final.stat().st_size
 
 
-def start(video_id: str, plan: dict, language: str, subs: SubsMode, buffer: float) -> RenderJob:
-    job = RenderJob(video_id=video_id, slug=plan["slug"], subs=subs, buffer=buffer)
+def start(video_id: str, plan: dict, language: str, subs: SubsMode, buffer: float,
+          music: Optional[dict] = None) -> RenderJob:
+    job = RenderJob(video_id=video_id, slug=plan["slug"], subs=subs, buffer=buffer, music=music)
     _jobs[video_id] = job
     _save(job)
 

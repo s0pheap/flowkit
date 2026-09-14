@@ -106,7 +106,7 @@ async def _touch(user: dict) -> None:
 MEDIA_TOKEN_TTL = 6 * 3600
 MEDIA_PATHS = re.compile(
     r"^/api/(scenes/[^/]+/(motion|clip)\.mp4"
-    r"|videos/[^/]+/(final\.mp4|captions\.srt))$"
+    r"|videos/[^/]+/(final\.mp4|captions\.srt|music/[^/]+))$"
 )
 _media_secret = secrets.token_bytes(32)
 

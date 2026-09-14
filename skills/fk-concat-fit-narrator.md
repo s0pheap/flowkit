@@ -1,6 +1,6 @@
 Build the final video on the server — each scene fitted to its narration, with text overlays, transitions and subtitles — then download it.
 
-Usage: `/fk-concat-fit-narrator <video_id> [--buffer 0.5] [--subs soft|burn|none]`
+Usage: `/fk-concat-fit-narrator <video_id> [--buffer 0.5] [--subs soft|burn|none] [--music <track>|none] [--music-volume 0.15]`
 
 Everything runs on the agent (ffmpeg on the server), so this works the same on the agent's own machine and from another computer. All timing comes from one source — `GET /api/videos/<VID>/assembly-plan` — so captions land exactly where the narration plays. By default each scene runs `narrator_duration + 0.5s` unless its look & feel (set in `/fk-review-board`) fixes a length.
 
@@ -55,14 +55,45 @@ Scene | Mode   | Start   | Length | Narration | Transition
 Total: 5:12.4  (Veo 28 scenes, ffmpeg 12 scenes)
 ```
 
-## Step 2: Start the render
+## Step 2: Background music (optional)
+
+The render can lay one music track under the whole video. It loops to length, fades in
+and out, and gets quieter while the narrator speaks. Tracks belong to the project:
+
+```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/videos/<VID>/music" -H "$KEY"
+```
+
+Unless `--music none` was given, show the tracks (`name`, `duration`) and ask which to use, or none. If
+there are no tracks and the user wants music, they can:
+
+- **Make one** with `/fk-gen-music` (Suno, instrumental). It saves the track to this project.
+- **Upload their own** from the current folder. Only music they have the rights to (their own, or
+  royalty-free with a licence that covers their channel):
+  ```bash
+  . ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+  curl -s -T "<file.mp3>" "$FK/api/videos/<VID>/music/<file.mp3>" -H "$KEY"
+  ```
+  mp3, wav, m4a, aac, ogg or flac, up to 60 MB. URL-encode spaces in the name (`%20`).
+
+## Step 3: Start the render
 
 ```bash
 . ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
 curl -s -X POST "$FK/api/videos/<VID>/render" -H "$KEY" \
   -H "Content-Type: application/json" \
-  -d '{"buffer": 0.5, "subs": "soft"}'
+  -d '{"buffer": 0.5, "subs": "soft", "music": {"track": "<TRACK_NAME>", "volume": 0.15}}'
 ```
+
+Leave out `music` for no background music. `music` fields:
+
+| Field | Default | Meaning |
+|-------|---------|---------|
+| `track` | newest track | A `name` from Step 2 |
+| `volume` | `0.15` | Music level, 0-1. 0.1-0.2 sits under narration; raise it for scenes with little talk |
+| `duck` | `true` | Lower the music while anyone speaks |
+| `fade_in` / `fade_out` | `1.0` / `3.0` | Seconds |
 
 | `subs` | Result | Use for |
 |--------|--------|---------|
@@ -73,11 +104,12 @@ curl -s -X POST "$FK/api/videos/<VID>/render" -H "$KEY" \
 Text overlays saved by `/fk-gen-text-overlays` are burned in automatically. ffmpeg scenes without a clip are rendered as part of the job.
 
 Responses:
-- `202` → the job started; go to Step 3.
+- `202` → the job started; go to Step 4.
 - `409` with `detail.problems` → print each problem and fix it (usually `/fk-gen-videos` or `/fk-refresh-urls`), then start again.
-- `409` "already running" → go to Step 3 and wait for that render.
+- `409` "already running" → go to Step 4 and wait for that render.
+- `409` "no music yet" / `404` "No music track" → back to Step 2.
 
-## Step 3: Wait for it
+## Step 4: Wait for it
 
 Poll every 20 seconds:
 
@@ -88,10 +120,10 @@ curl -s "$FK/api/videos/<VID>/render" -H "$KEY"
 
 Show `step` and `done_steps`/`total_steps` as progress. Only one render runs on the server at a time, so `queued` means another video is rendering. Expect a few minutes for a long video.
 
-- `status: done` → Step 4.
+- `status: done` → Step 5.
 - `status: failed` → print `error`. If it mentions an expired link or `403`, run `/fk-refresh-urls <VID>` and start again. Otherwise run `/fk-doctor` with the error text.
 
-## Step 4: Download
+## Step 5: Download
 
 `<SLUG>` is the file name stem from `output_path` (for example `moon_base_narrator_cut`).
 
@@ -111,6 +143,7 @@ Final video ready: <project_name>
   File:      ./<SLUG>.mp4  (<size> MB)
   Duration:  X:XX  (plan X:XX)
   Subtitles: soft track + ./<SLUG>.srt
+  Music:     <job.music.track> at <volume>  (or "none")
   Warnings:  <job.warnings, if any>
   Watch:     <FLOWKIT_URL>/projects/<PID>
 ```
@@ -127,4 +160,7 @@ Keep the `.srt` — `/fk-youtube-upload` can upload it as a caption track.
 | Captions drift | Look & feel changed after the render | Render again — lengths and captions are recomputed from the plan every time |
 | Warning "Text overlays skipped: no font found" | The server has no font for the overlay language | Admin sets `OVERLAY_FONT` in `.env` |
 | Korean captions show as boxes (`burn`) | Server font lacks Hangul | Admin sets `SUBTITLE_FONT` (e.g. `Malgun Gothic`, `Noto Sans CJK KR`) |
-| `404` on `final.mp4` | No finished render for this video | Steps 2-3 |
+| `404` on `final.mp4` | No finished render for this video | Steps 3-4 |
+| Music drowns the narration | `volume` too high | Render again with `volume` 0.1, keep `duck: true` |
+| Music audibly restarts | The track is shorter than the video and loops | Use a longer track, or extend it with `/fk-gen-music` |
+| Render failed: "music track ... is no longer in the project" | The track was deleted during the render | Pick another track and render again |

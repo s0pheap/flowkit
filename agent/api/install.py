@@ -24,6 +24,7 @@ SKILLS_DIR = Path(__file__).resolve().parent.parent.parent / "skills"
 # Skills that work against a remote agent: API calls only, nothing read from the
 # server's disk. Keep in step with the `remote` flag in dashboard/src/pages/guide/skills.ts.
 REMOTE_SKILLS = (
+    "fk-research",
     "fk-create-project",
     "fk-gen-refs",
     "fk-gen-images",
@@ -35,6 +36,7 @@ REMOTE_SKILLS = (
     "fk-refresh-urls",
     "fk-gen-narrator",
     "fk-gen-text-overlays",
+    "fk-gen-music",
     "fk-review-board",
     "fk-concat-fit-narrator",
 )
