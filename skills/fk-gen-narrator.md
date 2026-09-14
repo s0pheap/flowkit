@@ -164,31 +164,35 @@ The project `story` provides overall narrative context.
 
 **Language:** Use `--language` flag or project's `language` field.
 
-**Length depends on how the scene will be rendered** (set in `/fk-review-board` → Look & feel):
+**Length: every line must fit the 8-second Veo clip.** Flow generates each scene as an 8s clip. The render drops the clip's static first second and keeps a 0.5s pause after the line, so the spoken narration gets **6.5s at most**:
 
-- **Veo scenes** (default) — the clip is 8s, and `/fk-concat-fit-narrator` skips its first second, so narration must fit in **~6.5s**. Use the word limits below.
-- **ffmpeg scenes** — the scene is rendered from the keyframe and runs as long as the narration. Lines can be longer (up to ~15s), but keep them punchy.
+```
+8.0s Veo clip − 1.0s skipped head − 0.5s pause = 6.5s of speech
+```
 
-If the user hasn't chosen yet, write for Veo — a short line fits either mode.
+Write every line for this, whatever the scene's look & feel is today: a line that fits a Veo clip also fits a pan/zoom still, and the scene can switch to Veo later without re-voicing. Only write longer lines (up to ~15s) when the user has said explicitly that the scene stays a still.
 
-**Word count limits for Veo scenes (HARD MAX — never exceed):**
+**Length limits per line (HARD MAX — never exceed):**
 
-| Language | Max Words | ~Duration | Words/sec | Notes |
-|----------|-----------|-----------|-----------|-------|
-| English | 22 | ~6.5s | ~3.5 | Standard baseline |
-| Korean | 22 | ~6.5s | ~3.5 | Agglutinative, long compound words = fewer needed |
-| Vietnamese | 22 | ~6.5s | ~3.5 | Tonal, diacritics slow TTS. 2-3 punchy sentences |
-| Japanese | 33 | ~6.5s | ~5.0 | Short words, particles add up fast (は、を、に) |
-| Thai | 24 | ~6.5s | ~3.8 | Tonal like Vietnamese, no spaces between words |
-| Chinese (ZH) | 28 | ~6.5s | ~4.3 | Each character = 1 syllable, very dense |
-| Spanish | 24 | ~6.5s | ~3.8 | Slightly faster than English |
-| French | 24 | ~6.5s | ~3.8 | Liaison makes speech flow faster |
-| Arabic | 20 | ~6.5s | ~3.0 | Long words, formal style = slower delivery |
-| Hindi | 22 | ~6.5s | ~3.5 | Compound verbs take time |
+Speaking speed depends on the voice. Kokoro and calm Gemini voices speak English at ~2.8 words/s, not 3.5, so these limits assume the slower voices:
 
-**Rule of thumb for unlisted languages:** MAX 22 words. Adjust down for languages with long compound words (German, Finnish), adjust up for languages with short particles (Japanese, Chinese). Under ~15 words leaves dead air on a Veo scene.
+| Language | Max per line | ~Speech | Notes |
+|----------|--------------|---------|-------|
+| English | 18 words | ≤6.5s | ~2.8 words/s (Kokoro, calm Gemini voices) |
+| Korean | 18 words | ≤6.5s | Agglutinative, long compound words = fewer needed |
+| Vietnamese | 18 words | ≤6.5s | Tonal, diacritics slow TTS. 1-2 punchy sentences |
+| Japanese | 27 words | ≤6.5s | Short words, particles add up fast (は、を、に) |
+| Thai | 20 words | ≤6.5s | Tonal like Vietnamese, no spaces between words |
+| Chinese (ZH) | 23 characters | ≤6.5s | Each character = 1 syllable, very dense |
+| Spanish | 20 words | ≤6.5s | Slightly faster than English |
+| French | 20 words | ≤6.5s | Liaison makes speech flow faster |
+| Arabic | 16 words | ≤6.5s | Long words, formal style = slower delivery |
+| Hindi | 18 words | ≤6.5s | Compound verbs take time |
+| Khmer | 75 Khmer characters | ≤6.5s | Count characters without spaces or punctuation (no spaces between words). Measured ~12.5 characters/s with Gemini Charon, brisk style, speed 1.1. Write numbers as words. 1-2 short sentences. |
 
-Actual durations are measured after TTS (Step 6) — the review board flags any Veo scene whose narration is longer than its clip.
+**Rule of thumb for unlisted languages:** MAX 18 words. Adjust down for languages with long compound words (German, Finnish), adjust up for languages with short particles (Japanese, Chinese). Under ~10 words leaves dead air on a Veo scene.
+
+These limits are estimates — the real length is measured after TTS, and **Step 6b is a required check** that every line is ≤6.5s.
 
 **Documentary narrator style:**
 
@@ -204,7 +208,7 @@ DO:
 DON'T:
 - Describe what's visually obvious: "We see a ship sailing" (viewer sees it)
 - Use filler phrases: "In this scene...", "Meanwhile...", "As we can see..."
-- Exceed the word count on a Veo scene (too long = cut off mid-sentence)
+- Exceed the length limit — every line must be spoken within 6.5s to fit the 8s Veo clip (too long = cut off mid-sentence)
 - Use passive voice: "The ship was attacked" → "Iran attacked the ship"
 
 ### Example (military documentary, English):
@@ -299,6 +303,26 @@ Add `"redo_fallback": true` to speak again only the scenes the local fallback vo
 - `speed` other than 1.0 is applied with ffmpeg `atempo` after Gemini speaks; timings are measured on the final wav, so they stay correct
 - **mix: false** — mixing happens in `/fk-concat-fit-narrator`
 
+### 6b. Check every line fits the 8-second clip (required)
+
+Do not move on to subtitles or `/fk-gen-videos` until every narrated scene is **≤6.5s**. Read the measured lengths from the plan:
+
+```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/videos/<VID>/assembly-plan" -H "$KEY" | python -c "
+import json,sys
+for s in json.load(sys.stdin)['segments']:
+    d = s.get('narration_duration') or 0
+    print(f\"scene {s['display_order']+1:>3} {d:5.2f}s\", 'OK' if d <= 6.5 else 'TOO LONG for the 8s clip')"
+```
+
+For each `TOO LONG` scene:
+1. Shorten the line (keep its meaning and names; cut filler, merge sentences). Show the user the old and new text with the old length.
+2. Save it (Step 4) and regenerate **only that scene** (Step 6a).
+3. Check again. Repeat until every scene is ≤6.5s.
+
+Only if the user refuses to shorten a line: give that scene a fixed length of narration + 0.5s in its look & feel (`look_feel.duration`). The render then plays its Veo clip in slow motion to fit, down to 60% speed (a Veo scene can reach ~11.6s at most). Say which scenes will play slower.
+
 ### `timing_source`
 - `gemini` — timings from Gemini's audio model, mapped onto the script's own words (subtitles always show the written text)
 - `estimated` — the timing call failed (reason in `timing_error`); words are spread across the audio by length. Fine for sentence-level captions. To retry, re-run `/api/tts/generate` for that scene.
@@ -344,7 +368,7 @@ Narrator generation complete: <project_name>
   Note: Interview scenes keep original video audio (no narrator overlay).
 ```
 
-Warn about any Veo scene whose narration duration is > 6.5s — it will be cut off unless the scene is switched to ffmpeg or the line is shortened.
+Every narrated scene must be ≤6.5s so it fits its 8-second Veo clip. If any scene is longer, go back to Step 6b before finishing — never hand over narration that will be cut off.
 
 ## Narrative Arc Guide
 
@@ -370,7 +394,7 @@ When writing narrator text for 30-40 scenes, follow a narrative arc:
 | Voice changes between scenes | Different `voice`/`style` per call | Use the same voice and style everywhere |
 | Style text is spoken aloud | Style not phrased as an instruction | Start with "Say ..." / "Speak ..." and keep it short |
 | `timing_source: estimated` | Timing call failed | Check `timing_error`; captions still work at sentence level |
-| Narration cut off in final video | Veo scene narration > 6.5s | Shorten the line, or set the scene to ffmpeg in `/fk-review-board` |
+| Narration cut off in final video | Narration > 6.5s does not fit the 8s Veo clip (1s head skipped, 0.5s pause) | Step 6b: shorten the line and regenerate that scene; or give the scene a fixed look & feel length so the clip plays slower |
 | Narration not found by the render | Generated without `scene_id` | Re-run `/api/tts/generate` for that scene with `scene_id` |
 | Narrator describes visuals | Bad writing style | Remove "we see", describe context/stakes instead |
 | Want a free voice all the time | — | Set `TTS_ENGINE=piper` (local) or `TTS_ENGINE=google` (gTTS) in `.env`; word timings still come from Gemini if a key is set |
