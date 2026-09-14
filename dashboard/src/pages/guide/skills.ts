@@ -391,8 +391,8 @@ export const SKILL_CATEGORIES: SkillCategory[] = [
     ],
   },
   {
-    id: 'publish',
-    title: { en: 'Assemble and publish', ko: '합치기와 게시' },
+    id: 'assemble',
+    title: { en: 'Assemble', ko: '합치기' },
     skills: [
       {
         name: 'fk-concat-fit-narrator',
@@ -430,69 +430,6 @@ export const SKILL_CATEGORIES: SkillCategory[] = [
         },
         needs: ['ffmpeg'],
       },
-      {
-        name: 'fk-thumbnail',
-        usage: ['/fk-thumbnail [project_id]'],
-        summary: {
-          en: 'Generates 4 YouTube thumbnail variants from the project’s characters and story.',
-          ko: '프로젝트의 캐릭터와 스토리로 YouTube 썸네일 4종을 만듭니다.',
-        },
-        when: {
-          en: 'Once the video is cut.',
-          ko: '영상 편집이 끝난 뒤 사용합니다.',
-        },
-        needs: ['Flow tab'],
-      },
-      {
-        name: 'fk-thumbnail-guide',
-        usage: ['/fk-thumbnail-guide'],
-        summary: {
-          en: 'Design rules for thumbnails that get clicks: text, faces, colors, composition and lighting.',
-          ko: '클릭을 부르는 썸네일 디자인 규칙입니다: 텍스트, 얼굴, 색상, 구도, 조명.',
-        },
-        when: {
-          en: 'While writing thumbnail prompts.',
-          ko: '썸네일 프롬프트를 쓸 때 참고합니다.',
-        },
-      },
-      {
-        name: 'fk-youtube-seo',
-        usage: ['/fk-youtube-seo <project_id> [--language vi] [--niche military-documentary]'],
-        summary: {
-          en: 'Writes the YouTube title, description, hashtags and keywords from the project.',
-          ko: '프로젝트 내용으로 YouTube 제목, 설명, 해시태그, 키워드를 작성합니다.',
-        },
-        when: {
-          en: 'Before uploading.',
-          ko: '업로드 전에 사용합니다.',
-        },
-      },
-      {
-        name: 'fk-brand-logo',
-        usage: ['/fk-brand-logo <channel_name> <video_path> [--size 220] [--thumbnails] [--no-intro] [--no-outro]'],
-        summary: {
-          en: 'Adds a channel’s intro, outro and logo watermark to the final video, and optionally to thumbnails.',
-          ko: '최종 영상에 채널 인트로, 아웃트로, 로고 워터마크를 넣고, 원하면 썸네일에도 적용합니다.',
-        },
-        when: {
-          en: 'After the final cut, before upload.',
-          ko: '최종 편집 후 업로드 전에 사용합니다.',
-        },
-        needs: ['ffmpeg', 'youtube/channels/<name>/'],
-      },
-      {
-        name: 'fk-youtube-upload',
-        usage: ['/fk-youtube-upload <channel_name> <video_path_or_dir> [--schedule "time"] [--batch] [--dry-run]'],
-        summary: {
-          en: 'Uploads Shorts or long videos to a channel, checks the channel’s rules, and can schedule or batch uploads.',
-          ko: '채널 규칙을 확인하며 쇼츠나 긴 영상을 업로드하고, 예약이나 일괄 업로드도 할 수 있습니다.',
-        },
-        when: {
-          en: 'The final step. Try --dry-run first.',
-          ko: '마지막 단계입니다. 먼저 --dry-run으로 확인하세요.',
-        },
-        needs: ['YouTube credentials in youtube/'],
-      },
     ],
   },
   {
@@ -504,8 +441,8 @@ export const SKILL_CATEGORIES: SkillCategory[] = [
         remote: true,
         usage: ['/fk-doctor', '/fk-doctor <request_id>', '/fk-doctor "<error message>"'],
         summary: {
-          en: 'Diagnoses a failure across Flow, the extension, the agent, the worker and YouTube, and tells you the fix.',
-          ko: 'Flow, 확장 프로그램, 에이전트, 워커, YouTube 전반의 오류를 진단하고 해결 방법을 알려줍니다.',
+          en: 'Diagnoses a failure across Flow, the extension, the agent and the worker, and tells you the fix.',
+          ko: 'Flow, 확장 프로그램, 에이전트, 워커 전반의 오류를 진단하고 해결 방법을 알려줍니다.',
         },
         when: {
           en: 'On any error: a FAILED request, a job stuck in PROCESSING, extension_connected: false, or an error string.',
@@ -670,13 +607,5 @@ export const WORKFLOW: { title: Localized; body: Localized; skills: string[] }[]
       ko: '클립을 내레이션에 맞추고 음악, 오버레이, 전환 효과, 자막을 넣습니다.',
     },
     skills: ['fk-gen-music', 'fk-concat-fit-narrator', 'fk-concat'],
-  },
-  {
-    title: { en: 'Publish', ko: '게시' },
-    body: {
-      en: 'Thumbnail, metadata, branding and upload.',
-      ko: '썸네일, 메타데이터, 브랜딩, 업로드를 진행합니다.',
-    },
-    skills: ['fk-thumbnail', 'fk-youtube-seo', 'fk-brand-logo', 'fk-youtube-upload'],
   },
 ]
