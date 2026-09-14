@@ -23,7 +23,8 @@ from agent.models.tts import (
     VoiceTemplateResponse,
     VoiceTemplateListItem,
 )
-from agent.services.tts import generate_speech, generate_video_narration, write_word_timings
+from agent.services import gemini_tts
+from agent.services.tts import TTSEngineUnavailable, TTSUnavailableError, generate_speech, generate_video_narration, speak, write_word_timings
 from agent.services.post_process import add_narration
 
 logger = logging.getLogger(__name__)
@@ -104,36 +105,44 @@ async def tts_generate(body: TTSGenerateRequest):
         project = await get_project(video["project_id"]) if video else None
         if not project:
             raise HTTPException(404, "Project not found")
+        lang = body.lang or project.get("language")
         wav = scene_tts_path(slugify(project.get("name") or "unnamed_project"), scene["display_order"], scene["id"])
         wav.parent.mkdir(parents=True, exist_ok=True)
         out_path = str(wav)
     elif body.output_path:
+        lang = body.lang
         await auth.require_output_path(body.output_path)
         out_path = str(_validate_output_path(body.output_path))
     else:
+        lang = body.lang
         SHARED_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
         import uuid as _uuid
         out_path = str(SHARED_OUTPUT_DIR / f"{_uuid.uuid4()}.wav")
 
     async with _TTS_SEMAPHORE:
         try:
-            audio_path = await generate_speech(
-                text=body.text,
-                output_path=out_path,
+            spoken = await speak(
+                body.text,
+                out_path,
                 instruct=body.instruct,
                 ref_audio=body.ref_audio,
                 ref_text=body.ref_text,
                 speed=body.speed,
-                lang=body.lang,
+                lang=lang,
                 tld=body.tld,
                 voice=body.voice,
-                style=body.style,
+                style=body.style or body.instruct,
             )
+        except gemini_tts.GeminiQuotaError as e:
+            raise HTTPException(429, f"Gemini TTS is out of quota and no fallback engine is set: {str(e)[:300]}")
+        except (TTSUnavailableError, TTSEngineUnavailable) as e:
+            raise HTTPException(503, str(e))
         except Exception as e:
             logger.exception("TTS generation failed")
             raise HTTPException(500, f"TTS generation failed: {str(e)[:300]}")
+        audio_path = spoken["path"]
 
-        timing = await write_word_timings(audio_path, body.text) if body.with_timings else {}
+        timing = await write_word_timings(audio_path, body.text, engine=spoken["engine"]) if body.with_timings else {}
 
     return TTSGenerateResponse(
         audio_path=audio_path,
@@ -141,6 +150,8 @@ async def tts_generate(body: TTSGenerateRequest):
         words=timing.get("words"),
         timing_source=timing.get("timing_source"),
         timings_path=timing.get("timings_path"),
+        engine=spoken["engine"],
+        fallback_reason=spoken["fallback_reason"],
     )
 
 
@@ -220,6 +231,7 @@ async def narrate_video(vid: str, body: NarrateVideoRequest):
             tld=tld,
             voice=body.voice,
             style=body.style,
+            redo_fallback=body.redo_fallback,
         )
 
     orientation = body.orientation.upper()
@@ -234,6 +246,7 @@ async def narrate_video(vid: str, body: NarrateVideoRequest):
             duration=r.get("duration"),
             timings_path=r.get("timings_path"),
             timing_source=r.get("timing_source"),
+            engine=r.get("engine"),
             status=r["status"],
             error=r.get("error"),
         )
@@ -263,6 +276,7 @@ async def narrate_video(vid: str, body: NarrateVideoRequest):
     scenes_skipped = sum(1 for r in scene_results if r.status == "SKIPPED")
     scenes_failed = sum(1 for r in scene_results if r.status == "FAILED")
     total_duration = sum(r.duration for r in scene_results if r.duration is not None) or None
+    fallback_reasons = [r["fallback_reason"] for r in raw_results if r.get("fallback_reason")]
 
     return NarrateVideoResponse(
         video_id=vid,
@@ -272,6 +286,8 @@ async def narrate_video(vid: str, body: NarrateVideoRequest):
         scenes_skipped=scenes_skipped,
         scenes_failed=scenes_failed,
         total_narration_duration=total_duration,
+        fallback_scenes=len(fallback_reasons),
+        fallback_reason=fallback_reasons[0] if fallback_reasons else None,
     )
 
 

@@ -18,12 +18,15 @@ import json
 import logging
 import re
 import subprocess
+import time
 import wave
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any, Optional
 
 import httpx
+
+from agent import config
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +38,39 @@ _RETRY_DELAYS = (2, 6, 15)
 
 class GeminiTTSError(RuntimeError):
     pass
+
+
+class GeminiQuotaError(GeminiTTSError):
+    """The model's quota or rate limit is used up; the caller can switch to another voice."""
+
+
+# model -> time.time() until which calls are refused without asking Gemini.
+_blocked_until: dict[str, float] = {}
+_MIN_BLOCK = 60
+
+
+def quota_blocked(model: str) -> float:
+    """Seconds left before ``model`` is tried again (0 when it isn't blocked)."""
+    return max(_blocked_until.get(model, 0) - time.time(), 0)
+
+
+def quota_details(body: str) -> tuple[bool, Optional[float]]:
+    """(daily quota exhausted, seconds Gemini asks us to wait) from a 429 body."""
+    try:
+        details = json.loads(body).get("error", {}).get("details", [])
+    except (ValueError, AttributeError):
+        return False, None
+    daily, delay = False, None
+    for d in details if isinstance(details, list) else []:
+        if not isinstance(d, dict):
+            continue
+        for violation in d.get("violations") or []:
+            if "PerDay" in str(violation.get("quotaId", "")):
+                daily = True
+        m = re.match(r"^([\d.]+)s$", str(d.get("retryDelay", "")))
+        if m:
+            delay = float(m.group(1))
+    return daily, delay
 
 
 # ─── Request builders ────────────────────────────────────────
@@ -178,10 +214,11 @@ def estimate_timings(script_words: list[str], duration: float, lead: float = 0.0
     return words
 
 
-def align_timings(raw: Any, script_words: list[str], duration: float) -> tuple[list[dict], str]:
+def align_timings(raw: Any, script_words: list[str], duration: float,
+                  source: str = "gemini") -> tuple[list[dict], str]:
     """Map a model's word timings onto the script's words.
 
-    Returns (words, source) where source is "gemini" or "estimated".
+    Returns (words, source) where source is the given ``source`` or "estimated".
     """
     entries = []
     if isinstance(raw, list):
@@ -191,7 +228,7 @@ def align_timings(raw: Any, script_words: list[str], duration: float) -> tuple[l
             except (KeyError, TypeError, ValueError):
                 continue
     if not script_words:
-        return [], "gemini"
+        return [], source
     if not entries:
         return estimate_timings(script_words, duration), "estimated"
 
@@ -216,7 +253,7 @@ def align_timings(raw: Any, script_words: list[str], duration: float) -> tuple[l
         end = min(max(end, start), duration)
         words.append({"word": word, "start": round(start, 3), "end": round(end, 3)})
         floor = start
-    return words, "gemini"
+    return words, source
 
 
 def _fill_gaps(times: list[Optional[tuple[float, float]]], duration: float) -> None:
@@ -243,6 +280,9 @@ def _fill_gaps(times: list[Optional[tuple[float, float]]], duration: float) -> N
 async def _generate(model: str, body: dict, api_key: str, timeout: float) -> dict:
     if not api_key:
         raise GeminiTTSError("GEMINI_API_KEY is not set — add it to .env")
+    wait = quota_blocked(model)
+    if wait:
+        raise GeminiQuotaError(f"Gemini {model} is out of quota; trying again in {wait / 60:.0f} min")
     url = f"{API_ROOT}/models/{model}:generateContent"
     headers = {"x-goog-api-key": api_key, "Content-Type": "application/json"}
     async with httpx.AsyncClient(timeout=timeout) as client:
@@ -250,11 +290,20 @@ async def _generate(model: str, body: dict, api_key: str, timeout: float) -> dic
             resp = await client.post(url, headers=headers, json=body)
             if resp.status_code == 200:
                 return resp.json()
-            if resp.status_code in _RETRY_STATUS and attempt < len(_RETRY_DELAYS):
+            daily, delay = quota_details(resp.text) if resp.status_code == 429 else (False, None)
+            if resp.status_code in _RETRY_STATUS and attempt < len(_RETRY_DELAYS) and not daily:
                 logger.warning("Gemini %s returned %d, retrying in %ds", model, resp.status_code, _RETRY_DELAYS[attempt])
                 await asyncio.sleep(_RETRY_DELAYS[attempt])
                 continue
-            raise GeminiTTSError(f"Gemini {model} HTTP {resp.status_code}: {resp.text[:300]}")
+            message = f"Gemini {model} HTTP {resp.status_code}: {resp.text[:300]}"
+            if resp.status_code == 429:
+                # Stop asking until the limit resets, so the rest of a batch goes straight to the fallback.
+                block = config.GEMINI_QUOTA_COOLDOWN if daily else max(delay or 0, _MIN_BLOCK)
+                _blocked_until[model] = time.time() + block
+                logger.warning("Gemini %s is out of quota (%s); not calling it for %ds",
+                               model, "daily" if daily else "rate limit", block)
+                raise GeminiQuotaError(message)
+            raise GeminiTTSError(message)
     raise GeminiTTSError(f"Gemini {model}: retries exhausted")
 
 

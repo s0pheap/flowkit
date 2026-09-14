@@ -123,11 +123,15 @@ ENDPOINTS = {
 # ─── Output Directories ─────────────────────────────────────
 OUTPUT_DIR = BASE_DIR / "output"
 SHARED_OUTPUT_DIR = OUTPUT_DIR / "_shared"
+# Font files for burned subtitles that the OS doesn't have (e.g. KantumruyPro-Bold.ttf for Khmer).
+SUBTITLE_FONTS_DIR = Path(os.environ.get("SUBTITLE_FONTS_DIR", "") or SHARED_OUTPUT_DIR / "fonts")
 TTS_TEMPLATES_DIR = SHARED_OUTPUT_DIR / "tts_templates"
 MUSIC_OUTPUT_DIR = SHARED_OUTPUT_DIR / "music"
 
-# ─── TTS (Gemini / Google TTS / OmniVoice) ──────────────────
-TTS_ENGINE = os.environ.get("TTS_ENGINE", "gemini")  # "gemini" (default), "google" (free gTTS) or "omnivoice"
+# ─── TTS (Gemini / Mindlogic / Kokoro / Piper / Google TTS / OmniVoice) ───
+TTS_ENGINE = os.environ.get("TTS_ENGINE", "gemini")  # "gemini" (default), "mindlogic" (Gemini via the Mindlogic gateway), "kokoro" (your Kokoro server), "piper" (free, local), "google" (free gTTS) or "omnivoice"
+# Engines to try, in order, when TTS_ENGINE can't speak a line (its language, quota, server down). "none" turns this off.
+TTS_FALLBACK_ENGINE = os.environ.get("TTS_FALLBACK_ENGINE", "piper")
 TTS_LANG = os.environ.get("TTS_LANG", "en")          # default language (e.g. "en", "vi", "ja", "fr")
 TTS_TLD = os.environ.get("TTS_TLD", "com")           # domain/accent: "com" (US), "co.uk" (UK), "ca", "co.in"
 TTS_MODEL = os.environ.get("TTS_MODEL", "k2-fsa/OmniVoice")
@@ -141,6 +145,35 @@ GEMINI_TTS_MODEL = os.environ.get("GEMINI_TTS_MODEL", "gemini-3.1-flash-tts-prev
 GEMINI_TTS_VOICE = os.environ.get("GEMINI_TTS_VOICE", "Kore")
 GEMINI_TIMING_MODEL = os.environ.get("GEMINI_TIMING_MODEL", "gemini-2.5-flash")
 GEMINI_TTS_CONCURRENCY = int(os.environ.get("GEMINI_TTS_CONCURRENCY", "2"))
+# After a daily quota runs out, skip Gemini for this long before trying it again.
+GEMINI_QUOTA_COOLDOWN = int(os.environ.get("GEMINI_QUOTA_COOLDOWN", "3600"))
+
+# Word timings for subtitles, tried in order until one works: "gemini" (GEMINI_TIMING_MODEL)
+# and/or "whisper" (local faster-whisper, no quota), e.g. "whisper,gemini".
+TIMING_ENGINE = os.environ.get("TIMING_ENGINE", "gemini")
+WHISPER_MODEL = os.environ.get("WHISPER_MODEL", "small")  # size name, or a model folder (relative to the repo)
+WHISPER_DEVICE = os.environ.get("WHISPER_DEVICE", "auto")  # "auto" (GPU, else CPU), "cuda" or "cpu"
+WHISPER_COMPUTE_TYPE = os.environ.get("WHISPER_COMPUTE_TYPE", "")  # empty: float16 on cuda, int8 on cpu
+
+# A self-hosted Kokoro-82M server: POST {text, voice, speed, lang_code} returns a wav.
+# It speaks English, Spanish, French, Hindi, Italian, Portuguese, Japanese and Mandarin.
+KOKORO_URL = os.environ.get("KOKORO_URL", "")  # e.g. http://10.255.78.58:9013/tts
+KOKORO_VOICE = os.environ.get("KOKORO_VOICE", "")  # e.g. af_heart; used for lines in that voice's language
+KOKORO_TIMEOUT = float(os.environ.get("KOKORO_TIMEOUT", "300"))
+
+# Gemini TTS through the Mindlogic API gateway (TTS_ENGINE=mindlogic): billed in gateway
+# credits instead of Google quota. Same prebuilt voices as Gemini; returns raw 24 kHz PCM.
+MINDLOGIC_API_KEY = os.environ.get("MINDLOGIC_API_KEY", "")
+MINDLOGIC_TTS_URL = os.environ.get("MINDLOGIC_TTS_URL", "https://factchat-cloud.mindlogic.ai/v1/gateway/audio/speech/")
+MINDLOGIC_TTS_MODEL = os.environ.get("MINDLOGIC_TTS_MODEL", "gemini-3.1-flash-tts-preview")
+MINDLOGIC_TTS_VOICE = os.environ.get("MINDLOGIC_TTS_VOICE", "")  # empty: GEMINI_TTS_VOICE
+MINDLOGIC_TIMEOUT = float(os.environ.get("MINDLOGIC_TIMEOUT", "180"))
+
+# Piper runs on this machine for free. A voice is a name from
+# https://huggingface.co/rhasspy/piper-voices ("en_US-ryan-high") or a path to an
+# .onnx file; empty picks one for the project's language. Voices download on first use.
+PIPER_VOICE = os.environ.get("PIPER_VOICE", "")
+PIPER_VOICES_DIR = Path(os.environ.get("PIPER_VOICES_DIR", "") or SHARED_OUTPUT_DIR / "piper_voices")
 
 # ─── Review / Claude Vision ──────────────────────────────────
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")

@@ -57,9 +57,19 @@ Interview scenes (skipped): N
 Cinematic scenes (will narrate): M
 ```
 
-## Step 2: Check Gemini TTS is ready
+## Step 2: Check the TTS engine is ready
 
-Narration uses **Gemini TTS** (`TTS_ENGINE=gemini`, the default). It needs `GEMINI_API_KEY` in `.env`.
+The server's `TTS_ENGINE` speaks the narration:
+
+| `TTS_ENGINE` | Voice | Languages |
+|--------------|-------|-----------|
+| `gemini` (default) | Gemini TTS, needs `GEMINI_API_KEY` | Most, including Korean |
+| `mindlogic` | The same Gemini voices through the Mindlogic API gateway (`MINDLOGIC_API_KEY`, billed in gateway credits) | Most, including Korean |
+| `kokoro` | A self-hosted Kokoro-82M server (`KOKORO_URL`) | English, Spanish, French, Hindi, Italian, Portuguese (Japanese, Mandarin if the server has their extras) |
+
+Each line goes to an engine that knows its language. A Korean or Khmer line under `kokoro` is spoken by
+`TTS_FALLBACK_ENGINE` instead (Piper for Korean, gTTS for Khmer), and so is any line while
+Gemini is out of quota or the Kokoro server is down. The reply's `engine` says which one spoke.
 
 Probe with one short line:
 ```bash
@@ -70,11 +80,47 @@ curl -s -m 120 -X POST "$FK/api/tts/generate" -H "$KEY" \
 ```
 
 - `500 ... GEMINI_API_KEY is not set` → **ABORT**. Tell the user to add `GEMINI_API_KEY=<key>` to `.env` (from https://aistudio.google.com/apikey) and restart the agent.
-- `500 ... HTTP 429` → rate limited; wait a minute and retry, or lower `GEMINI_TTS_CONCURRENCY`.
+- `"engine"` is not the server's `TTS_ENGINE` → read `fallback_reason` (see **When the main engine can't speak** below). Tell the user before narrating the whole video. Probe with a line in the video's language, since routing depends on it.
+- `429 ... no fallback engine is set` → wait for the quota to reset, or ask the admin to set `TTS_FALLBACK_ENGINE=piper,google`.
+- `503 ... no engine in TTS_FALLBACK_ENGINE ... can` → no configured engine speaks this language; the admin adds `google` to `TTS_FALLBACK_ENGINE`.
+- `503 ... the fallback voice failed too` → print the message; usually the admin needs `pip install piper-tts` on the server, or the Kokoro server is down.
+
+### When the main engine can't speak
+
+The server does not fail when `TTS_ENGINE` can't speak a line: Gemini out of quota (it then stops
+calling Gemini until the limit resets, 1 hour for a daily quota), the Kokoro server down, or a
+language the engine doesn't know. It narrates with `TTS_FALLBACK_ENGINE` (Piper, a free voice on the
+server, then gTTS). Every reply says which engine spoke and why: `engine` and `fallback_reason` on
+`/api/tts/generate`, `scenes[].engine` plus `fallback_scenes` on `/api/videos/<VID>/narrate`.
+
+A fallback voice sounds different and ignores `voice` and `style`. When scenes come back with another engine:
+
+1. Tell the user which scenes and why, e.g. "3 scenes were narrated with the free local voice: Gemini is out of quota."
+2. If the reason is the language (`can't speak 'ko'`), that is permanent for this engine — every line in that language will use the fallback voice.
+3. Otherwise ask whether to keep the fallback voice (fine for drafts) or redo those scenes later: call `/api/tts/generate`
+   again for them, or narrate the whole video with `"redo_fallback": true` (only fallback scenes the main engine can speak are redone).
 
 ### Pick the voice
 
-Gemini uses prebuilt voices — there is no voice template or `ref_audio` to prepare. Use `--voice` if given, otherwise ask the user, suggesting a few:
+**With `TTS_ENGINE=kokoro`**, voices are Kokoro names whose first letter is the language. The server's
+`KOKORO_VOICE` is the default; pass `voice` to change it. A voice for the wrong language is ignored.
+
+Grades are Kokoro's own quality ratings (A best). Suggest the top ones:
+
+| Voice | Accent, gender | Grade |
+|-------|----------------|-------|
+| `af_heart` | American, female | A (default) |
+| `af_bella` | American, female | A- |
+| `af_nicole` | American, female (soft, close to the mic) | B- |
+| `bf_emma` | British, female | B- |
+| `am_fenrir`, `am_michael`, `am_puck` | American, male | C+ |
+| `af_aoede`, `af_kore`, `af_sarah` | American, female | C+ |
+| `bm_george`, `bm_fable` | British, male | C |
+| `ef_dora`, `ff_siwis` (B-), `if_sara`, `pf_dora`, `hf_alpha` | Spanish, French, Italian, Portuguese, Hindi | — |
+
+Full list: https://huggingface.co/hexgrad/Kokoro-82M/blob/main/VOICES.md. `style` does nothing on Kokoro.
+
+**With `TTS_ENGINE=gemini` or `mindlogic`**, Gemini uses prebuilt voices — there is no voice template or `ref_audio` to prepare. Use `--voice` if given, otherwise ask the user, suggesting a few:
 
 | Voice | Character |
 |-------|-----------|
@@ -226,9 +272,13 @@ Response:
   "duration": 5.42,
   "words": [{"word": "Colonel", "start": 0.08, "end": 0.51}, ...],
   "timing_source": "gemini",
-  "timings_path": ".../tts/scene_003_<id>.words.json"
+  "timings_path": ".../tts/scene_003_<id>.words.json",
+  "engine": "gemini",
+  "fallback_reason": null
 }
 ```
+
+Check `engine` on every reply. `piper` means Gemini ran out of quota for this scene — follow **When Gemini runs out of quota** (Step 2).
 
 **Run these one scene at a time** (the server allows 2 TTS jobs at once and Gemini preview models have low rate limits). This is a sequence of single calls, not a script loop over the batch API.
 
@@ -239,6 +289,8 @@ curl -s -m 1800 -X POST "$FK/api/videos/<VID>/narrate" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{"project_id": "<PID>", "voice": "<VOICE>", "style": "<STYLE>", "mix": false}'
 ```
+
+Add `"redo_fallback": true` to speak again only the scenes the local fallback voice made earlier.
 
 ### Key rules:
 - Same `voice` + `style` for ALL scenes = consistent narration
@@ -283,6 +335,7 @@ Narrator generation complete: <project_name>
   Style: "Say as a calm documentary narrator"
   Total narration: XXXs
   Word timings: N gemini, K estimated
+  Fallback voice: F scene(s) spoken by the local voice (Gemini out of quota) — omit when 0
   Output: on the server, output/<project>/tts/
   Subtitles: captions.srt (C cues)
 
@@ -310,7 +363,9 @@ When writing narrator text for 30-40 scenes, follow a narrative arc:
 | Issue | Cause | Fix |
 |-------|-------|-----|
 | `GEMINI_API_KEY is not set` | Key missing from `.env` | Add it, restart the agent |
-| `HTTP 429` | Gemini rate limit | Generate scenes one at a time; lower `GEMINI_TTS_CONCURRENCY`; wait and retry |
+| `engine: "piper"` in replies | Gemini quota or rate limit used up; the free local voice took over | Keep it for a draft, or redo those scenes later with `redo_fallback: true` |
+| `HTTP 429` / `out of quota` error | Quota used up and `TTS_FALLBACK_ENGINE=none` | Wait for the reset, or admin sets `TTS_FALLBACK_ENGINE=piper` |
+| `the fallback voice failed too` | Piper isn't installed, or no local voice for the language | Admin runs `pip install piper-tts`; for other languages set `PIPER_VOICE` |
 | `No audio in Gemini response ... SAFETY` | Line blocked by safety filters | Rephrase the narrator text (graphic violence, real names) |
 | Voice changes between scenes | Different `voice`/`style` per call | Use the same voice and style everywhere |
 | Style text is spoken aloud | Style not phrased as an instruction | Start with "Say ..." / "Speak ..." and keep it short |
@@ -318,4 +373,4 @@ When writing narrator text for 30-40 scenes, follow a narrative arc:
 | Narration cut off in final video | Veo scene narration > 6.5s | Shorten the line, or set the scene to ffmpeg in `/fk-review-board` |
 | Narration not found by the render | Generated without `scene_id` | Re-run `/api/tts/generate` for that scene with `scene_id` |
 | Narrator describes visuals | Bad writing style | Remove "we see", describe context/stakes instead |
-| Want the old free voice | — | Set `TTS_ENGINE=google` in `.env` (gTTS, word timings still come from Gemini if a key is set) |
+| Want a free voice all the time | — | Set `TTS_ENGINE=piper` (local) or `TTS_ENGINE=google` (gTTS) in `.env`; word timings still come from Gemini if a key is set |

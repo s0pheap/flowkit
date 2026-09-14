@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, Literal
 
 
-_VOICE_PATTERN = r"^[A-Za-z]{2,32}$"
+_VOICE_PATTERN = r"^[A-Za-z][A-Za-z0-9_]{1,40}$"  # Gemini "Kore" or Kokoro "af_heart"
 
 
 class WordTiming(BaseModel):
@@ -20,7 +20,7 @@ class TTSGenerateRequest(BaseModel):
     speed: float = Field(1.0, ge=0.5, le=3.0)
     lang: Optional[str] = Field(None, max_length=10)
     tld: Optional[str] = Field(None, max_length=10)
-    voice: Optional[str] = Field(None, pattern=_VOICE_PATTERN)  # Gemini prebuilt voice, e.g. "Kore"
+    voice: Optional[str] = Field(None, pattern=_VOICE_PATTERN)  # Gemini prebuilt voice ("Kore") or Kokoro voice ("af_heart")
     style: Optional[str] = Field(None, max_length=300)  # Gemini delivery direction, e.g. "Say as a tense documentary narrator"
     output_path: Optional[str] = Field(None, max_length=500)  # .wav under output/; default is a random file in output/_shared
     scene_id: Optional[str] = None  # write the scene's narration (output/<slug>/tts/scene_NNN_<id>.wav); overrides output_path
@@ -32,8 +32,10 @@ class TTSGenerateResponse(BaseModel):
     duration: Optional[float] = None
     sample_rate: int = 24000
     words: Optional[list[WordTiming]] = None
-    timing_source: Optional[str] = None  # "gemini" or "estimated"
+    timing_source: Optional[str] = None  # "gemini", "whisper" or "estimated"
     timings_path: Optional[str] = None
+    engine: Optional[str] = None  # the engine that spoke: TTS_ENGINE, or a fallback such as "piper"
+    fallback_reason: Optional[str] = None  # why the fallback was used (Gemini's quota error)
 
 
 class NarrateVideoRequest(BaseModel):
@@ -52,6 +54,7 @@ class NarrateVideoRequest(BaseModel):
     sfx_volume: float = Field(0.4, ge=0.0, le=2.0)
     from_scene: Optional[int] = Field(None, ge=0)  # Start display_order (inclusive)
     to_scene: Optional[int] = Field(None, ge=0)    # End display_order (inclusive)
+    redo_fallback: bool = False  # speak again the scenes a fallback voice made (once Gemini has quota again)
 
 
 class SceneNarrationResult(BaseModel):
@@ -62,6 +65,7 @@ class SceneNarrationResult(BaseModel):
     duration: Optional[float] = None
     timings_path: Optional[str] = None
     timing_source: Optional[str] = None
+    engine: Optional[str] = None
     status: str  # COMPLETED, SKIPPED, FAILED
     error: Optional[str] = None
 
@@ -74,6 +78,8 @@ class NarrateVideoResponse(BaseModel):
     scenes_skipped: int
     scenes_failed: int
     total_narration_duration: Optional[float] = None
+    fallback_scenes: int = 0  # scenes spoken by the fallback voice because Gemini was out of quota
+    fallback_reason: Optional[str] = None
 
 
 class VoiceTemplateRequest(BaseModel):
