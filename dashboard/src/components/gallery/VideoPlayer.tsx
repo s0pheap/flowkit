@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import type { Scene } from '../../types'
+import type { Orientation, Scene } from '../../types'
+import { sceneMedia } from '../../lib/sceneMedia'
 import { useTranslation } from '../../i18n/useTranslation'
 import { chainLabel } from '../../i18n/labels'
 
-type GalleryScene = Scene & { videoTitle?: string }
+type GalleryScene = Scene & { videoTitle?: string; videoOrientation?: Orientation | null }
 
 interface VideoPlayerProps {
   scenes: GalleryScene[]
@@ -27,7 +28,8 @@ export default function VideoPlayer({ scenes, initialIndex, onClose }: VideoPlay
   const [index, setIndex] = useState(initialIndex)
   const scene = scenes[index]
 
-  const videoSrc = scene.vertical_upscale_url || scene.vertical_video_url || ''
+  const media = sceneMedia(scene, scene.videoOrientation)
+  const videoSrc = media.upscale || media.video || ''
   const charNames = parseCharacterNames(scene.character_names)
 
   useEffect(() => {

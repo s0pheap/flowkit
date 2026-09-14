@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { Film } from 'lucide-react'
 import { EmptyState } from '../layout/PageHeader'
-import type { Scene } from '../../types'
+import type { Orientation, Scene } from '../../types'
+import { sceneMedia } from '../../lib/sceneMedia'
 import VideoPlayer from './VideoPlayer'
 import { Badge } from '../ui/badge'
 import { useTranslation } from '../../i18n/useTranslation'
 
-type GalleryScene = Scene & { videoTitle?: string }
+type GalleryScene = Scene & { videoTitle?: string; videoOrientation?: Orientation | null }
 
 interface VideoGalleryProps {
   scenes: GalleryScene[]
@@ -16,7 +17,8 @@ export default function VideoGallery({ scenes }: VideoGalleryProps) {
   const { t } = useTranslation()
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
 
-  const videoscenes = scenes.filter(s => s.vertical_video_url)
+  // Horizontal and vertical videos keep their clips in different fields.
+  const videoscenes = scenes.filter(s => sceneMedia(s, s.videoOrientation).video)
 
   if (videoscenes.length === 0) {
     return (
@@ -29,7 +31,9 @@ export default function VideoGallery({ scenes }: VideoGalleryProps) {
   return (
     <>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {videoscenes.map((scene, idx) => (
+        {videoscenes.map((scene, idx) => {
+          const media = sceneMedia(scene, scene.videoOrientation)
+          return (
           <div
             key={scene.id}
             className="relative rounded-lg overflow-hidden cursor-pointer transition-transform hover:scale-105"
@@ -37,10 +41,10 @@ export default function VideoGallery({ scenes }: VideoGalleryProps) {
             onClick={() => setActiveIndex(idx)}
           >
             {/* Thumbnail */}
-            <div className="relative" style={{ aspectRatio: '9/16' }}>
-              {scene.vertical_image_url ? (
+            <div className="relative" style={{ aspectRatio: media.orientation === 'HORIZONTAL' ? '16/9' : '9/16' }}>
+              {media.image ? (
                 <img
-                  src={scene.vertical_image_url}
+                  src={media.image}
                   alt={t('gallery.sceneAlt', { n: scene.display_order + 1 })}
                   className="w-full h-full object-cover"
                 />
@@ -56,8 +60,8 @@ export default function VideoGallery({ scenes }: VideoGalleryProps) {
                   <span className="text-[13px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'rgba(0,0,0,0.6)', color: 'var(--text)' }}>
                     #{scene.display_order + 1}
                   </span>
-                  <Badge variant={scene.vertical_upscale_url ? 'default' : 'secondary'}>
-                    {scene.vertical_upscale_url ? t('gallery.badgeUpscaled') : t('gallery.badgeVideo')}
+                  <Badge variant={media.upscale ? 'default' : 'secondary'}>
+                    {media.upscale ? t('gallery.badgeUpscaled') : t('gallery.badgeVideo')}
                   </Badge>
                 </div>
                 <div className="flex flex-col gap-0.5">
@@ -71,7 +75,8 @@ export default function VideoGallery({ scenes }: VideoGalleryProps) {
               </div>
             </div>
           </div>
-        ))}
+          )
+        })}
       </div>
 
       {activeIndex !== null && (

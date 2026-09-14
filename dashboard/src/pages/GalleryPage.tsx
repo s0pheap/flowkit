@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { fetchAPI } from '../api/client'
-import type { Project, Video, Scene } from '../types'
+import type { Project, Video, Scene, Orientation } from '../types'
 import VideoGallery from '../components/gallery/VideoGallery'
 import { useTranslation } from '../i18n/useTranslation'
 import { PageHeader } from '../components/layout/PageHeader'
@@ -10,7 +10,7 @@ export default function GalleryPage() {
   const [projects, setProjects] = useState<Project[]>([])
   const [selectedProject, setSelectedProject] = useState<string>('')
   const [videos, setVideos] = useState<Video[]>([])
-  const [scenes, setScenes] = useState<(Scene & { videoTitle: string })[]>([])
+  const [scenes, setScenes] = useState<(Scene & { videoTitle: string; videoOrientation: Orientation | null })[]>([])
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -28,7 +28,7 @@ export default function GalleryPage() {
     const vids = await fetchAPI<Video[]>(`/api/videos?project_id=${projectId}`)
     setVideos(vids)
     const sceneLists = await Promise.all(vids.map(v => fetchAPI<Scene[]>(`/api/scenes?video_id=${v.id}`)))
-    const merged = vids.flatMap((v, i) => sceneLists[i].map(s => ({ ...s, videoTitle: v.title })))
+    const merged = vids.flatMap((v, i) => sceneLists[i].map(s => ({ ...s, videoTitle: v.title, videoOrientation: v.orientation })))
     setScenes(merged)
     setLoading(false)
   }, [])
