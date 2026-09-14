@@ -7,6 +7,8 @@ import type { Request, Character, StatusType } from '../../types'
 import { Card, CardContent } from '../ui/card'
 import { Button } from '../ui/button'
 import { ScrollArea } from '../ui/scroll-area'
+import { ScrollText } from 'lucide-react'
+import { EmptyState } from '../layout/PageHeader'
 
 interface LogRow {
   id: string
@@ -70,20 +72,19 @@ export default function LogViewer() {
   })
 
   return (
-    <div className="flex flex-col gap-3.5" style={{ height: 'calc(100vh - 130px)' }}>
+    <div className="flex flex-col gap-3.5" style={{ height: 'calc(100vh - 250px)', minHeight: 420 }}>
       <div className="flex items-center gap-2 flex-wrap">
         <input
           value={query}
           onChange={e => setQuery(e.target.value)}
           placeholder={t('logs.searchPlaceholder')}
-          className="text-xs px-2.5 py-1.5 rounded outline-none"
-          style={{ width: 280, background: 'var(--card)', color: 'var(--text)', border: '1px solid var(--border)' }}
+          className="fk-input"
+          style={{ width: 300 }}
         />
         <select
           value={typeFilter}
           onChange={e => setTypeFilter(e.target.value)}
-          className="text-xs px-2 py-1.5 rounded outline-none"
-          style={{ background: 'var(--card)', color: 'var(--text)', border: '1px solid var(--border)' }}
+          className="fk-input text-[13px]   outline-none"
         >
           <option value="all">{t('logs.allTypes')}</option>
           {types.map(rt => <option key={rt} value={rt}>{rt}</option>)}
@@ -102,23 +103,23 @@ export default function LogViewer() {
 
       <Card className="py-0 flex-1 min-h-0 overflow-hidden">
         <div
-          className="grid gap-3.5 px-4 py-2.5 text-[9px] tracking-widest"
-          style={{ gridTemplateColumns: '150px 200px 90px 140px 1fr', borderBottom: '1px solid var(--border)', color: 'var(--muted)' }}
+          className="grid gap-3.5 px-5 py-3 eyebrow bg-surface"
+          style={{ gridTemplateColumns: '170px 200px 110px 140px 1fr', borderBottom: '1px solid var(--border)' }}
         >
           <span>{t('logs.table.time')}</span><span>{t('logs.table.type')}</span><span>{t('logs.table.status')}</span><span>{t('logs.table.target')}</span><span>{t('logs.table.detail')}</span>
         </div>
         <ScrollArea className="h-full">
           <CardContent className="py-0">
             {filtered.length === 0 ? (
-              <div className="py-10 text-center text-xs" style={{ color: 'var(--muted)' }}>{t('logs.empty')}</div>
+              <EmptyState icon={ScrollText} title={t('logs.empty')} />
             ) : (
               filtered.map(row => {
                 const req = requests.find(r => r.id === row.id)
                 return (
                   <div
                     key={row.id}
-                    className="grid gap-3.5 py-2 text-[11px]"
-                    style={{ gridTemplateColumns: '150px 200px 90px 140px 1fr', borderBottom: '1px solid var(--border)' }}
+                    className="grid gap-3.5 py-2.5 text-[13px] hover:bg-card-hover transition-colors"
+                    style={{ gridTemplateColumns: '170px 200px 110px 140px 1fr', borderBottom: '1px solid var(--border)' }}
                   >
                     <span style={{ color: 'var(--muted)' }}>{new Date(row.time).toLocaleString()}</span>
                     <span style={{ color: 'var(--accent)' }}>{row.type}</span>
@@ -133,7 +134,7 @@ export default function LogViewer() {
         </ScrollArea>
       </Card>
 
-      <div className="flex items-center gap-3.5 text-[10px]" style={{ color: 'var(--muted)' }}>
+      <div className="flex items-center gap-3.5 text-xs" style={{ color: 'var(--muted)' }}>
         <span>{t('logs.footerCount', { n: filtered.length, m: rows.length })}</span>
         <span>· {paused ? t('logs.tailPaused') : t('logs.live')}</span>
       </div>

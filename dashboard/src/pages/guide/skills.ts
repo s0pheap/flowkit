@@ -32,6 +32,7 @@ export const SKILL_CATEGORIES: SkillCategory[] = [
     skills: [
       {
         name: 'fk-research',
+        remote: true,
         usage: ['/fk-research <topic> [--language vi] [--depth deep|quick]'],
         summary: {
           en: 'Researches and fact-checks a real-world topic and writes a report you can script from.',
@@ -347,14 +348,15 @@ export const SKILL_CATEGORIES: SkillCategory[] = [
       },
       {
         name: 'fk-gen-music',
-        usage: ['/fk-gen-music'],
+        remote: true,
+        usage: ['/fk-gen-music <video_id> [description] [--template <id>] [--vocals]'],
         summary: {
-          en: 'Generates background music or songs with Suno, from templates or your own prompt, and downloads them into the project.',
-          ko: 'Suno로 템플릿이나 직접 쓴 프롬프트에서 배경음악이나 노래를 만들고 프로젝트에 내려받습니다.',
+          en: 'Generates instrumental background music with Suno and saves it to the project, ready for the final render.',
+          ko: 'Suno로 반주 배경음악을 만들어 프로젝트에 저장합니다. 최종 렌더링에서 바로 쓸 수 있습니다.',
         },
         when: {
-          en: 'When the video needs a soundtrack.',
-          ko: '영상에 배경음악이 필요할 때 사용합니다.',
+          en: 'Before /fk-concat-fit-narrator when the video needs a soundtrack. Uses the server’s Suno credits.',
+          ko: '영상에 배경음악이 필요할 때 /fk-concat-fit-narrator 전에 실행하세요. 서버의 Suno 크레딧을 씁니다.',
         },
         needs: ['SUNO_API_KEY'],
       },

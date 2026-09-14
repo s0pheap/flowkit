@@ -10,6 +10,9 @@ import { sceneStageStatus, videoStageBreakdown } from '../lib/stageStats'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardAction } from '../components/ui/card'
 import { Progress } from '../components/ui/progress'
 import { Badge } from '../components/ui/badge'
+import { PageHeader, EmptyState } from '../components/layout/PageHeader'
+import { Activity, CheckCircle2, AlertTriangle, FolderKanban, Clapperboard, ShieldCheck, Radio, ArrowRight } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 
 type VideoWithProject = Video & { projectName: string; projectId: string }
 type T = (key: TranslationKey, params?: Record<string, string | number>) => string
@@ -72,7 +75,7 @@ export default function DashboardPage() {
   }, [lastEvent, load])
 
   if (loading) {
-    return <div className="text-xs" style={{ color: 'var(--muted)' }}>{t('dashboard.loading')}</div>
+    return <div className="text-[13px]" style={{ color: 'var(--muted)' }}>{t('dashboard.loading')}</div>
   }
 
   const allVideos: VideoWithProject[] = projects.flatMap(p =>
@@ -90,11 +93,11 @@ export default function DashboardPage() {
   const completedToday = requests.filter(r => r.status === 'COMPLETED' && new Date(r.updated_at).toDateString() === todayStr).length
   const failed24h = requests.filter(r => r.status === 'FAILED' && new Date().getTime() - new Date(r.updated_at).getTime() <= 24 * 3600 * 1000).length
 
-  const kpis: { id: string; labelKey: TranslationKey; value: number; color: string; note: string }[] = [
-    { id: 'scenesInFlight', labelKey: 'dashboard.kpi.scenesInFlight', value: scenesInFlight, color: 'var(--yellow)', note: t('dashboard.kpi.note.scenesInFlight', { n: allVideos.length }) },
-    { id: 'completedToday', labelKey: 'dashboard.kpi.completedToday', value: completedToday, color: 'var(--green)', note: t('dashboard.kpi.note.completedToday', { n: requests.length }) },
-    { id: 'failed24h', labelKey: 'dashboard.kpi.failed24h', value: failed24h, color: 'var(--red)', note: t('dashboard.kpi.note.failed24h', { n: requests.filter(r => r.status === 'FAILED').length }) },
-    { id: 'activeProjects', labelKey: 'dashboard.kpi.activeProjects', value: projects.length, color: 'var(--text)', note: t('dashboard.kpi.note.activeProjects', { n: allVideos.length }) },
+  const kpis: { id: string; labelKey: TranslationKey; value: number; color: string; icon: LucideIcon; note: string }[] = [
+    { id: 'scenesInFlight', labelKey: 'dashboard.kpi.scenesInFlight', value: scenesInFlight, color: 'var(--yellow)', icon: Activity, note: t('dashboard.kpi.note.scenesInFlight', { n: allVideos.length }) },
+    { id: 'completedToday', labelKey: 'dashboard.kpi.completedToday', value: completedToday, color: 'var(--green)', icon: CheckCircle2, note: t('dashboard.kpi.note.completedToday', { n: requests.length }) },
+    { id: 'failed24h', labelKey: 'dashboard.kpi.failed24h', value: failed24h, color: 'var(--red)', icon: AlertTriangle, note: t('dashboard.kpi.note.failed24h', { n: requests.filter(r => r.status === 'FAILED').length }) },
+    { id: 'activeProjects', labelKey: 'dashboard.kpi.activeProjects', value: projects.length, color: 'var(--accent)', icon: FolderKanban, note: t('dashboard.kpi.note.activeProjects', { n: allVideos.length }) },
   ]
 
   const throughputRows = allVideos.map(v => {
@@ -127,18 +130,26 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-5">
+      <PageHeader title={t('dashboard.title')} description={t('dashboard.description')} />
+
       {/* KPI cards */}
-      <div className="grid grid-cols-4 gap-3.5">
+      <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
         {kpis.map(k => (
-          <Card key={k.id} className="py-4 gap-2">
-            <CardHeader>
-              <CardDescription className="text-[10px] tracking-widest">{t(k.labelKey)}</CardDescription>
-              <CardTitle>
-                <span className="text-2xl tracking-tight" style={{ color: k.color }}>{k.value}</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <span className="text-[10px]" style={{ color: 'var(--muted)' }}>{k.note}</span>
+          <Card key={k.id} className="gap-4">
+            <CardContent className="flex flex-col gap-4">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[13px] font-medium text-muted-foreground">{t(k.labelKey)}</span>
+                <span
+                  className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                  style={{ color: k.color, background: `color-mix(in oklab, ${k.color} 14%, transparent)` }}
+                >
+                  <k.icon size={18} strokeWidth={2} />
+                </span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[32px] leading-none font-semibold tracking-[-0.03em] tabular-nums text-foreground">{k.value}</span>
+                <span className="text-[13px] text-faint">{k.note}</span>
+              </div>
             </CardContent>
           </Card>
         ))}
@@ -146,28 +157,28 @@ export default function DashboardPage() {
 
       <div className="grid gap-4 items-start" style={{ gridTemplateColumns: '1.55fr 1fr' }}>
         {/* Throughput table */}
-        <Card className="py-4">
+        <Card>
           <CardHeader>
-            <CardTitle className="text-xs tracking-widest uppercase">{t('dashboard.throughput.title')}</CardTitle>
-            <CardDescription className="text-[11px]">{t('dashboard.throughput.desc')}</CardDescription>
+            <CardTitle className="text-[15px]">{t('dashboard.throughput.title')}</CardTitle>
+            <CardDescription className="text-[13px]">{t('dashboard.throughput.desc')}</CardDescription>
           </CardHeader>
           <CardContent>
             {throughputRows.length === 0 ? (
-              <div className="text-xs py-6 text-center" style={{ color: 'var(--muted)' }}>{t('dashboard.throughput.empty')}</div>
+              <EmptyState compact icon={Clapperboard} title={t('dashboard.throughput.empty')} />
             ) : (
               <div className="flex flex-col gap-3">
                 {throughputRows.map(r => (
-                  <div key={r.video.id} className="flex items-center gap-3.5 cursor-pointer" onClick={() => navigate(`/projects/${r.video.projectId}?tab=videos`)}>
+                  <div key={r.video.id} className="flex items-center gap-4 cursor-pointer rounded-lg -mx-2 px-2 py-2 hover:bg-card-hover transition-colors" onClick={() => navigate(`/projects/${r.video.projectId}?tab=videos`)}>
                     <div className="flex flex-col min-w-0" style={{ width: 160 }}>
-                      <span className="text-[11px] truncate">{r.video.title}</span>
-                      <span className="text-[9px] tracking-wide truncate" style={{ color: 'var(--muted)' }}>{r.video.projectName}</span>
+                      <span className="text-[13px] truncate">{r.video.title}</span>
+                      <span className="text-[11px] tracking-wide truncate" style={{ color: 'var(--muted)' }}>{r.video.projectName}</span>
                     </div>
                     {(['image', 'video', 'upscale'] as const).map(stage => {
                       const c = r.breakdown[stage]
                       const pct = r.total > 0 ? Math.round((c.done / r.total) * 100) : 0
                       return (
                         <div key={stage} className="flex flex-col gap-1" style={{ width: 76 }}>
-                          <span className="text-[10px]" style={{ color: pct === 100 ? 'var(--green)' : pct === 0 ? 'var(--muted)' : 'var(--yellow)' }}>{pct}%</span>
+                          <span className="text-xs" style={{ color: pct === 100 ? 'var(--green)' : pct === 0 ? 'var(--muted)' : 'var(--yellow)' }}>{pct}%</span>
                           <Progress value={pct} className="h-1" />
                         </div>
                       )
@@ -183,17 +194,17 @@ export default function DashboardPage() {
         </Card>
 
         {/* Needs attention */}
-        <Card className="py-4">
+        <Card>
           <CardHeader>
-            <CardTitle className="text-xs tracking-widest uppercase">{t('dashboard.attention.title')}</CardTitle>
-            <CardDescription className="text-[11px]">{t('dashboard.attention.desc')}</CardDescription>
+            <CardTitle className="text-[15px]">{t('dashboard.attention.title')}</CardTitle>
+            <CardDescription className="text-[13px]">{t('dashboard.attention.desc')}</CardDescription>
             <CardAction>
-              <span className="text-[11px]" style={{ color: 'var(--red)' }}>{attentionRows.length}</span>
+              <span className="text-[13px]" style={{ color: 'var(--red)' }}>{attentionRows.length}</span>
             </CardAction>
           </CardHeader>
           <CardContent>
             {attentionRows.length === 0 ? (
-              <div className="text-xs py-6 text-center" style={{ color: 'var(--muted)' }}>{t('dashboard.attention.empty')}</div>
+              <EmptyState compact icon={ShieldCheck} title={t('dashboard.attention.empty')} />
             ) : (
               <div className="flex flex-col gap-2">
                 {attentionRows.map(a => (
@@ -204,11 +215,11 @@ export default function DashboardPage() {
                     onClick={() => a.projectId && navigate(`/projects/${a.projectId}?tab=pipeline`)}
                   >
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px] tracking-wide">{a.label}</span>
-                      <span className="text-[9px] tracking-widest" style={{ color: 'var(--red)' }}>{a.type}</span>
-                      <span className="ml-auto text-[9px]" style={{ color: 'var(--muted)' }}>{new Date(a.time).toLocaleTimeString()}</span>
+                      <span className="text-[13px] tracking-wide">{a.label}</span>
+                      <span className="text-[11px] tracking-wider" style={{ color: 'var(--red)' }}>{a.type}</span>
+                      <span className="ml-auto text-[11px]" style={{ color: 'var(--muted)' }}>{new Date(a.time).toLocaleTimeString()}</span>
                     </div>
-                    {a.error && <span className="text-[10px] leading-snug" style={{ color: 'var(--muted)' }}>{a.error.slice(0, 140)}</span>}
+                    {a.error && <span className="text-xs leading-snug" style={{ color: 'var(--muted)' }}>{a.error.slice(0, 140)}</span>}
                   </div>
                 ))}
               </div>
@@ -218,20 +229,20 @@ export default function DashboardPage() {
       </div>
 
       {/* Event stream */}
-      <Card className="py-4">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-xs tracking-widest uppercase">{t('dashboard.events.title')}</CardTitle>
+          <CardTitle className="text-[15px]">{t('dashboard.events.title')}</CardTitle>
           <CardAction>
-            <span className="text-[10px] tracking-wide cursor-pointer" style={{ color: 'var(--accent)' }} onClick={() => navigate('/logs')}>{t('dashboard.events.openLogs')}</span>
+            <button type="button" className="inline-flex items-center gap-1 text-[13px] font-medium text-brand hover:underline" onClick={() => navigate('/logs')}>{t('dashboard.events.openLogs')} <ArrowRight size={14} /></button>
           </CardAction>
         </CardHeader>
         <CardContent>
           {recentEvents.length === 0 ? (
-            <div className="text-xs py-6 text-center" style={{ color: 'var(--muted)' }}>{t('dashboard.events.empty')}</div>
+            <EmptyState compact icon={Radio} title={t('dashboard.events.empty')} />
           ) : (
             <div className="flex flex-col gap-1">
               {recentEvents.map((e, i) => (
-                <div key={i} className="flex gap-3.5 text-[11px] py-0.5">
+                <div key={i} className="flex gap-3.5 text-[13px] py-0.5">
                   <span style={{ color: 'var(--muted)', width: 64, flexShrink: 0 }}>{new Date(e.timestamp).toLocaleTimeString()}</span>
                   <span style={{ color: 'var(--accent)', width: 130, flexShrink: 0 }}>{e.type}</span>
                   <span style={{ color: 'var(--muted)' }}>{describeEvent(t, e, requests)}</span>

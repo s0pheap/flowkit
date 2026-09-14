@@ -99,13 +99,13 @@ export default function SceneDetailSheet({
           </SheetHeader>
           <div className="flex items-center gap-2.5 mt-3">
             <span
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[10px] tracking-widest border"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs tracking-wider border"
               style={{ borderColor: 'var(--border)', color: STATUS_COLORS[status] }}
             >
               <span className="w-1.5 h-1.5 rounded-full" style={{ background: STATUS_COLORS[status] }} />
               {statusLabel(t, status)}
             </span>
-            <span className="text-[10px] tracking-wide" style={{ color: 'var(--muted)' }}>
+            <span className="text-xs tracking-wide" style={{ color: 'var(--muted)' }}>
               {t('sceneSheet.retryOf3', { n: currentRequest?.retry_count ?? 0 })}
             </span>
           </div>
@@ -123,28 +123,28 @@ export default function SceneDetailSheet({
               <div className="flex flex-col gap-5 pt-4">
                 {status === 'FAILED' && currentRequest?.error_message && (
                   <div className="rounded-md p-3.5" style={{ border: '1px solid var(--red)', borderLeftWidth: 3, background: 'rgba(239,68,68,.07)' }}>
-                    <div className="text-[10px] tracking-widest mb-2" style={{ color: 'var(--red)' }}>{t('sceneSheet.error')}</div>
-                    <pre className="m-0 text-[11px] leading-relaxed whitespace-pre-wrap" style={{ color: '#fca5a5', fontFamily: 'inherit' }}>
+                    <div className="text-xs tracking-wider mb-2" style={{ color: 'var(--red)' }}>{t('sceneSheet.error')}</div>
+                    <pre className="m-0 text-[13px] leading-relaxed whitespace-pre-wrap" style={{ color: '#fca5a5', fontFamily: 'inherit' }}>
                       {currentRequest.error_message}
                     </pre>
                   </div>
                 )}
 
                 <div>
-                  <div className="text-[10px] tracking-widest mb-2" style={{ color: 'var(--muted)' }}>{t('sceneSheet.prompt')}</div>
+                  <div className="text-xs tracking-wider mb-2" style={{ color: 'var(--muted)' }}>{t('sceneSheet.prompt')}</div>
                   {prompt ? (
-                    <pre className="m-0 p-3.5 rounded-md text-xs leading-relaxed whitespace-pre-wrap" style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', fontFamily: 'inherit' }}>
+                    <pre className="m-0 p-3.5 rounded-md text-[13px] leading-relaxed whitespace-pre-wrap" style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', fontFamily: 'inherit' }}>
                       {prompt}
                     </pre>
                   ) : (
-                    <div className="text-xs" style={{ color: 'var(--muted)' }}>
+                    <div className="text-[13px]" style={{ color: 'var(--muted)' }}>
                       {stage === 'upscale' ? t('sceneSheet.noPromptUpscale') : t('sceneSheet.noPromptSet')}
                     </div>
                   )}
                 </div>
 
                 <div>
-                  <div className="text-[10px] tracking-widest mb-2" style={{ color: 'var(--muted)' }}>{t('sceneSheet.output')}</div>
+                  <div className="text-xs tracking-wider mb-2" style={{ color: 'var(--muted)' }}>{t('sceneSheet.output')}</div>
                   <div className="relative flex items-center justify-center overflow-hidden rounded-lg" style={{ aspectRatio: '16/9', background: 'var(--surface)', border: '1px solid var(--border)' }}>
                     {outputUrl ? (
                       stage === 'image' ? (
@@ -153,7 +153,7 @@ export default function SceneDetailSheet({
                         <video src={outputUrl} controls className="w-full h-full object-cover" />
                       )
                     ) : (
-                      <span className="text-[11px] tracking-widest" style={{ color: 'var(--muted)' }}>
+                      <span className="text-[13px] tracking-wider" style={{ color: 'var(--muted)' }}>
                         {status === 'FAILED' ? t('sceneSheet.noOutputFailed') : t('sceneSheet.notGenerated')}
                       </span>
                     )}
@@ -162,7 +162,7 @@ export default function SceneDetailSheet({
 
                 {refs.length > 0 && (
                   <div>
-                    <div className="text-[10px] tracking-widest mb-2" style={{ color: 'var(--muted)' }}>{t('sceneSheet.referenceMediaUsed', { n: refs.length })}</div>
+                    <div className="text-xs tracking-wider mb-2" style={{ color: 'var(--muted)' }}>{t('sceneSheet.referenceMediaUsed', { n: refs.length })}</div>
                     <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))' }}>
                       {refs.map(r => (
                         <div key={r.id} className="rounded-md overflow-hidden" style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
@@ -170,12 +170,12 @@ export default function SceneDetailSheet({
                             {r.reference_image_url ? (
                               <img src={r.reference_image_url} alt={r.name} className="w-full h-full object-cover" />
                             ) : (
-                              <span className="text-[9px] tracking-widest" style={{ color: 'var(--muted)' }}>{t('sceneSheet.noRef')}</span>
+                              <span className="text-[11px] tracking-wider" style={{ color: 'var(--muted)' }}>{t('sceneSheet.noRef')}</span>
                             )}
                           </div>
                           <div className="px-2.5 py-2 flex flex-col gap-0.5">
-                            <span className="text-[11px]">{r.name}</span>
-                            <span className="text-[9px] tracking-wide uppercase" style={{ color: 'var(--muted)' }}>{r.entity_type}</span>
+                            <span className="text-[13px]">{r.name}</span>
+                            <span className="text-[11px] tracking-wide uppercase" style={{ color: 'var(--muted)' }}>{r.entity_type}</span>
                           </div>
                         </div>
                       ))}
@@ -184,7 +184,7 @@ export default function SceneDetailSheet({
                 )}
 
                 <div>
-                  <div className="text-[10px] tracking-widest mb-2" style={{ color: 'var(--muted)' }}>{t('sceneSheet.generationMetadata')}</div>
+                  <div className="text-xs tracking-wider mb-2" style={{ color: 'var(--muted)' }}>{t('sceneSheet.generationMetadata')}</div>
                   <Table>
                     <TableBody>
                       {[
@@ -197,10 +197,10 @@ export default function SceneDetailSheet({
                       ].map(([k, v]) => (
                         <TableRow key={k}>
                           <TableCell className="w-[220px]">
-                            <span className="text-[10px] tracking-wide uppercase" style={{ color: 'var(--muted)' }}>{k}</span>
+                            <span className="text-xs tracking-wide uppercase" style={{ color: 'var(--muted)' }}>{k}</span>
                           </TableCell>
                           <TableCell>
-                            <span className="text-[11px] break-all" style={{ color: 'var(--text)' }}>{v}</span>
+                            <span className="text-[13px] break-all" style={{ color: 'var(--text)' }}>{v}</span>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -216,23 +216,23 @@ export default function SceneDetailSheet({
                   <Button variant="outline" size="sm" disabled={reviewRunning} onClick={() => onRunReview('light')}>{t('sceneSheet.runLight')}</Button>
                   <Button size="sm" disabled={reviewRunning} onClick={() => onRunReview('deep')}>{t('sceneSheet.runDeep')}</Button>
                   {review && !reviewRunning && (
-                    <span className="text-[10px] tracking-wide" style={{ color: 'var(--muted)' }}>
+                    <span className="text-xs tracking-wide" style={{ color: 'var(--muted)' }}>
                       {t('sceneSheet.lastRun', { fps: review.fps_used, frames: review.frames_analyzed })}
                     </span>
                   )}
                 </div>
 
                 {reviewError && !reviewRunning && (
-                  <div className="text-[11px]" style={{ color: 'var(--red)' }}>{reviewError}</div>
+                  <div className="text-[13px]" style={{ color: 'var(--red)' }}>{reviewError}</div>
                 )}
 
                 {reviewRunning && (
                   <div className="rounded-md p-4" style={{ border: '1px solid var(--yellow)', background: 'rgba(245,158,11,.06)' }}>
-                    <div className="flex items-center gap-2.5 text-[11px] tracking-wide" style={{ color: 'var(--yellow)' }}>
+                    <div className="flex items-center gap-2.5 text-[13px] tracking-wide" style={{ color: 'var(--yellow)' }}>
                       <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--yellow)', animation: 'pulse 1.2s ease-in-out infinite' }} />
                       {t('sceneSheet.analyzing', { mode: runningMode === 'deep' ? t('sceneSheet.modeDeep') : t('sceneSheet.modeLight') })}
                     </div>
-                    <div className="mt-3 text-[10px]" style={{ color: 'var(--muted)' }}>
+                    <div className="mt-3 text-xs" style={{ color: 'var(--muted)' }}>
                       {t('sceneSheet.analyzingBody')}
                     </div>
                   </div>
@@ -245,25 +245,25 @@ export default function SceneDetailSheet({
                       style={{ border: '1px solid var(--border)', borderLeft: `3px solid ${VERDICT_COLORS[review.verdict] ?? 'var(--muted)'}`, background: 'var(--surface)' }}
                     >
                       <div className="flex flex-col gap-1.5">
-                        <span className="text-[10px] tracking-widest" style={{ color: 'var(--muted)' }}>{t('sceneSheet.verdict')}</span>
+                        <span className="text-xs tracking-wider" style={{ color: 'var(--muted)' }}>{t('sceneSheet.verdict')}</span>
                         <span className="text-2xl tracking-wide uppercase" style={{ color: VERDICT_COLORS[review.verdict] ?? 'var(--text)' }}>{review.verdict}</span>
                       </div>
                       <div className="flex flex-col gap-1.5 items-end">
-                        <span className="text-[10px] tracking-widest" style={{ color: 'var(--muted)' }}>{t('sceneSheet.overall')}</span>
+                        <span className="text-xs tracking-wider" style={{ color: 'var(--muted)' }}>{t('sceneSheet.overall')}</span>
                         <span className="text-2xl" style={{ color: VERDICT_COLORS[review.verdict] ?? 'var(--text)' }}>{review.overall_score.toFixed(1)}</span>
                       </div>
                     </div>
 
                     <div>
-                      <div className="text-[10px] tracking-widest mb-2.5" style={{ color: 'var(--muted)' }}>{t('sceneSheet.dimensionScores')}</div>
+                      <div className="text-xs tracking-wider mb-2.5" style={{ color: 'var(--muted)' }}>{t('sceneSheet.dimensionScores')}</div>
                       <div className="rounded-md px-4 py-1.5" style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
                         {Object.entries(review.dimensions).map(([key, score]) => (
                           <div key={key} className="grid items-center gap-3.5 py-2" style={{ gridTemplateColumns: '190px 1fr 44px', borderBottom: '1px solid var(--border)' }}>
-                            <span className="text-[11px]" style={{ color: 'var(--text)' }}>{dimensionLabel(t, key)}</span>
+                            <span className="text-[13px]" style={{ color: 'var(--text)' }}>{dimensionLabel(t, key)}</span>
                             <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
                               <div className="h-full rounded-full" style={{ width: `${score * 10}%`, background: scoreColor(score) }} />
                             </div>
-                            <span className="text-xs text-right" style={{ color: scoreColor(score) }}>{score.toFixed(1)}</span>
+                            <span className="text-[13px] text-right" style={{ color: scoreColor(score) }}>{score.toFixed(1)}</span>
                           </div>
                         ))}
                       </div>
@@ -271,13 +271,13 @@ export default function SceneDetailSheet({
 
                     {review.errors.length > 0 && (
                       <div>
-                        <div className="text-[10px] tracking-widest mb-2.5" style={{ color: 'var(--muted)' }}>{t('sceneSheet.detectedErrors', { n: review.errors.length })}</div>
+                        <div className="text-xs tracking-wider mb-2.5" style={{ color: 'var(--muted)' }}>{t('sceneSheet.detectedErrors', { n: review.errors.length })}</div>
                         <div className="flex flex-col gap-2">
                           {review.errors.map((e, i) => (
                             <div key={i} className="rounded-md p-3 flex gap-3.5 items-start" style={{ border: '1px solid var(--border)', borderLeft: `3px solid ${SEV_COLORS[e.severity] ?? 'var(--muted)'}`, background: 'var(--surface)' }}>
-                              <span className="text-[9px] tracking-widest px-1.5 py-0.5 rounded flex-shrink-0" style={{ color: SEV_COLORS[e.severity] ?? 'var(--muted)' }}>{e.severity}</span>
-                              <span className="text-[11px] flex-shrink-0" style={{ color: 'var(--muted)', width: 92 }}>{e.time_range}</span>
-                              <span className="text-[11px] leading-relaxed" style={{ color: 'var(--text)' }}>{e.description}</span>
+                              <span className="text-[11px] tracking-wider px-1.5 py-0.5 rounded flex-shrink-0" style={{ color: SEV_COLORS[e.severity] ?? 'var(--muted)' }}>{e.severity}</span>
+                              <span className="text-[13px] flex-shrink-0" style={{ color: 'var(--muted)', width: 92 }}>{e.time_range}</span>
+                              <span className="text-[13px] leading-relaxed" style={{ color: 'var(--text)' }}>{e.description}</span>
                             </div>
                           ))}
                         </div>
@@ -286,10 +286,10 @@ export default function SceneDetailSheet({
 
                     {review.usable_segments.length > 0 && (
                       <div>
-                        <div className="text-[10px] tracking-widest mb-2.5" style={{ color: 'var(--muted)' }}>{t('sceneSheet.usableSegments')}</div>
+                        <div className="text-xs tracking-wider mb-2.5" style={{ color: 'var(--muted)' }}>{t('sceneSheet.usableSegments')}</div>
                         <div className="flex flex-wrap gap-2">
                           {review.usable_segments.map((s, i) => (
-                            <span key={i} className="text-[11px] px-2.5 py-1 rounded" style={{ color: 'var(--green)', border: '1px solid var(--border)', background: 'var(--surface)' }}>
+                            <span key={i} className="text-[13px] px-2.5 py-1 rounded" style={{ color: 'var(--green)', border: '1px solid var(--border)', background: 'var(--surface)' }}>
                               {s.time_range} · {s.score.toFixed(1)}
                             </span>
                           ))}
@@ -298,8 +298,8 @@ export default function SceneDetailSheet({
                     )}
 
                     <div>
-                      <div className="text-[10px] tracking-widest mb-2.5" style={{ color: 'var(--muted)' }}>{t('sceneSheet.fixGuide')}</div>
-                      <pre className="m-0 p-3.5 rounded-md text-xs leading-relaxed whitespace-pre-wrap" style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', fontFamily: 'inherit' }}>
+                      <div className="text-xs tracking-wider mb-2.5" style={{ color: 'var(--muted)' }}>{t('sceneSheet.fixGuide')}</div>
+                      <pre className="m-0 p-3.5 rounded-md text-[13px] leading-relaxed whitespace-pre-wrap" style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', fontFamily: 'inherit' }}>
                         {review.fix_guide}
                       </pre>
                     </div>
@@ -307,7 +307,7 @@ export default function SceneDetailSheet({
                 )}
 
                 {!review && !reviewRunning && (
-                  <div className="rounded-md p-7 text-center text-xs" style={{ border: '1px dashed var(--border)', color: 'var(--muted)' }}>
+                  <div className="rounded-md p-7 text-center text-[13px]" style={{ border: '1px dashed var(--border)', color: 'var(--muted)' }}>
                     {t('sceneSheet.noReview')}
                   </div>
                 )}
@@ -325,24 +325,24 @@ export default function SceneDetailSheet({
                         <AccordionTrigger>
                           <div className="flex items-center gap-3 w-full">
                             <span className="w-1.5 h-1.5 rounded-full" style={{ background: STATUS_COLORS[st] }} />
-                            <span className="text-[11px] tracking-widest uppercase">{stageLowerLabel(t, sk)}</span>
-                            <span className="text-[10px] ml-auto" style={{ color: 'var(--muted)' }}>{statusLabel(t, st)}</span>
+                            <span className="text-[13px] tracking-wider uppercase">{stageLowerLabel(t, sk)}</span>
+                            <span className="text-xs ml-auto" style={{ color: 'var(--muted)' }}>{statusLabel(t, st)}</span>
                           </div>
                         </AccordionTrigger>
                         <AccordionContent>
                           <div className="flex flex-col gap-2 pl-1">
-                            <div className="flex gap-6 text-[10px] tracking-wide" style={{ color: 'var(--muted)' }}>
+                            <div className="flex gap-6 text-xs tracking-wide" style={{ color: 'var(--muted)' }}>
                               <span>{t('sceneSheet.stageCreated', { date: req?.created_at ?? t('common.dash') })}</span>
                               <span>{t('sceneSheet.stageUpdated', { date: req?.updated_at ?? t('common.dash') })}</span>
                               <span>{t('sceneSheet.stageRetries', { n: req?.retry_count ?? 0 })}</span>
                             </div>
                             {req?.error_message && (
-                              <pre className="m-0 text-[11px] leading-relaxed whitespace-pre-wrap" style={{ color: '#fca5a5', fontFamily: 'inherit' }}>
+                              <pre className="m-0 text-[13px] leading-relaxed whitespace-pre-wrap" style={{ color: '#fca5a5', fontFamily: 'inherit' }}>
                                 {req.error_message}
                               </pre>
                             )}
                             {!req && (
-                              <div className="text-[11px]" style={{ color: 'var(--muted)' }}>{t('sceneSheet.noRequestYet')}</div>
+                              <div className="text-[13px]" style={{ color: 'var(--muted)' }}>{t('sceneSheet.noRequestYet')}</div>
                             )}
                           </div>
                         </AccordionContent>

@@ -1,7 +1,11 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
+/* Noto Sans is one design across scripts: Latin, Khmer and Hangul match in weight and height.
+   Each file only declares unicode ranges, so a browser downloads the Khmer or Korean glyphs when a page shows them. */
+@import "@fontsource-variable/noto-sans";
+@import "@fontsource-variable/noto-sans-khmer";
+@import "@fontsource-variable/noto-sans-kr";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -10,65 +14,116 @@
   50% { opacity: 0.35; }
 }
 
-:root {
-  --bg: #0d0d1a;
-  --surface: #13132a;
-  --card: #1a1a35;
-  --border: #252545;
-  --accent: #3b82f6;
-  --accent-dim: #1d4ed8;
-  --green: #22c55e;
-  --red: #ef4444;
-  --yellow: #f59e0b;
-  --text: #e2e8f0;
-  --muted: #64748b;
-  --background: #0d0d1a;
-  --foreground: #e2e8f0;
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+/*
+ * One dark palette for the whole app.
+ *
+ * The app's own tokens (--bg, --surface, --card, --text, --muted, --accent, …) are
+ * what pages use in inline styles. The shadcn tokens below are derived from them,
+ * so the ui/ components match. Two names collide: pages use --muted as a text
+ * colour and --accent as the brand colour, while shadcn uses bg-muted / bg-accent
+ * as surfaces — those surfaces read --muted-surface / --accent-surface instead
+ * (see @theme inline).
+ */
+:root,
+.dark {
+  color-scheme: dark;
+
+  /* Surfaces, darkest to lightest */
+  --bg: #0a0b0f;
+  --surface: #0f1116;
+  --card: #14161d;
+  --card-hover: #191c24;
+  --raised: #1d2029;
+  --border: #242833;
+  --border-strong: #323744;
+
+  /* Text */
+  --text: #eceef3;
+  --muted: #8a90a2;
+  --faint: #5d6374;
+
+  /* Brand + status */
+  --accent: #8b93ff;
+  --accent-strong: #6f78f7;
+  --accent-soft: rgb(139 147 255 / 0.12);
+  --accent-dim: #4f57c9;
+  --green: #3ddc97;
+  --red: #ff6b6b;
+  --yellow: #f5b945;
+
+  /* shadcn tokens */
+  --background: var(--bg);
+  --foreground: var(--text);
+  --card-foreground: var(--text);
+  --popover: var(--card);
+  --popover-foreground: var(--text);
+  --primary: var(--accent);
+  --primary-foreground: #0a0b0f;
+  --secondary: var(--raised);
+  --secondary-foreground: var(--text);
+  --muted-surface: var(--raised);
+  --muted-foreground: var(--muted);
+  --accent-surface: var(--card-hover);
+  --accent-foreground: var(--text);
+  --destructive: var(--red);
+  --input: var(--border);
+  --ring: var(--accent);
+  --chart-1: var(--accent);
+  --chart-2: var(--green);
+  --chart-3: var(--yellow);
+  --chart-4: var(--red);
+  --chart-5: var(--muted);
+  --radius: 0.75rem;
+  --sidebar: var(--surface);
+  --sidebar-foreground: var(--text);
+  --sidebar-primary: var(--accent);
+  --sidebar-primary-foreground: #0a0b0f;
+  --sidebar-accent: var(--card-hover);
+  --sidebar-accent-foreground: var(--text);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--accent);
+
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-pop: 0 12px 40px rgb(0 0 0 / 0.45);
+}
+
+html,
+body {
+  background: var(--bg);
 }
 
 body {
   margin: 0;
-  background: var(--bg);
   color: var(--text);
-  font-family: 'DM Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
-  font-size: 13px;
+  font-family: 'Noto Sans Variable', 'Noto Sans Khmer Variable', 'Noto Sans KR Variable', 'Khmer UI', 'Malgun Gothic', 'Apple SD Gothic Neo', ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: rgb(139 147 255 / 0.35);
+}
+
+code,
+kbd,
+pre,
+.font-mono {
+  font-family: ui-monospace, 'Cascadia Code', 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+  font-feature-settings: normal;
 }
 
 /* Scrollbar */
-::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; border: 2px solid var(--bg); }
+::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
 
 @theme inline {
   --font-heading: var(--font-sans);
-  --font-sans: 'Geist Variable', sans-serif;
+  --font-sans: 'Noto Sans Variable', 'Noto Sans Khmer Variable', 'Noto Sans KR Variable', 'Khmer UI', 'Malgun Gothic', 'Apple SD Gothic Neo', ui-sans-serif, system-ui, sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -87,9 +142,9 @@ body {
   --color-border: var(--border);
   --color-destructive: var(--destructive);
   --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
+  --color-accent: var(--accent-surface);
   --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
+  --color-muted: var(--muted-surface);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
@@ -100,6 +155,14 @@ body {
   --color-card: var(--card);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-card-hover: var(--card-hover);
+  --color-border-strong: var(--border-strong);
+  --color-faint: var(--faint);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-strong: var(--accent-strong);
+  --color-brand: var(--accent);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -107,40 +170,6 @@ body {
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
-}
-
-.dark {
-  --background: #0d0d1a;
-  --foreground: #e2e8f0;
-  --card: #1a1a35;
-  --card-foreground: #e2e8f0;
-  --popover: #1a1a35;
-  --popover-foreground: #e2e8f0;
-  --primary: #3b82f6;
-  --primary-foreground: #e2e8f0;
-  --secondary: #13132a;
-  --secondary-foreground: #e2e8f0;
-  --muted: #64748b;
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: #3b82f6;
-  --accent-foreground: #e2e8f0;
-  --destructive: #ef4444;
-  --border: #252545;
-  --input: #252545;
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
 }
 
 @layer base {
@@ -152,5 +181,57 @@ body {
   }
   html {
     @apply font-sans;
+  }
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+  :focus-visible {
+    outline: 2px solid rgb(139 147 255 / 0.6);
+    outline-offset: 2px;
+  }
+}
+
+/* Small helpers used across pages */
+@layer components {
+  .eyebrow {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+  .fk-input {
+    height: 36px;
+    padding: 0 12px;
+    border-radius: 8px;
+    background: var(--card);
+    color: var(--text);
+    border: 1px solid var(--border);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+  }
+  .fk-input:hover {
+    border-color: var(--border-strong);
+  }
+  .fk-input:focus,
+  .fk-input:focus-visible {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgb(139 147 255 / 0.18);
+    outline: none;
+  }
+  .fk-input::placeholder {
+    color: var(--faint);
+  }
+  select.fk-input option {
+    background: var(--card);
+  }
+  .surface-hover {
+    transition: background-color 150ms ease, border-color 150ms ease, transform 150ms ease;
+  }
+  .surface-hover:hover {
+    background: var(--card-hover);
+    border-color: var(--border-strong);
   }
 }

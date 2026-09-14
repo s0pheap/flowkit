@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { KeyRound, LogOut } from 'lucide-react'
 import { AUTH_REQUIRED_EVENT, authHeaders, getApiKey, setApiKey } from '../api/apiKey'
 import { useTranslation } from '../i18n/useTranslation'
+import { BrandMark } from './BrandMark'
 
 type Me = { auth_enabled: boolean; name: string; is_admin: boolean; project_ids: string[] | null }
 type State = { kind: 'checking' } | { kind: 'ok'; me: Me } | { kind: 'needKey'; rejected: boolean } | { kind: 'unreachable' }
@@ -51,33 +53,39 @@ export function ApiKeyGate({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex h-screen items-center justify-center p-4" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
-      <form
-        onSubmit={submit}
-        className="w-full max-w-sm flex flex-col gap-3 p-5 rounded border"
-        style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
-      >
-        <div className="flex items-center gap-2.5">
-          <span className="w-[22px] h-[22px] rounded flex items-center justify-center text-xs font-bold" style={{ background: 'var(--accent)', color: 'var(--bg)' }}>F</span>
-          <span className="text-xs font-bold tracking-widest">{t('app.brandName')}</span>
+    <div
+      className="flex min-h-screen items-center justify-center p-4"
+      style={{ background: 'radial-gradient(900px 500px at 50% -10%, rgb(111 120 247 / 0.18), transparent 70%), var(--bg)' }}
+    >
+      <form onSubmit={submit} className="w-full max-w-[400px] flex flex-col gap-6 p-8 rounded-2xl border border-border bg-card" style={{ boxShadow: 'var(--shadow-pop)' }}>
+        <div className="flex flex-col items-center gap-4 text-center">
+          <BrandMark size={44} />
+          <div className="flex flex-col gap-1.5">
+            <h1 className="m-0 text-xl font-semibold tracking-[-0.02em]">{t('auth.title')}</h1>
+            <p className="m-0 text-[14px] leading-relaxed text-muted-foreground">{t('auth.prompt')}</p>
+          </div>
         </div>
-        <label htmlFor="fk-api-key" className="text-xs" style={{ color: 'var(--muted)' }}>{t('auth.prompt')}</label>
-        <input
-          id="fk-api-key"
-          type="password"
-          autoComplete="off"
-          autoFocus
-          value={draft}
-          onChange={e => setDraft(e.target.value)}
-          placeholder="fk_…"
-          className="text-xs px-2.5 py-2 rounded outline-none"
-          style={{ background: 'var(--card)', color: 'var(--text)', border: '1px solid var(--border)' }}
-        />
-        {state.rejected && <span className="text-[11px]" style={{ color: 'var(--red)' }}>{t('auth.rejected')}</span>}
+        <div className="flex flex-col gap-2">
+          <label htmlFor="fk-api-key" className="text-[13px] font-medium text-muted-foreground">{t('auth.keyLabel')}</label>
+          <div className="flex items-center gap-2 h-11 rounded-lg border border-border bg-surface px-3 focus-within:border-primary transition-colors">
+            <KeyRound size={16} className="text-faint shrink-0" />
+            <input
+              id="fk-api-key"
+              type="password"
+              autoComplete="off"
+              autoFocus
+              value={draft}
+              onChange={e => setDraft(e.target.value)}
+              placeholder="fk_…"
+              className="flex-1 min-w-0 bg-transparent outline-none text-[14px] font-mono placeholder:text-faint"
+            />
+          </div>
+          {state.rejected && <span className="text-[13px]" style={{ color: 'var(--red)' }}>{t('auth.rejected')}</span>}
+        </div>
         <button
           type="submit"
-          className="text-xs px-2.5 py-2 rounded font-bold tracking-wide"
-          style={{ background: 'var(--accent)', color: 'var(--bg)' }}
+          disabled={!draft.trim()}
+          className="h-11 rounded-lg text-[14px] font-semibold bg-primary text-primary-foreground hover:brightness-110 transition disabled:opacity-50"
         >
           {t('auth.submit')}
         </button>
@@ -86,7 +94,7 @@ export function ApiKeyGate({ children }: { children: ReactNode }) {
   )
 }
 
-/** Signed-in name plus a sign-out link, for the sidebar. Renders nothing when no key is stored. */
+/** Signed-in account row with sign out, for the sidebar. Renders nothing when no key is stored. */
 export function ApiKeyStatus() {
   const { t } = useTranslation()
   const [name, setName] = useState<string | null>(null)
@@ -102,14 +110,19 @@ export function ApiKeyStatus() {
 
   if (!hasKey) return null
   return (
-    <div className="flex items-center justify-between text-[10px] tracking-wide" style={{ color: 'var(--muted)' }}>
-      <span className="truncate" style={{ color: 'var(--text)' }}>{name ?? '…'}</span>
+    <div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5">
+      <span className="w-8 h-8 rounded-full flex items-center justify-center text-[13px] font-semibold uppercase bg-accent-soft text-brand shrink-0">
+        {(name ?? '?').slice(0, 1)}
+      </span>
+      <span className="flex-1 min-w-0 truncate text-[14px] font-medium">{name ?? '…'}</span>
       <button
         type="button"
-        className="hover:opacity-80"
+        title={t('auth.signOut')}
+        aria-label={t('auth.signOut')}
+        className="w-8 h-8 rounded-lg flex items-center justify-center text-faint hover:text-foreground hover:bg-card-hover transition-colors"
         onClick={() => { setApiKey(null); window.location.reload() }}
       >
-        {t('auth.signOut')}
+        <LogOut size={16} />
       </button>
     </div>
   )

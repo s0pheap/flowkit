@@ -119,7 +119,7 @@ function CommandLine({ command }: { command: string }) {
 
   return (
     <div className="flex items-center gap-2 rounded px-2.5 py-1.5" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
-      <code className="flex-1 min-w-0 overflow-x-auto whitespace-pre text-[11px] font-mono" style={{ color: 'var(--text)' }}>{command}</code>
+      <code className="flex-1 min-w-0 overflow-x-auto whitespace-pre text-[13px] font-mono" style={{ color: 'var(--text)' }}>{command}</code>
       <button
         type="button"
         onClick={copy}
@@ -143,21 +143,21 @@ function StatusCard() {
   )
 
   return (
-    <Card className="py-4">
+    <Card>
       <CardHeader>
-        <CardTitle className="text-xs tracking-widest uppercase">{t('guide.status.title')}</CardTitle>
-        <CardDescription className="text-[11px]">{t('guide.status.desc')}</CardDescription>
+        <CardTitle className="text-[15px]">{t('guide.status.title')}</CardTitle>
+        <CardDescription className="text-[13px]">{t('guide.status.desc')}</CardDescription>
       </CardHeader>
       <CardContent>
         {!reachable ? (
-          <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--red)' }}>
+          <div className="flex items-center gap-2 text-[13px]" style={{ color: 'var(--red)' }}>
             {dot(false)}
             {t('guide.status.unreachable')}
           </div>
         ) : !health ? (
-          <div className="text-xs" style={{ color: 'var(--muted)' }}>{t('guide.status.checking')}</div>
+          <div className="text-[13px]" style={{ color: 'var(--muted)' }}>{t('guide.status.checking')}</div>
         ) : (
-          <div className="flex flex-wrap gap-x-6 gap-y-2.5 text-xs">
+          <div className="flex flex-wrap gap-x-6 gap-y-2.5 text-[13px]">
             <div className="flex items-center gap-2">
               {dot(true)}
               <span style={{ color: 'var(--text)' }}>{t('guide.status.agentRunning')}</span>
@@ -198,14 +198,14 @@ function NumberedStep({ n, title, body, commands }: { n: number; title?: string;
   return (
     <div className="flex gap-3.5">
       <span
-        className="flex-shrink-0 flex items-center justify-center rounded-full text-xs font-semibold"
+        className="flex-shrink-0 flex items-center justify-center rounded-full text-[13px] font-semibold"
         style={{ width: 22, height: 22, background: 'var(--accent)', color: 'var(--bg)' }}
       >
         {n}
       </span>
       <div className="flex flex-col gap-1.5 min-w-0 flex-1">
-        {title && <span className="text-xs font-semibold" style={{ color: 'var(--text)' }}>{title}</span>}
-        <span className="text-[11px] leading-relaxed" style={{ color: 'var(--muted)' }}>{body}</span>
+        {title && <span className="text-[13px] font-semibold" style={{ color: 'var(--text)' }}>{title}</span>}
+        <span className="text-[13px] leading-relaxed" style={{ color: 'var(--muted)' }}>{body}</span>
         {commands?.map(c => <CommandLine key={c} command={c} />)}
       </div>
     </div>
@@ -216,26 +216,26 @@ function ServerSetupTab() {
   const { t } = useTranslation()
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-[11px] m-0" style={{ color: 'var(--muted)' }}>{t('guide.server.intro')}</p>
+      <p className="text-[13px] m-0" style={{ color: 'var(--muted)' }}>{t('guide.server.intro')}</p>
       {SETUP_STEPS.map((s, i) => (
-        <Card key={s.titleKey} className="py-4">
+        <Card key={s.titleKey}>
           <CardContent>
             <NumberedStep n={i + 1} title={t(s.titleKey)} body={t(s.bodyKey)} commands={s.commands} />
           </CardContent>
         </Card>
       ))}
 
-      <Card className="py-4">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-xs tracking-widest uppercase">{t('guide.keys.title')}</CardTitle>
-          <CardDescription className="text-[11px]">{t('guide.keys.body')}</CardDescription>
+          <CardTitle className="text-[15px]">{t('guide.keys.title')}</CardTitle>
+          <CardDescription className="text-[13px]">{t('guide.keys.body')}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-3.5">
             {KEY_STEPS.map((s, i) => (
               <NumberedStep key={s.bodyKey} n={i + 1} body={t(s.bodyKey)} commands={s.commands} />
             ))}
-            <p className="text-[11px] m-0 rounded px-2.5 py-2" style={{ color: 'var(--yellow)', border: '1px solid var(--border)' }}>
+            <p className="text-[13px] m-0 rounded px-2.5 py-2" style={{ color: 'var(--yellow)', border: '1px solid var(--border)' }}>
               {t('guide.keys.note')}
             </p>
           </div>
@@ -250,7 +250,7 @@ function SkillChip({ name, onOpen }: { name: string; onOpen: (name: string) => v
     <button
       type="button"
       onClick={() => onOpen(name)}
-      className="text-[11px] font-mono px-2 py-0.5 rounded hover:opacity-80"
+      className="text-[13px] font-mono px-2 py-0.5 rounded hover:opacity-80"
       style={{ background: 'var(--bg)', color: 'var(--accent)', border: '1px solid var(--border)' }}
     >
       /{name}
@@ -262,15 +262,15 @@ function WorkflowTab({ onOpenSkill }: { onOpenSkill: (name: string) => void }) {
   const { t, lang } = useTranslation()
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-[11px] m-0" style={{ color: 'var(--muted)' }}>{t('guide.workflow.intro')}</p>
-      <Card className="py-4">
+      <p className="text-[13px] m-0" style={{ color: 'var(--muted)' }}>{t('guide.workflow.intro')}</p>
+      <Card>
         <CardContent>
           <ol className="m-0 p-0 list-none flex flex-col">
             {WORKFLOW.map((step, i) => (
               <li key={step.skills.join()} className="flex gap-3.5">
                 <div className="flex flex-col items-center">
                   <span
-                    className="flex-shrink-0 flex items-center justify-center rounded-full text-xs font-semibold"
+                    className="flex-shrink-0 flex items-center justify-center rounded-full text-[13px] font-semibold"
                     style={{ width: 22, height: 22, background: 'var(--accent)', color: 'var(--bg)' }}
                   >
                     {i + 1}
@@ -278,8 +278,8 @@ function WorkflowTab({ onOpenSkill }: { onOpenSkill: (name: string) => void }) {
                   {i < WORKFLOW.length - 1 && <span className="flex-1 w-px my-1" style={{ background: 'var(--border)' }} />}
                 </div>
                 <div className="flex flex-col gap-1.5 pb-4 min-w-0">
-                  <span className="text-xs font-semibold" style={{ color: 'var(--text)' }}>{step.title[lang]}</span>
-                  <span className="text-[11px] leading-relaxed" style={{ color: 'var(--muted)' }}>{step.body[lang]}</span>
+                  <span className="text-[13px] font-semibold" style={{ color: 'var(--text)' }}>{step.title[lang]}</span>
+                  <span className="text-[13px] leading-relaxed" style={{ color: 'var(--muted)' }}>{step.body[lang]}</span>
                   <div className="flex flex-wrap gap-1.5">
                     {step.skills.map(name => <SkillChip key={name} name={name} onOpen={onOpenSkill} />)}
                   </div>
@@ -296,7 +296,7 @@ function WorkflowTab({ onOpenSkill }: { onOpenSkill: (name: string) => void }) {
 function SkillCard({ skill }: { skill: SkillGuide }) {
   const { t, lang } = useTranslation()
   const label = (text: string) => (
-    <span className="text-[10px] tracking-widest uppercase" style={{ color: 'var(--muted)' }}>{text}</span>
+    <span className="text-xs tracking-wider uppercase" style={{ color: 'var(--muted)' }}>{text}</span>
   )
 
   return (
@@ -304,26 +304,26 @@ function SkillCard({ skill }: { skill: SkillGuide }) {
       <CardContent>
         <div className="flex flex-col gap-2.5">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold font-mono" style={{ color: 'var(--text)' }}>/{skill.name}</span>
+            <span className="text-[13px] font-semibold font-mono" style={{ color: 'var(--text)' }}>/{skill.name}</span>
             {skill.remote && (
-              <span className="text-[10px] px-1.5 py-px rounded" style={{ color: 'var(--green)', border: '1px solid var(--green)' }}>
+              <span className="text-xs px-1.5 py-px rounded" style={{ color: 'var(--green)', border: '1px solid var(--green)' }}>
                 {t('guide.skills.remote')}
               </span>
             )}
             {skill.status && (
               <span
-                className="text-[10px] px-1.5 py-px rounded"
+                className="text-xs px-1.5 py-px rounded"
                 style={{ color: STATUS_COLOR[skill.status], border: `1px solid ${STATUS_COLOR[skill.status]}` }}
               >
                 {t(`guide.skills.status.${skill.status}` as TranslationKey)}
               </span>
             )}
           </div>
-          <p className="text-[11px] leading-relaxed m-0" style={{ color: 'var(--text)' }}>{skill.summary[lang]}</p>
+          <p className="text-[13px] leading-relaxed m-0" style={{ color: 'var(--text)' }}>{skill.summary[lang]}</p>
 
           <div className="flex flex-col gap-1">
             {label(t('guide.skills.when'))}
-            <p className="text-[11px] leading-relaxed m-0" style={{ color: 'var(--muted)' }}>{skill.when[lang]}</p>
+            <p className="text-[13px] leading-relaxed m-0" style={{ color: 'var(--muted)' }}>{skill.when[lang]}</p>
           </div>
 
           <div className="flex flex-col gap-1">
@@ -334,7 +334,7 @@ function SkillCard({ skill }: { skill: SkillGuide }) {
           {skill.needs && (
             <div className="flex flex-wrap items-center gap-1.5">
               {label(t('guide.skills.needs'))}
-              {skill.needs.map(n => <Badge key={n} variant="outline" className="font-mono text-[10px]">{n}</Badge>)}
+              {skill.needs.map(n => <Badge key={n} variant="outline" className="font-mono text-xs">{n}</Badge>)}
             </div>
           )}
 
@@ -343,7 +343,7 @@ function SkillCard({ skill }: { skill: SkillGuide }) {
               {label(t('guide.skills.tips'))}
               <ul className="m-0 pl-4 list-disc flex flex-col gap-1">
                 {skill.tips.map(tip => (
-                  <li key={tip.en} className="text-[11px] leading-relaxed" style={{ color: 'var(--muted)' }}>{tip[lang]}</li>
+                  <li key={tip.en} className="text-[13px] leading-relaxed" style={{ color: 'var(--muted)' }}>{tip[lang]}</li>
                 ))}
               </ul>
             </div>
@@ -358,17 +358,17 @@ function GetStartedTab({ me, onOpenSkill }: { me: ReturnType<typeof useMe>; onOp
   const { t } = useTranslation()
   const origin = window.location.origin
   const label = (text: string) => (
-    <span className="text-[10px] tracking-widest uppercase" style={{ color: 'var(--muted)' }}>{text}</span>
+    <span className="text-xs tracking-wider uppercase" style={{ color: 'var(--muted)' }}>{text}</span>
   )
   const note = (text: string, color = 'var(--muted)') => (
-    <p className="text-[11px] leading-relaxed m-0" style={{ color }}>{text}</p>
+    <p className="text-[13px] leading-relaxed m-0" style={{ color }}>{text}</p>
   )
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-[11px] m-0 leading-relaxed" style={{ color: 'var(--muted)' }}>{t('guide.start.intro')}</p>
+      <p className="text-[13px] m-0 leading-relaxed" style={{ color: 'var(--muted)' }}>{t('guide.start.intro')}</p>
 
-      <Card className="py-4">
+      <Card>
         <CardContent>
           <div className="flex flex-col gap-2">
             <NumberedStep n={1} title={t('guide.start.step1.title')} body={t('guide.start.step1.body')} />
@@ -385,14 +385,14 @@ function GetStartedTab({ me, onOpenSkill }: { me: ReturnType<typeof useMe>; onOp
         </CardContent>
       </Card>
 
-      <Card className="py-4">
+      <Card>
         <CardContent>
           <NumberedStep n={2} title={t('guide.start.step2.title')} body={t('guide.start.step2.body')}
             commands={['winget install --id Git.Git -e']} />
         </CardContent>
       </Card>
 
-      <Card className="py-4">
+      <Card>
         <CardContent>
           <div className="flex flex-col gap-2.5">
             <NumberedStep n={3} title={t('guide.start.step3.title')} body={t('guide.start.step3.body')} />
@@ -412,20 +412,20 @@ function GetStartedTab({ me, onOpenSkill }: { me: ReturnType<typeof useMe>; onOp
         </CardContent>
       </Card>
 
-      <Card className="py-4">
+      <Card>
         <CardContent>
           <NumberedStep n={4} title={t('guide.start.step4.title')} body={t('guide.start.step4.body')} commands={['/fk-status']} />
         </CardContent>
       </Card>
 
-      <Card className="py-4">
+      <Card>
         <CardContent>
           <div className="flex flex-col gap-2">
             <NumberedStep n={5} title={t('guide.start.step5.title')} body={t('guide.start.step5.body')} />
             <div className="pl-9 flex flex-wrap items-center gap-1.5">
               {FIRST_VIDEO.map((name, i) => (
                 <span key={name} className="flex items-center gap-1.5">
-                  {i > 0 && <span className="text-[11px]" style={{ color: 'var(--muted)' }}>→</span>}
+                  {i > 0 && <span className="text-[13px]" style={{ color: 'var(--muted)' }}>→</span>}
                   <SkillChip name={name} onOpen={onOpenSkill} />
                 </span>
               ))}
@@ -454,7 +454,7 @@ function SkillsTab({ query, onQuery }: { query: string; onQuery: (q: string) => 
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-[11px] m-0 leading-relaxed" style={{ color: 'var(--muted)' }}>{t('guide.skills.intro')}</p>
+      <p className="text-[13px] m-0 leading-relaxed" style={{ color: 'var(--muted)' }}>{t('guide.skills.intro')}</p>
       <div className="flex items-center gap-2 rounded px-2.5 py-1.5" style={{ background: 'var(--card)', border: '1px solid var(--border)' }}>
         <Search size={12} style={{ color: 'var(--muted)' }} />
         <input
@@ -463,19 +463,19 @@ function SkillsTab({ query, onQuery }: { query: string; onQuery: (q: string) => 
           onChange={e => onQuery(e.target.value)}
           placeholder={t('guide.skills.search')}
           aria-label={t('guide.skills.search')}
-          className="flex-1 min-w-0 bg-transparent outline-none text-xs"
+          className="flex-1 min-w-0 bg-transparent outline-none text-[13px]"
           style={{ color: 'var(--text)' }}
         />
-        <span className="text-[10px]" style={{ color: 'var(--muted)' }}>{t('guide.skills.count', { count: total })}</span>
+        <span className="text-xs" style={{ color: 'var(--muted)' }}>{t('guide.skills.count', { count: total })}</span>
       </div>
 
       {total === 0 && (
-        <p className="text-xs m-0" style={{ color: 'var(--muted)' }}>{t('guide.skills.empty', { q: query })}</p>
+        <p className="text-[13px] m-0" style={{ color: 'var(--muted)' }}>{t('guide.skills.empty', { q: query })}</p>
       )}
 
       {categories.map(c => (
         <section key={c.id} className="flex flex-col gap-2.5">
-          <h2 className="m-0 mt-2 text-[11px] tracking-widest uppercase font-semibold" style={{ color: 'var(--muted)' }}>{c.title[lang]}</h2>
+          <h2 className="m-0 mt-2 text-[13px] tracking-wider uppercase font-semibold" style={{ color: 'var(--muted)' }}>{c.title[lang]}</h2>
           {c.skills.map(s => <SkillCard key={s.name} skill={s} />)}
         </section>
       ))}
@@ -487,8 +487,8 @@ function TroubleTab() {
   const { t } = useTranslation()
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-[11px] m-0" style={{ color: 'var(--muted)' }}>{t('guide.trouble.intro')}</p>
-      <Card className="py-4">
+      <p className="text-[13px] m-0" style={{ color: 'var(--muted)' }}>{t('guide.trouble.intro')}</p>
+      <Card>
         <CardContent>
           <div className="flex flex-col gap-3">
             {Array.from({ length: TROUBLE_COUNT }, (_, i) => i + 1).map(n => (
@@ -497,10 +497,10 @@ function TroubleTab() {
                 className="flex flex-col gap-0.5 pb-3"
                 style={{ borderBottom: n < TROUBLE_COUNT ? '1px solid var(--border)' : 'none' }}
               >
-                <span className="text-xs font-semibold font-mono" style={{ color: 'var(--text)' }}>
+                <span className="text-[13px] font-semibold font-mono" style={{ color: 'var(--text)' }}>
                   {t(`guide.trouble${n}.problem` as TranslationKey)}
                 </span>
-                <span className="text-[11px] leading-relaxed" style={{ color: 'var(--muted)' }}>
+                <span className="text-[13px] leading-relaxed" style={{ color: 'var(--muted)' }}>
                   {t(`guide.trouble${n}.solution` as TranslationKey)}
                 </span>
               </div>
@@ -541,8 +541,8 @@ export default function GuidePage() {
   return (
     <div className="flex flex-col gap-5 max-w-3xl">
       <div>
-        <h1 className="m-0 text-lg font-semibold" style={{ color: 'var(--text)' }}>{t('guide.title')}</h1>
-        <p className="text-[11px] mt-1 leading-relaxed" style={{ color: 'var(--muted)' }}>{t('guide.intro')}</p>
+        <h1 className="m-0 text-[26px] leading-tight font-semibold tracking-[-0.02em] text-foreground">{t('guide.title')}</h1>
+        <p className="text-[14px] mt-1.5 leading-relaxed text-muted-foreground">{t('guide.intro')}</p>
       </div>
 
       <StatusCard />

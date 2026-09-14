@@ -28,20 +28,20 @@ export default function StageNode({ idx, name, subtitle, done, processing, faile
         <div style={{ height: 2, margin: '-16px 0 0', background: accent }} />
         <CardHeader>
           <CardTitle>
-            <span className="text-[10px] tracking-widest" style={{ color: 'var(--muted)' }}>{idx}</span>
-            <span className="ml-2 text-sm tracking-wide uppercase">{name}</span>
+            <span className="text-xs font-mono text-faint">{idx}</span>
+            <span className="ml-2 text-[15px] font-semibold">{name.charAt(0).toUpperCase() + name.slice(1).toLowerCase()}</span>
           </CardTitle>
           <CardDescription>
-            <span className="text-xs">{subtitle}</span>
+            <span className="text-[13px]">{subtitle}</span>
           </CardDescription>
           <CardAction>
-            <span className="text-lg tracking-tight" style={{ color: isActive ? 'var(--accent)' : 'var(--text)' }}>{done}</span>
-            <span className="text-xs" style={{ color: 'var(--muted)' }}>/{total}</span>
+            <span className="text-xl tracking-tight" style={{ color: isActive ? 'var(--accent)' : 'var(--text)' }}>{done}</span>
+            <span className="text-[13px]" style={{ color: 'var(--muted)' }}>/{total}</span>
           </CardAction>
         </CardHeader>
         <CardContent>
           <Progress value={pct} />
-          <div className="flex flex-wrap gap-x-3 gap-y-1.5 mt-3 text-[10px] tracking-wide" style={{ color: 'var(--muted)' }}>
+          <div className="flex flex-wrap gap-x-3 gap-y-1.5 mt-3 text-xs tracking-wide" style={{ color: 'var(--muted)' }}>
             <span className="flex items-center gap-1.5">
               <span className="w-1.5 h-1.5" style={{ background: 'var(--green)' }} />{done} {t('stageNode.done')}
             </span>

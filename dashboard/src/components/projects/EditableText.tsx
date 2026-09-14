@@ -60,7 +60,7 @@ export default function EditableText({ value, onSave, multiline = false, classNa
         onBlur={handleSave}
         onKeyDown={handleKeyDown}
         rows={4}
-        className={`w-full rounded px-2 py-1 text-xs resize-y outline-none ${className}`}
+        className={`w-full rounded px-2 py-1 text-[13px] resize-y outline-none ${className}`}
         style={{
           background: 'var(--bg)',
           color: 'var(--text)',
@@ -78,7 +78,7 @@ export default function EditableText({ value, onSave, multiline = false, classNa
       onChange={e => setDraft(e.target.value)}
       onBlur={handleSave}
       onKeyDown={handleKeyDown}
-      className={`w-full rounded px-2 py-1 text-xs outline-none ${className}`}
+      className={`w-full rounded px-2 py-1 text-[13px] outline-none ${className}`}
       style={{
         background: 'var(--bg)',
         color: 'var(--text)',

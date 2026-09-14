@@ -59,7 +59,7 @@ export default function VideoPlayer({ scenes, initialIndex, onClose }: VideoPlay
       >
         {/* Close button */}
         <button
-          className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
+          className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full flex items-center justify-center text-[13px] font-bold"
           style={{ background: 'rgba(0,0,0,0.6)', color: 'var(--text)' }}
           onClick={onClose}
         >
@@ -84,34 +84,34 @@ export default function VideoPlayer({ scenes, initialIndex, onClose }: VideoPlay
           style={{ width: 320, background: 'var(--surface)', borderLeft: '1px solid var(--border)' }}
         >
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-bold px-2 py-0.5 rounded" style={{ background: 'var(--card)', color: 'var(--muted)' }}>
+            <span className="text-[13px] font-bold px-2 py-0.5 rounded" style={{ background: 'var(--card)', color: 'var(--muted)' }}>
               {scene.videoTitle ? `${scene.videoTitle} · ` : ''}{t('videoPlayer.sceneLabel', { n: scene.display_order + 1 })}
             </span>
-            <span className="text-xs font-semibold px-2 py-0.5 rounded" style={chainBadgeStyle(scene.chain_type)}>
+            <span className="text-[13px] font-semibold px-2 py-0.5 rounded" style={chainBadgeStyle(scene.chain_type)}>
               {chainLabel(t, scene.chain_type)}
             </span>
           </div>
 
           {scene.prompt && (
             <div>
-              <div className="text-xs font-bold mb-1" style={{ color: 'var(--muted)' }}>{t('videoPlayer.prompt')}</div>
-              <div className="text-xs" style={{ color: 'var(--text)' }}>{scene.prompt}</div>
+              <div className="text-[13px] font-bold mb-1" style={{ color: 'var(--muted)' }}>{t('videoPlayer.prompt')}</div>
+              <div className="text-[13px]" style={{ color: 'var(--text)' }}>{scene.prompt}</div>
             </div>
           )}
 
           {scene.video_prompt && (
             <div>
-              <div className="text-xs font-bold mb-1" style={{ color: 'var(--muted)' }}>{t('videoPlayer.videoPrompt')}</div>
-              <div className="text-xs whitespace-pre-wrap" style={{ color: 'var(--text)' }}>{scene.video_prompt}</div>
+              <div className="text-[13px] font-bold mb-1" style={{ color: 'var(--muted)' }}>{t('videoPlayer.videoPrompt')}</div>
+              <div className="text-[13px] whitespace-pre-wrap" style={{ color: 'var(--text)' }}>{scene.video_prompt}</div>
             </div>
           )}
 
           {charNames.length > 0 && (
             <div>
-              <div className="text-xs font-bold mb-1" style={{ color: 'var(--muted)' }}>{t('videoPlayer.characters')}</div>
+              <div className="text-[13px] font-bold mb-1" style={{ color: 'var(--muted)' }}>{t('videoPlayer.characters')}</div>
               <div className="flex flex-wrap gap-1">
                 {charNames.map(name => (
-                  <span key={name} className="text-xs px-2 py-0.5 rounded" style={{ background: 'var(--card)', color: 'var(--accent)' }}>
+                  <span key={name} className="text-[13px] px-2 py-0.5 rounded" style={{ background: 'var(--card)', color: 'var(--accent)' }}>
                     {name}
                   </span>
                 ))}
@@ -123,7 +123,7 @@ export default function VideoPlayer({ scenes, initialIndex, onClose }: VideoPlay
           <a
             href={videoSrc}
             download={`scene-${scene.display_order + 1}.mp4`}
-            className="text-xs px-3 py-1.5 rounded text-center font-semibold mt-auto"
+            className="text-[13px] px-3 py-1.5 rounded text-center font-semibold mt-auto"
             style={{ background: 'var(--accent)', color: '#fff', textDecoration: 'none' }}
           >
             {t('videoPlayer.download')}
@@ -134,16 +134,14 @@ export default function VideoPlayer({ scenes, initialIndex, onClose }: VideoPlay
             <button
               disabled={index === 0}
               onClick={() => setIndex(i => i - 1)}
-              className="flex-1 text-xs py-1.5 rounded font-semibold disabled:opacity-30"
-              style={{ background: 'var(--card)', color: 'var(--text)', border: '1px solid var(--border)' }}
+              className="fk-input flex-1 text-[13px]  font-semibold disabled:opacity-30"
             >
               {t('videoPlayer.prev')}
             </button>
             <button
               disabled={index === scenes.length - 1}
               onClick={() => setIndex(i => i + 1)}
-              className="flex-1 text-xs py-1.5 rounded font-semibold disabled:opacity-30"
-              style={{ background: 'var(--card)', color: 'var(--text)', border: '1px solid var(--border)' }}
+              className="fk-input flex-1 text-[13px]  font-semibold disabled:opacity-30"
             >
               {t('videoPlayer.next')}
             </button>
