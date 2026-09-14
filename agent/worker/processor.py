@@ -489,22 +489,38 @@ async def _handle_failure(rid: str, req: dict, result: dict, retry_after: dict =
         logger.error("Request %s FAILED permanently: %s", rid[:8], error_msg)
 
 
+#: The scene output each scene request type fills in.
+_SCENE_OUTPUT = {
+    "GENERATE_IMAGE": "image", "REGENERATE_IMAGE": "image", "EDIT_IMAGE": "image",
+    "GENERATE_VIDEO": "video", "REGENERATE_VIDEO": "video", "GENERATE_VIDEO_REFS": "video",
+    "UPSCALE_VIDEO": "upscale",
+}
+
+
+async def _superseded(req: dict, output: str) -> bool:
+    """A request for the same scene output, created after this one, has already completed."""
+    created = req.get("created_at") or ""
+    for other in await crud.list_requests(scene_id=req["scene_id"]):
+        if (other.get("id") != req.get("id") and other.get("status") == "COMPLETED"
+                and _SCENE_OUTPUT.get(other.get("type")) == output
+                and (other.get("created_at") or "") > created):
+            return True
+    return False
+
+
 async def _mark_scene_failed(req: dict):
     scene_id = req.get("scene_id")
-    if not scene_id:
+    output = _SCENE_OUTPUT.get(req["type"])
+    if not scene_id or not output:
+        return
+    # An abandoned request that finally gives up must not undo a newer request's result.
+    if await _superseded(req, output):
+        logger.info("Request %s failed after a newer request completed; scene %s left as is",
+                    req.get("id", "")[:8], scene_id[:12])
         return
     orientation = await _resolve_orientation(req)
     prefix = "vertical" if orientation == "VERTICAL" else "horizontal"
-    req_type = req["type"]
-    updates = {}
-    if req_type in ("GENERATE_IMAGE", "REGENERATE_IMAGE", "EDIT_IMAGE"):
-        updates[f"{prefix}_image_status"] = "FAILED"
-    elif req_type in ("GENERATE_VIDEO", "REGENERATE_VIDEO", "GENERATE_VIDEO_REFS"):
-        updates[f"{prefix}_video_status"] = "FAILED"
-    elif req_type == "UPSCALE_VIDEO":
-        updates[f"{prefix}_upscale_status"] = "FAILED"
-    if updates:
-        await crud.update_scene(scene_id, **updates)
+    await crud.update_scene(scene_id, **{f"{prefix}_{output}_status": "FAILED"})
 
 
 async def _is_already_completed(req: dict, orientation: str) -> bool:

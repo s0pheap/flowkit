@@ -99,6 +99,7 @@ class TestMarkSceneFailed:
         req = make_req(req_type="GENERATE_IMAGE", scene_id="scene-001", orientation="VERTICAL")
         with patch("agent.worker.processor.crud") as mock_crud:
             mock_crud.update_scene = AsyncMock()
+            mock_crud.list_requests = AsyncMock(return_value=[])
             await _mark_scene_failed(req)
         mock_crud.update_scene.assert_awaited_once_with("scene-001", vertical_image_status="FAILED")
 
@@ -107,6 +108,7 @@ class TestMarkSceneFailed:
         req = make_req(req_type="GENERATE_VIDEO", scene_id="scene-001", orientation="VERTICAL")
         with patch("agent.worker.processor.crud") as mock_crud:
             mock_crud.update_scene = AsyncMock()
+            mock_crud.list_requests = AsyncMock(return_value=[])
             await _mark_scene_failed(req)
         mock_crud.update_scene.assert_awaited_once_with("scene-001", vertical_video_status="FAILED")
 
@@ -115,14 +117,39 @@ class TestMarkSceneFailed:
         req = make_req(req_type="UPSCALE_VIDEO", scene_id="scene-001", orientation="VERTICAL")
         with patch("agent.worker.processor.crud") as mock_crud:
             mock_crud.update_scene = AsyncMock()
+            mock_crud.list_requests = AsyncMock(return_value=[])
             await _mark_scene_failed(req)
         mock_crud.update_scene.assert_awaited_once_with("scene-001", vertical_upscale_status="FAILED")
+
+    @pytest.mark.asyncio
+    async def test_abandoned_request_does_not_undo_a_newer_success(self):
+        """A stale video request that gives up after a fresh one completed leaves the scene COMPLETED."""
+        req = {**make_req(req_type="GENERATE_VIDEO", orientation="HORIZONTAL"), "created_at": "2026-09-14T15:30:00Z"}
+        newer = {"id": "new", "type": "GENERATE_VIDEO", "status": "COMPLETED", "created_at": "2026-09-14T15:45:00Z"}
+        with patch("agent.worker.processor.crud") as mock_crud:
+            mock_crud.update_scene = AsyncMock()
+            mock_crud.list_requests = AsyncMock(return_value=[req, newer])
+            await _mark_scene_failed(req)
+        mock_crud.update_scene.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_older_success_or_other_output_still_marks_failed(self):
+        """A regenerate that fails after an OLDER success, or a success for another output, still marks FAILED."""
+        req = {**make_req(req_type="REGENERATE_VIDEO", orientation="HORIZONTAL"), "created_at": "2026-09-14T15:30:00Z"}
+        older = {"id": "old", "type": "GENERATE_VIDEO", "status": "COMPLETED", "created_at": "2026-09-14T15:00:00Z"}
+        image = {"id": "img", "type": "GENERATE_IMAGE", "status": "COMPLETED", "created_at": "2026-09-14T15:45:00Z"}
+        with patch("agent.worker.processor.crud") as mock_crud:
+            mock_crud.update_scene = AsyncMock()
+            mock_crud.list_requests = AsyncMock(return_value=[req, older, image])
+            await _mark_scene_failed(req)
+        mock_crud.update_scene.assert_awaited_once_with("scene-001", horizontal_video_status="FAILED")
 
     @pytest.mark.asyncio
     async def test_no_update_when_no_scene_id(self):
         req = make_req(req_type="GENERATE_IMAGE", scene_id=None)
         with patch("agent.worker.processor.crud") as mock_crud:
             mock_crud.update_scene = AsyncMock()
+            mock_crud.list_requests = AsyncMock(return_value=[])
             await _mark_scene_failed(req)
         mock_crud.update_scene.assert_not_called()
 
