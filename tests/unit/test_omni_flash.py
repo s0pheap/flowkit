@@ -519,8 +519,8 @@ class TestBatchPathIsRefusedRatherThanAttempted:
         assert "UNSUPPORTED_ON_BATCH_API" in result["error"]
         client._send.assert_not_called()
 
-    async def test_the_message_points_at_both_ways_out(self, client):
+    async def test_the_message_points_at_the_capture_doc_and_the_working_route(self, client):
         result = await generate_omni_flash_video(
             reference_media_ids=["a"], prompt="go", project_id="pid")
         assert "docs/CAPTURE.md" in result["error"]
-        assert "USE_BATCH_RPC=0" in result["error"]
+        assert "model_family=omni_flash" in result["error"]

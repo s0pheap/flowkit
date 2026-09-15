@@ -231,3 +231,17 @@ class TestResolvers:
                     from agent.config import VIDEO_MODELS
                     key = VIDEO_MODELS.get(tier, {}).get(gen, {}).get(aspect)
                     assert fb.resolve_video_model(key) in fb.VIDEO_MODELS
+
+
+class TestOmniVideoModels:
+    @pytest.mark.parametrize("key", sorted(fb.OMNI_VIDEO_MODELS))
+    def test_omni_keys_reach_the_model_slot_unchanged(self, key):
+        assert fb.resolve_video_model(key) == key
+
+    def test_an_unknown_key_still_lands_on_the_veo_default(self):
+        assert fb.resolve_video_model("abra_i2v_12s") == fb.VIDEO_MODEL
+
+    def test_models_json_maps_every_omni_length_to_a_known_key(self):
+        from agent.config import OMNI_FLASH_DURATIONS, OMNI_FLASH_MODELS
+        for seconds in OMNI_FLASH_DURATIONS:
+            assert OMNI_FLASH_MODELS["frame_to_video"][str(seconds)] in fb.OMNI_VIDEO_MODELS

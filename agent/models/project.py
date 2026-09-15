@@ -1,6 +1,21 @@
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, computed_field, model_validator
 from typing import Optional
-from agent.models.enums import ProjectStatus, PaygateTier, EntityType
+from agent import config
+from agent.models.enums import ProjectStatus, PaygateTier, EntityType, VideoModelFamily
+
+#: Length of a Veo scene clip. Omni clips are config.OMNI_FLASH_DURATION_S long.
+VEO_CLIP_SECONDS = 8
+
+
+def video_model_family(project) -> str:
+    """The model a project's scene videos use: its own choice, else the server default."""
+    stored = project.get("video_model_family") if isinstance(project, dict) else getattr(project, "video_model_family", None)
+    return stored if stored in config.VIDEO_MODEL_FAMILIES else config.DEFAULT_VIDEO_MODEL_FAMILY
+
+
+def video_clip_seconds(family: str) -> int:
+    """How long a generated scene clip is for a model family."""
+    return config.OMNI_FLASH_DURATION_S if family == "omni_flash" else VEO_CLIP_SECONDS
 
 
 class CharacterInput(BaseModel):
@@ -26,6 +41,7 @@ class ProjectCreate(BaseModel):
     style: Optional[str] = None  # deprecated: use material instead; "3D"→"3d_pixar", "photorealistic"→"realistic"
     allow_music: bool = False  # when True, skip "no background music" suffix in video prompts
     allow_voice: bool = False  # when True, keep character dialogue in video audio (suppress only music/narration)
+    video_model_family: Optional[VideoModelFamily] = None  # "veo" or "omni_flash"; None = server default
     characters: Optional[list[CharacterInput]] = None
 
     @model_validator(mode="before")
@@ -53,6 +69,7 @@ class ProjectUpdate(BaseModel):
     material: Optional[str] = None
     allow_music: Optional[bool] = None
     allow_voice: Optional[bool] = None
+    video_model_family: Optional[VideoModelFamily] = None  # send null to go back to the server default
 
 
 class Project(BaseModel):
@@ -67,7 +84,20 @@ class Project(BaseModel):
     material: Optional[str] = None
     allow_music: bool = False
     allow_voice: bool = False
+    video_model_family: Optional[VideoModelFamily] = None
     narrator_voice: Optional[str] = None
     narrator_ref_audio: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+
+    @computed_field
+    @property
+    def effective_video_model_family(self) -> str:
+        """video_model_family, or the server default when the project has none."""
+        return video_model_family(self)
+
+    @computed_field
+    @property
+    def video_clip_seconds(self) -> int:
+        """Length of this project's generated scene clips."""
+        return video_clip_seconds(self.effective_video_model_family)

@@ -106,6 +106,15 @@ IMAGE_MODELS = _MODELS["image_models"]
 # and NARWHAL (Banana 2) and rejects everything else.
 DEFAULT_IMAGE_MODEL = _MODELS.get("default_image_model", "NANO_BANANA_PRO")
 
+# Which model makes scene videos: "veo" or "omni_flash". A project's own
+# video_model_family wins over this. Omni picks its wire key from
+# omni_flash_models by clip length (4, 6, 8 or 10 seconds).
+VIDEO_MODEL_FAMILIES = ("veo", "omni_flash")
+OMNI_FLASH_DURATIONS = (4, 6, 8, 10)
+DEFAULT_VIDEO_MODEL_FAMILY = _MODELS.get("default_video_model_family", "veo")
+OMNI_FLASH_MODELS = _MODELS.get("omni_flash_models", {})
+OMNI_FLASH_DURATION_S = int(_MODELS.get("omni_flash_duration_s", 10))
+
 # ─── API Endpoints ───────────────────────────────────────────
 ENDPOINTS = {
     "generate_images": "/v1/projects/{project_id}/flowMedia:batchGenerateImages",

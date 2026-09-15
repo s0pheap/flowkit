@@ -1,5 +1,16 @@
 # Gemini Omni Flash: integration guide for agents
 
+> **On the current Flow API (`flow.google.com`, `USE_BATCH_RPC=1`) only first-frame
+> video works**, and it is simpler than the rest of this page: it is the Veo generate
+> call with an `abra_i2v_<N>s` model. Scene videos use it when the project's
+> `video_model_family` (or the server's `default_video_model_family`) is `omni_flash`.
+> Directly: `POST /api/flow/generate-video` with `"model_family": "omni_flash"` and an
+> optional `"duration_s"` returns `operations`, polled with `POST /api/flow/check-status`
+> like any Veo job. `abra_i2v_10s` was proven on 2026-09-15 (a 10.005 s 720x1280 clip
+> opening on the start frame). First + last frames and references still fail with
+> `UNSUPPORTED_ON_BATCH_API`. Everything below describes the pre-migration REST path
+> (`USE_BATCH_RPC=0`).
+
 FlowKit exposes Gemini Omni Flash video generation through the authenticated Google Flow session in its persistent Chrome profile. An integrating service talks only to the FlowKit REST API; it must not call Google Flow endpoints or the extension WebSocket directly.
 
 ## Prerequisites and base URL

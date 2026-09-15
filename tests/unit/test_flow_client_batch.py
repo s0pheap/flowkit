@@ -128,6 +128,41 @@ class TestGenerateVideo:
         await client.generate_video("mid", "go", PROJECT, "scene-1")
         assert client._operation_projects[OPERATION] == PROJECT
 
+    async def test_veo_is_what_a_caller_gets_without_asking(self, client):
+        client.responses[fb.RPC_GEN_VIDEO] = self._submitted(client)
+        await client.generate_video("mid", "go", PROJECT, "scene-1")
+        assert "veo_3_1_" in client.calls[0]["freq"]
+        assert "abra_" not in client.calls[0]["freq"]
+
+    async def test_omni_puts_its_model_in_the_same_rpc(self, client, monkeypatch):
+        import agent.config as config
+        monkeypatch.setattr(config, "OMNI_FLASH_DURATION_S", 10)
+        client.responses[fb.RPC_GEN_VIDEO] = self._submitted(client)
+        result = await client.generate_video("mid", "go", PROJECT, "scene-1", model_family="omni_flash")
+
+        assert result["data"]["operations"][0]["operation"]["name"] == OPERATION
+        assert client.calls[0]["rpcid"] == fb.RPC_GEN_VIDEO
+        assert "abra_i2v_10s" in client.calls[0]["freq"]
+        assert "veo_3_1_" not in client.calls[0]["freq"]
+
+    async def test_omni_length_picks_the_key(self, client):
+        client.responses[fb.RPC_GEN_VIDEO] = self._submitted(client)
+        await client.generate_video("mid", "go", PROJECT, "scene-1", model_family="omni_flash", duration_s=6)
+        assert "abra_i2v_6s" in client.calls[0]["freq"]
+
+    async def test_omni_length_it_does_not_make_is_refused_before_sending(self, client):
+        result = await client.generate_video("mid", "go", PROJECT, "scene-1", model_family="omni_flash", duration_s=7)
+        assert result["error"].startswith("INVALID_MODEL_CONFIG:")
+        assert "no 7s clip" in result["error"]
+        assert client.calls == []
+
+    async def test_a_misconfigured_omni_key_is_refused_not_turned_into_veo(self, client, monkeypatch):
+        import agent.config as config
+        monkeypatch.setitem(config.OMNI_FLASH_MODELS, "frame_to_video", {"10": "veo_3_1_i2v_lite"})
+        result = await client.generate_video("mid", "go", PROJECT, "scene-1", model_family="omni_flash", duration_s=10)
+        assert "not an Omni model" in result["error"]
+        assert client.calls == []
+
     async def test_chaining_fails_loudly_rather_than_dropping_the_end_frame(self, client):
         result = await client.generate_video("mid", "go", PROJECT, "scene-1",
                                              end_image_media_id="end-mid")

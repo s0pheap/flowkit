@@ -15,6 +15,7 @@ import ssl
 from typing import TYPE_CHECKING, Optional
 
 from agent.models.look_feel import camera_direction, parse_look_feel
+from agent.models.project import video_model_family
 
 
 def _build_continuation_prompt(base_prompt: str) -> str:
@@ -480,6 +481,7 @@ class OperationService:
             aspect_ratio=aspect,
             end_image_media_id=end_id,
             user_paygate_tier=tier,
+            model_family=video_model_family(project),
         )
 
         if _is_error(submit_result):
@@ -593,6 +595,7 @@ class OperationService:
             scene_id=scene.get("id", ""),
             aspect_ratio=aspect,
             user_paygate_tier=tier,
+            model_family=video_model_family(project),
         )
 
         if _is_error(submit_result):

@@ -58,8 +58,10 @@
     "NANO_BANANA_2": "NARWHAL"
   },
   "default_image_model": "NANO_BANANA_PRO",
+  "default_video_model_family": "omni_flash",
+  "omni_flash_duration_s": 10,
   "batch_video_models": {
-    "_comment": "Wire names the flow.google.com batchexecute path accepts. video_models above are REST-era keys; resolve_video_model() folds them onto these (anything asking for 'ultra' lands on the ultra model).",
+    "_comment": "Veo wire names the flow.google.com batchexecute path accepts. video_models above are REST-era keys; resolve_video_model() folds them onto these (anything asking for 'ultra' lands on the ultra model). Omni Flash keys (omni_flash_models.frame_to_video, abra_i2v_<N>s) pass through unchanged; default_video_model_family picks Veo or Omni.",
     "accepted": [
       "veo_3_1_i2v_lite_low_priority",
       "veo_3_1_i2v_lite",

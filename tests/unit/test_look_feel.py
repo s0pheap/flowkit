@@ -130,3 +130,32 @@ class TestMotionFilter:
         assert "anullsrc=r=48000:cl=stereo" in cmd
         assert cmd[cmd.index("-t") + 1] == "6.360"
         assert "s=960x540" in cmd[cmd.index("-filter_complex") + 1]
+
+
+
+class TestRemoteClipDurations:
+    @pytest.fixture(autouse=True)
+    def empty_cache(self, monkeypatch):
+        from agent.api import look_feel as api
+        monkeypatch.setattr(api, "_remote_clip_seconds", {})
+        return api
+
+    async def test_measures_each_clip_once_across_re_signed_urls(self, empty_cache, monkeypatch):
+        api = empty_cache
+        probed = []
+        monkeypatch.setattr(api, "_probe_remote_duration", lambda url: probed.append(url) or 10.005)
+
+        first = await api._remote_clip_durations(["https://flow-content.google/video/m1?sig=a"])
+        again = await api._remote_clip_durations(["https://flow-content.google/video/m1?sig=b"])
+
+        assert first == {"https://flow-content.google/video/m1?sig=a": 10.005}
+        assert again == {"https://flow-content.google/video/m1?sig=b": 10.005}
+        assert len(probed) == 1
+
+    async def test_a_failed_probe_is_left_out_and_tried_again_later(self, empty_cache, monkeypatch):
+        api = empty_cache
+        results = iter([None, 8.0])
+        monkeypatch.setattr(api, "_probe_remote_duration", lambda url: next(results))
+
+        assert await api._remote_clip_durations(["https://x/video/m2?sig=old"]) == {}
+        assert await api._remote_clip_durations(["https://x/video/m2?sig=new"]) == {"https://x/video/m2?sig=new": 8.0}

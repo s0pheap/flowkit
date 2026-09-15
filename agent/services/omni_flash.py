@@ -35,14 +35,17 @@ _MODELS_FILE = Path(__file__).parent.parent / "models.json"
 #: Every Omni surface here rides the pre-migration transports — the REST
 #: endpoints on aisandbox-pa and the labs.google tRPC snapshot it polls
 #: through. Flow moved to flow.google.com in September 2026 and stopped
-#: minting the bearer both of those need, and no Omni payload has been
-#: captured off the new frontend, so on the batch path these fail with a
-#: name rather than dying on a 401 five retries deep.
+#: minting the bearer both of those need, so on the batch path these fail
+#: with a name rather than dying on a 401 five retries deep. Omni first-frame
+#: video does work on the batch path, through FlowClient.generate_video with
+#: model_family="omni_flash"; references and first+last were never captured.
 _UNSUPPORTED_ON_BATCH = (
-    "UNSUPPORTED_ON_BATCH_API: Omni Flash — it speaks the pre-migration REST "
+    "UNSUPPORTED_ON_BATCH_API: this Omni Flash mode speaks the pre-migration REST "
     "and tRPC endpoints, and no batchexecute payload for it has been captured; "
-    "see docs/CAPTURE.md. Use the Veo path (model_family=veo), or set "
-    "USE_BATCH_RPC=0 on a profile that still holds a bearer token."
+    "see docs/CAPTURE.md. Omni first-frame video works through "
+    "POST /api/flow/generate-video with model_family=omni_flash (poll with "
+    "/api/flow/check-status), and scene videos use it when the project's "
+    "video_model_family is omni_flash."
 )
 
 

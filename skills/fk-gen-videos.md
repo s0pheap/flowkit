@@ -42,7 +42,7 @@ curl -s "$FK/api/scenes?video_id=<VID>" -H "$KEY"
 
 Each scene's `look_feel.mode` (set in `/fk-review-board`; missing = `"generate"`) decides how its video is made:
 
-- **`generate`** → Veo, through the request queue (Step 3). Only scenes where `${ori}_video_status` != `"COMPLETED"` or `${ori}_video_media_id` is missing.
+- **`generate`** → a generated clip, through the request queue (Step 3). The project's `effective_video_model_family` (from `GET /api/projects/<PID>`) says which model makes it: `veo` (8s clips) or `omni_flash` (`video_clip_seconds` long, 10s by default). Tell the user which one before submitting; `/fk-change-model family` switches it. Only scenes where `${ori}_video_status` != `"COMPLETED"` or `${ori}_video_media_id` is missing.
 - **`ffmpeg`** → rendered locally from the keyframe with a pan/zoom (Step 3b). **Never submit these to Veo** — the API rejects the batch with 400 if you do, so a clip that will never be used isn't billed.
 
 Print the split before submitting:

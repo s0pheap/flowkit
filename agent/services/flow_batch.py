@@ -88,6 +88,12 @@ VIDEO_MODELS = {
     "veo_3_1_i2v_s_fast_ultra",
 }
 
+#: Gemini Omni Flash first-frame models, one per clip length. They ride the
+#: same generate rpc as Veo with only the model slot changed. abra_i2v_10s was
+#: proven on 2026-09-15: a 10.005 s 720x1280 clip that opens on the start frame.
+#: The 4/6/8 s keys follow the same naming and are not yet proven.
+OMNI_VIDEO_MODELS = {f"abra_i2v_{seconds}s" for seconds in (4, 6, 8, 10)}
+
 #: Video aspect, and note it does NOT share the image encoding: here 1 is
 #: portrait, where for an image 1 is square. Measured by rendering one of each
 #: from the same portrait still — 720x1280 against 1280x720.
@@ -199,7 +205,7 @@ def resolve_video_model(key: Optional[str]) -> str:
     "ultra" gets the ultra model, anything else lands on the lite default.
     """
     if isinstance(key, str):
-        if key in VIDEO_MODELS:
+        if key in VIDEO_MODELS or key in OMNI_VIDEO_MODELS:
             return key
         if "ultra" in key:
             return "veo_3_1_i2v_s_fast_ultra"

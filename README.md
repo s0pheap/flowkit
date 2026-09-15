@@ -45,7 +45,7 @@ an API key.
 |--------|-------------|
 | Reference images | One per character, location or prop, so they look the same in every scene |
 | Scene images | The first frame of each scene, composed from its references |
-| Video clips | 8 s Veo clips with camera motion and sound effects, or a free ffmpeg pan/zoom |
+| Video clips | Omni Flash (10 s, the default) or Veo (8 s) clips with camera motion and sound effects, or a free ffmpeg pan/zoom |
 | Narration | TTS per scene (Gemini by default, with free local fallbacks) and word timings |
 | Subtitles | SRT from the word timings, burned in or served beside the video |
 | Final video | Rendered on the server: clips fitted to the narration, transitions, text overlays, ducked music |
@@ -198,6 +198,23 @@ Model keys live in `agent/models.json` and the video-review CLI in
 `agent/providers.json`. Change them with `/fk-change-model` and
 `/fk-change-provider`; both reload without a restart.
 
+### Veo or Omni Flash
+
+Scene videos come from **Omni Flash** by default (`default_video_model_family` in
+`agent/models.json`), as 10-second clips (`omni_flash_duration_s`: 4, 6, 8 or 10).
+Each project can override it:
+
+```bash
+curl -X PATCH http://127.0.0.1:8100/api/projects/<PID> -H "Content-Type: application/json" \
+  -d '{"video_model_family": "veo"}'          # null = back to the server default
+```
+
+`GET /api/projects/<PID>` reports what the project really uses as
+`effective_video_model_family` and `video_clip_seconds`. Narration limits follow the
+clip: 6.5 s of speech on an 8 s Veo clip, 8.5 s on a 10 s Omni clip. Omni covers
+first-frame video only; only the 10-second model has been proven by a real
+generation so far.
+
 ### Not ported to the new Flow API yet
 
 These payloads were never captured, so they fail with `UNSUPPORTED_ON_BATCH_API`
@@ -208,7 +225,7 @@ instead of silently doing the wrong thing:
 | 4K / 1080p upscale | None. Keep the normal render |
 | Reference-to-video (r2v) | `FLOW_ALLOW_DEGRADED=1` → i2v off the first reference |
 | Start + end-frame chaining (`/fk-gen-chain-videos`) | `FLOW_ALLOW_DEGRADED=1` → i2v off the start frame |
-| Omni Flash (`model_family=omni_flash`) | Use `model_family=veo` |
+| Omni Flash references or first + last frames | Use Omni first-frame video (the default), or Veo |
 
 Restoring one starts with a capture, not a guess: [`docs/CAPTURE.md`](docs/CAPTURE.md).
 
@@ -407,7 +424,7 @@ Interactive docs: `http://127.0.0.1:8100/docs`.
 |------|-----------------|--------|
 | `GENERATE_CHARACTER_IMAGE` | `character_id`, `project_id` | Works |
 | `GENERATE_IMAGE` | `scene_id`, `project_id`, `video_id`, `orientation` | Works |
-| `GENERATE_VIDEO` | `scene_id`, `project_id`, `video_id`, `orientation` | Works (async on Flow's side) |
+| `GENERATE_VIDEO` | `scene_id`, `project_id`, `video_id`, `orientation` | Works (async on Flow's side); Veo or Omni per project |
 | `GENERATE_VIDEO_REFS` | same | Unported (r2v) |
 | `UPSCALE_VIDEO` | same | Unported |
 

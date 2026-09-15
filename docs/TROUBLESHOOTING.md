@@ -18,7 +18,9 @@ because Flow returns many different failures as HTTP 400 with a different
 | `/health` shows `extension_connected: false` in Docker | Sign in on the browser desktop and load `/extension`; if the browser container restarted, `docker compose restart agent` |
 | `CAPTCHA_FAILED: NO_FLOW_TAB` | Open a `flow.google.com` tab and leave it open |
 | `NO_FLOW_PROJECT` | Set `FLOW_PROJECT_ID`, or pass `flow_project_id` to `POST /api/projects` |
-| `UNSUPPORTED_ON_BATCH_API` | 4K upscale, r2v, chaining or Omni Flash: not ported yet (see `docs/CAPTURE.md`) |
+| `UNSUPPORTED_ON_BATCH_API` | 4K upscale, r2v, chaining, or Omni references / first+last frames: not ported yet (see `docs/CAPTURE.md`) |
+| `INVALID_MODEL_CONFIG: Omni Flash has no Ns clip` / `… not an Omni model the batch path knows` | `omni_flash_duration_s` or `omni_flash_models.frame_to_video` in `agent/models.json` is wrong. Use 4/6/8/10 and an `abra_i2v_<N>s` key |
+| Clips are 10 s, narration limits feel off | The project uses Omni Flash. Check `effective_video_model_family` and `video_clip_seconds` on `GET /api/projects/<PID>` |
 | 403 `MODEL_ACCESS_DENIED` | Tier mismatch. Check `GET /api/flow/credits` and pick an allowed model with `/fk-change-model` |
 | 403 `PUBLIC_ERROR_UNUSUAL_ACTIVITY` | See [Unusual activity](#unusual-activity) |
 | Scene images don't match the references | Every ref needs a UUID `media_id`. Run `/fk-fix-uuids` |
@@ -84,6 +86,7 @@ A result counts as an error when `result.error` is set, `status >= 400`, or
 | `NO_AT_TOKEN` | Flow tab signed out, on an interstitial, or still loading | Open `flow.google.com`, sign in, let it load |
 | `NO_FLOW_PROJECT` | No project to scope the RPC to | Terminal. Set `FLOW_PROJECT_ID` |
 | `UNSUPPORTED_ON_BATCH_API` | Payload never captured | Terminal. See `docs/CAPTURE.md` |
+| `INVALID_MODEL_CONFIG` | Bad Omni length or key in `models.json` | Terminal, not retried. Fix `omni_flash_duration_s` / `omni_flash_models` |
 | `NO_FLOW_TAB` | No Flow tab for reCAPTCHA | Open a Flow tab |
 | `NO_FLOW_KEY` | No bearer token | Legacy path only (`USE_BATCH_RPC=0`) |
 | `Failed to fetch` | Network drop in the service worker | Retried with backoff |

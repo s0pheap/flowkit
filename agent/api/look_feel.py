@@ -22,6 +22,7 @@ from agent.config import BASE_DIR
 from agent.db import crud
 from agent.models.enums import Orientation
 from agent.models.look_feel import MOTIONS, STRENGTHS, TRANSITIONS, LookFeel, parse_look_feel
+from agent.models.project import video_clip_seconds, video_model_family
 from agent.services import assembly, subtitles
 from agent.services.gemini_tts import wav_duration
 from agent.services.motion import render_motion
@@ -35,6 +36,10 @@ router = APIRouter(tags=["look-feel"])
 
 _RENDER_GATE = asyncio.Semaphore(2)
 _probe_cache: dict[tuple[str, float], Optional[float]] = {}
+#: Lengths of clips that live at a signed URL, keyed by the URL without its query
+#: (the media's path), so re-signing doesn't measure the same clip again.
+_remote_clip_seconds: dict[str, float] = {}
+_REMOTE_PROBES_AT_ONCE = 6
 
 
 class MotionRenderRequest(BaseModel):
@@ -83,6 +88,36 @@ def _probe_duration(path: Path) -> Optional[float]:
     return _probe_cache[key]
 
 
+def _probe_remote_duration(url: str) -> Optional[float]:
+    try:
+        out = subprocess.run(
+            ["ffprobe", "-v", "quiet", "-show_entries", "format=duration", "-of", "csv=p=0", url],
+            capture_output=True, text=True, timeout=20,
+        )
+        return float(out.stdout.strip())
+    except (ValueError, OSError, subprocess.SubprocessError):
+        return None
+
+
+async def _remote_clip_durations(urls: list[str]) -> dict[str, float]:
+    """Length of each remote clip, by URL. Measures only clips not seen before, a few at
+    a time, off the event loop. A failed probe (an expired URL) is not remembered."""
+    wanted = {url: url.split("?", 1)[0] for url in urls}
+    missing = {key: url for url, key in wanted.items() if key not in _remote_clip_seconds}
+    if missing:
+        gate = asyncio.Semaphore(_REMOTE_PROBES_AT_ONCE)
+        loop = asyncio.get_running_loop()
+
+        async def measure(key: str, url: str):
+            async with gate:
+                seconds = await loop.run_in_executor(None, _probe_remote_duration, url)
+            if seconds:
+                _remote_clip_seconds[key] = seconds
+
+        await asyncio.gather(*(measure(key, url) for key, url in missing.items()))
+    return {url: _remote_clip_seconds[key] for url, key in wanted.items() if key in _remote_clip_seconds}
+
+
 def _motion_path(slug: str, scene: dict, preview: bool = False) -> Path:
     name = scene_filename(scene["display_order"], scene["id"])
     return project_dir(slug) / "motion" / (f"preview_{name}" if preview else name)
@@ -128,19 +163,35 @@ async def _build_plan(vid: str, orientation: Optional[str], buffer: float) -> di
     video, project, slug, ori, scenes = await _video_context(vid, orientation)
     prefix = ori.lower()
 
+    looks = [parse_look_feel(scene.get("look_feel")) or _default_look(scene, scenes[idx + 1] if idx + 1 < len(scenes) else None)
+             for idx, scene in enumerate(scenes)]
+    sources = [_veo_source(slug, scene, prefix) for scene in scenes]
+    # Clips at a signed URL are measured too: the render reads them from there, and
+    # a project can hold 8 s Veo and 10 s Omni clips side by side.
+    remote = await _remote_clip_durations([
+        ref for look, (ref, local) in zip(looks, sources)
+        if look.mode == "generate" and ref and not local and ref.startswith(("http://", "https://"))
+    ])
+    # Only a clip that can't be measured (none yet, or an expired URL) is assumed
+    # to be as long as the project's model makes them.
+    expected_clip = float(video_clip_seconds(video_model_family(project)))
     items, extras = [], {}
-    for idx, scene in enumerate(scenes):
-        look = parse_look_feel(scene.get("look_feel")) or _default_look(scene, scenes[idx + 1] if idx + 1 < len(scenes) else None)
+    for scene, look, (veo_ref, veo_local) in zip(scenes, looks, sources):
         wav = scene_tts_path(slug, scene["display_order"], scene["id"])
         narration = wav_duration(wav) if wav.exists() else None
-        veo_ref, veo_local = _veo_source(slug, scene, prefix)
         motion = _motion_path(slug, scene)
+        if look.mode != "generate":
+            clip = None
+        elif veo_local:
+            clip = _probe_duration(veo_local)
+        else:
+            clip = remote.get(veo_ref) or expected_clip
         items.append(assembly.SceneTiming(
             scene_id=scene["id"],
             display_order=scene["display_order"],
             look=look,
             narration_duration=narration,
-            clip_duration=_probe_duration(veo_local) if (look.mode == "generate" and veo_local) else None,
+            clip_duration=clip,
         ))
         timings = timings_path_for(str(wav))
         extras[scene["id"]] = {

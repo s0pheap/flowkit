@@ -531,6 +531,20 @@ class FlowClient:
         legacy = VIDEO_MODELS.get(tier, {}).get(gen_type, {}).get(aspect_ratio)
         return fb.resolve_video_model(legacy)
 
+    def _omni_video_model(self, duration_s: Optional[int]) -> str:
+        """The Omni first-frame wire key for a clip length.
+
+        Unlike a Veo key, an unknown Omni key is refused rather than folded onto
+        a default: resolve_video_model would quietly turn it into Veo.
+        """
+        seconds = int(duration_s or _config.OMNI_FLASH_DURATION_S)
+        if seconds not in _config.OMNI_FLASH_DURATIONS:
+            raise ValueError(f"Omni Flash has no {seconds}s clip; use one of {list(_config.OMNI_FLASH_DURATIONS)}")
+        key = _config.OMNI_FLASH_MODELS.get("frame_to_video", {}).get(str(seconds))
+        if key not in fb.OMNI_VIDEO_MODELS:
+            raise ValueError(f"omni_flash_models.frame_to_video[{seconds}] is {key!r}, not an Omni model the batch path knows")
+        return key
+
     def _remember_operation(self, operation_id: str, project_id: str):
         """Which project an operation belongs to — the listing lookup needs it.
 
@@ -631,8 +645,15 @@ class FlowClient:
                               project_id: str, scene_id: str,
                               aspect_ratio: str = "VIDEO_ASPECT_RATIO_PORTRAIT",
                               end_image_media_id: str = None,
-                              user_paygate_tier: str = "PAYGATE_TIER_TWO") -> dict:
-        """Submit an i2v generation. Returns operations for the poller."""
+                              user_paygate_tier: str = "PAYGATE_TIER_TWO",
+                              model_family: str = "veo",
+                              duration_s: Optional[int] = None) -> dict:
+        """Submit an i2v generation. Returns operations for the poller.
+
+        ``model_family`` is ``veo`` (the tier's Veo model) or ``omni_flash``
+        (the Omni model for ``duration_s``, default OMNI_FLASH_DURATION_S).
+        Both go through the same rpc and are polled the same way.
+        """
         if not USE_BATCH_RPC:
             return await self._legacy_generate_video(
                 start_image_media_id, prompt, project_id, scene_id,
@@ -650,11 +671,17 @@ class FlowClient:
                 str(scene_id)[:12], end_image_media_id[:12])
 
         gen_type = "start_end_frame_2_video" if end_image_media_id else "frame_2_video"
+        if model_family == "omni_flash":
+            try:
+                model = self._omni_video_model(duration_s)
+            except ValueError as e:
+                return {"error": f"INVALID_MODEL_CONFIG: {e}"}
+        else:
+            model = self._batch_video_model(user_paygate_tier, gen_type, aspect_ratio)
         try:
             pid = self._batch_project_id(project_id)
             freq = fb.video_request(
-                prompt, pid, start_image_media_id, aspect=aspect_ratio,
-                model=self._batch_video_model(user_paygate_tier, gen_type, aspect_ratio),
+                prompt, pid, start_image_media_id, aspect=aspect_ratio, model=model,
             )
             payload = await self._batch_payload(
                 fb.RPC_GEN_VIDEO, freq, fb.CAPTCHA_VIDEO, timeout=120)
@@ -668,7 +695,8 @@ class FlowClient:
     async def generate_video_from_references(self, reference_media_ids: list[str],
                                               prompt: str, project_id: str, scene_id: str,
                                               aspect_ratio: str = "VIDEO_ASPECT_RATIO_PORTRAIT",
-                                              user_paygate_tier: str = "PAYGATE_TIER_TWO") -> dict:
+                                              user_paygate_tier: str = "PAYGATE_TIER_TWO",
+                                              model_family: str = "veo") -> dict:
         """Generate video from multiple reference images (r2v)."""
         if not USE_BATCH_RPC:
             return await self._legacy_generate_video_from_references(
@@ -689,7 +717,7 @@ class FlowClient:
         return await self.generate_video(
             start_image_media_id=reference_media_ids[0], prompt=prompt,
             project_id=project_id, scene_id=scene_id, aspect_ratio=aspect_ratio,
-            user_paygate_tier=user_paygate_tier,
+            user_paygate_tier=user_paygate_tier, model_family=model_family,
         )
 
     async def upscale_video(self, media_id: str, scene_id: str,

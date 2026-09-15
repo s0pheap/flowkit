@@ -40,7 +40,7 @@ class GenerateVideoRequest(BaseModel):
     user_paygate_tier: str = "PAYGATE_TIER_ONE"
     # Backward compatible: legacy requests remain Veo unless explicitly set.
     model_family: Literal["veo", "omni_flash"] = "veo"
-    duration_s: int = 8
+    duration_s: Optional[int] = None  # Omni only: 4/6/8/10, default omni_flash_duration_s
 
 
 class GenerateVideoRefsRequest(BaseModel):
@@ -155,25 +155,32 @@ async def generate_video(body: GenerateVideoRequest):
     """Submit frame-conditioned video generation using Veo or Omni Flash.
 
     Existing callers default to Veo. For Omni set ``model_family=omni_flash``
-    and ``duration_s`` to 4/6/8/10. With only ``start_image_media_id`` the
-    request uses Omni First frame. When ``end_image_media_id`` is also present,
-    it uses Omni First+Last frames.
+    and optionally ``duration_s`` (4/6/8/10). On the batch path Omni returns
+    ``operations`` and is polled with ``/check-status`` exactly like Veo; an
+    end frame fails with UNSUPPORTED_ON_BATCH_API, as it does for Veo.
 
-    Omni responses include ``flowkitPolling.workflows`` and must use workflow
-    media polling rather than legacy operation polling.
+    With USE_BATCH_RPC=0 the legacy REST submit is used instead: its responses
+    carry ``flowkitPolling.workflows`` for workflow media polling.
     """
     client = get_flow_client()
     if not client.connected:
         raise HTTPException(503, "Extension not connected")
 
-    if body.model_family == "omni_flash":
+    if body.model_family == "omni_flash" and USE_BATCH_RPC:
+        # Omni rides the same generate rpc as Veo on flow.google.com, so it
+        # returns operations and is polled with check-status like any Veo job.
+        result = await client.generate_video(
+            **body.model_dump(exclude={"model_family"}, exclude_none=True),
+            model_family="omni_flash",
+        )
+    elif body.model_family == "omni_flash":
         try:
             common = dict(
                 start_image_media_id=body.start_image_media_id,
                 prompt=body.prompt,
                 project_id=body.project_id,
                 scene_id=body.scene_id,
-                duration_s=body.duration_s,
+                duration_s=body.duration_s or 8,
                 aspect_ratio=body.aspect_ratio,
                 user_paygate_tier=body.user_paygate_tier,
             )

@@ -37,8 +37,10 @@ curl -s "$FK/api/projects/<PID>" -H "$KEY"
 curl -s "$FK/api/scenes?video_id=<VID>" -H "$KEY"
 ```
 
-Note: project name, language, story context.
-Sort scenes by `display_order`.
+Note: project name, language, story context, and the project's
+`effective_video_model_family` and `video_clip_seconds` (how long each generated
+scene clip is: 8 for Veo, 10 for Omni Flash by default). The length limit below
+depends on it. Sort scenes by `display_order`.
 
 ### Classify scenes: cinematic vs interview
 
@@ -156,7 +158,7 @@ For each scene (sorted by display_order):
 
 ### Read the scene's `video_prompt` and `prompt`
 
-The `video_prompt` describes what happens in the 8s video (sub-clip timing).
+The `video_prompt` describes what happens in the scene's clip (`video_clip_seconds` long, with sub-clip timing).
 The `prompt` describes the still image (frame 0).
 The project `story` provides overall narrative context.
 
@@ -164,35 +166,36 @@ The project `story` provides overall narrative context.
 
 **Language:** Use `--language` flag or project's `language` field.
 
-**Length: every line must fit the 8-second Veo clip.** Flow generates each scene as an 8s clip. The render drops the clip's static first second and keeps a 0.5s pause after the line, so the spoken narration gets **6.5s at most**:
+**Length: every line must fit the scene's generated clip.** The render drops the clip's static first second and keeps a 0.5s pause after the line, so the spoken narration gets the project's `video_clip_seconds` minus 1.5s — call it **MAX_SPEECH**:
 
 ```
-8.0s Veo clip − 1.0s skipped head − 0.5s pause = 6.5s of speech
+Veo        8s clip − 1.0s skipped head − 0.5s pause = 6.5s of speech
+Omni Flash 10s clip − 1.0s skipped head − 0.5s pause = 8.5s of speech
 ```
 
-Write every line for this, whatever the scene's look & feel is today: a line that fits a Veo clip also fits a pan/zoom still, and the scene can switch to Veo later without re-voicing. Only write longer lines (up to ~15s) when the user has said explicitly that the scene stays a still.
+Write every line for this, whatever the scene's look & feel is today: a line that fits the generated clip also fits a pan/zoom still, and the scene can switch to a generated clip later without re-voicing. Only write longer lines (up to ~15s) when the user has said explicitly that the scene stays a still. If the project may be switched from Omni to Veo later, write for 6.5s.
 
 **Length limits per line (HARD MAX — never exceed):**
 
-Speaking speed depends on the voice. Kokoro and calm Gemini voices speak English at ~2.8 words/s, not 3.5, so these limits assume the slower voices:
+Speaking speed depends on the voice. Kokoro and calm Gemini voices speak English at ~2.8 words/s, not 3.5, so these limits assume the slower voices. Use the column for the project's model:
 
-| Language | Max per line | ~Speech | Notes |
-|----------|--------------|---------|-------|
-| English | 18 words | ≤6.5s | ~2.8 words/s (Kokoro, calm Gemini voices) |
-| Korean | 18 words | ≤6.5s | Agglutinative, long compound words = fewer needed |
-| Vietnamese | 18 words | ≤6.5s | Tonal, diacritics slow TTS. 1-2 punchy sentences |
-| Japanese | 27 words | ≤6.5s | Short words, particles add up fast (は、を、に) |
-| Thai | 20 words | ≤6.5s | Tonal like Vietnamese, no spaces between words |
-| Chinese (ZH) | 23 characters | ≤6.5s | Each character = 1 syllable, very dense |
-| Spanish | 20 words | ≤6.5s | Slightly faster than English |
-| French | 20 words | ≤6.5s | Liaison makes speech flow faster |
-| Arabic | 16 words | ≤6.5s | Long words, formal style = slower delivery |
-| Hindi | 18 words | ≤6.5s | Compound verbs take time |
-| Khmer | 75 Khmer characters | ≤6.5s | Count characters without spaces or punctuation (no spaces between words). Measured ~12.5 characters/s with Gemini Charon, brisk style, speed 1.1. Write numbers as words. 1-2 short sentences. |
+| Language | Veo (≤6.5s) | Omni Flash 10s (≤8.5s) | Notes |
+|----------|-------------|------------------------|-------|
+| English | 18 words | 23 words | ~2.8 words/s (Kokoro, calm Gemini voices) |
+| Korean | 18 words | 23 words | Agglutinative, long compound words = fewer needed |
+| Vietnamese | 18 words | 23 words | Tonal, diacritics slow TTS. 1-2 punchy sentences |
+| Japanese | 27 words | 35 words | Short words, particles add up fast (は、を、に) |
+| Thai | 20 words | 26 words | Tonal like Vietnamese, no spaces between words |
+| Chinese (ZH) | 23 characters | 30 characters | Each character = 1 syllable, very dense |
+| Spanish | 20 words | 26 words | Slightly faster than English |
+| French | 20 words | 26 words | Liaison makes speech flow faster |
+| Arabic | 16 words | 21 words | Long words, formal style = slower delivery |
+| Hindi | 18 words | 23 words | Compound verbs take time |
+| Khmer | 75 Khmer characters | 98 Khmer characters | Count characters without spaces or punctuation (no spaces between words). Measured ~12.5 characters/s with Gemini Charon, brisk style, speed 1.1. Write numbers as words. 1-2 short sentences (2-3 for Omni). |
 
-**Rule of thumb for unlisted languages:** MAX 18 words. Adjust down for languages with long compound words (German, Finnish), adjust up for languages with short particles (Japanese, Chinese). Under ~10 words leaves dead air on a Veo scene.
+**Rule of thumb for unlisted languages:** MAX 18 words (23 for Omni). Adjust down for languages with long compound words (German, Finnish), adjust up for languages with short particles (Japanese, Chinese). Under ~10 words (~13 for Omni) leaves dead air on a generated scene.
 
-These limits are estimates — the real length is measured after TTS, and **Step 6b is a required check** that every line is ≤6.5s.
+These limits are estimates — the real length is measured after TTS, and **Step 6b is a required check** that every line is ≤ MAX_SPEECH.
 
 **Documentary narrator style:**
 
@@ -208,7 +211,7 @@ DO:
 DON'T:
 - Describe what's visually obvious: "We see a ship sailing" (viewer sees it)
 - Use filler phrases: "In this scene...", "Meanwhile...", "As we can see..."
-- Exceed the length limit — every line must be spoken within 6.5s to fit the 8s Veo clip (too long = cut off mid-sentence)
+- Exceed the length limit — every line must be spoken within MAX_SPEECH (6.5s on Veo, 8.5s on Omni) to fit the clip (too long = cut off mid-sentence)
 - Use passive voice: "The ship was attacked" → "Iran attacked the ship"
 
 ### Example (military documentary, English):
@@ -303,25 +306,27 @@ Add `"redo_fallback": true` to speak again only the scenes the local fallback vo
 - `speed` other than 1.0 is applied with ffmpeg `atempo` after Gemini speaks; timings are measured on the final wav, so they stay correct
 - **mix: false** — mixing happens in `/fk-concat-fit-narrator`
 
-### 6b. Check every line fits the 8-second clip (required)
+### 6b. Check every line fits the clip (required)
 
-Do not move on to subtitles or `/fk-gen-videos` until every narrated scene is **≤6.5s**. Read the measured lengths from the plan:
+Do not move on to subtitles or `/fk-gen-videos` until every narrated scene is **≤ MAX_SPEECH** (the project's `video_clip_seconds` − 1.5s). Read the measured lengths from the plan:
 
 ```bash
 . ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
-curl -s "$FK/api/videos/<VID>/assembly-plan" -H "$KEY" | python -c "
-import json,sys
+CLIP=$(curl -s "$FK/api/projects/<PID>" -H "$KEY" | python -c "import json,sys; print(json.load(sys.stdin).get('video_clip_seconds') or 8)")
+curl -s "$FK/api/videos/<VID>/assembly-plan" -H "$KEY" | CLIP="$CLIP" python -c "
+import json,os,sys
+clip = float(os.environ['CLIP']); limit = clip - 1.5
 for s in json.load(sys.stdin)['segments']:
     d = s.get('narration_duration') or 0
-    print(f\"scene {s['display_order']+1:>3} {d:5.2f}s\", 'OK' if d <= 6.5 else 'TOO LONG for the 8s clip')"
+    print(f\"scene {s['display_order']+1:>3} {d:5.2f}s\", 'OK' if d <= limit else f'TOO LONG for the {clip:g}s clip (max {limit:g}s)')"
 ```
 
 For each `TOO LONG` scene:
 1. Shorten the line (keep its meaning and names; cut filler, merge sentences). Show the user the old and new text with the old length.
 2. Save it (Step 4) and regenerate **only that scene** (Step 6a).
-3. Check again. Repeat until every scene is ≤6.5s.
+3. Check again. Repeat until every scene is ≤ MAX_SPEECH.
 
-Only if the user refuses to shorten a line: give that scene a fixed length of narration + 0.5s in its look & feel (`look_feel.duration`). The render then plays its Veo clip in slow motion to fit, down to 60% speed (a Veo scene can reach ~11.6s at most). Say which scenes will play slower.
+Only if the user refuses to shorten a line: give that scene a fixed length of narration + 0.5s in its look & feel (`look_feel.duration`). The render then plays its clip in slow motion to fit, down to 60% speed (a Veo scene can reach ~11.6s at most, a 10s Omni scene ~15s). Say which scenes will play slower.
 
 ### `timing_source`
 - `gemini` — timings from Gemini's audio model, mapped onto the script's own words (subtitles always show the written text)
@@ -368,7 +373,7 @@ Narrator generation complete: <project_name>
   Note: Interview scenes keep original video audio (no narrator overlay).
 ```
 
-Every narrated scene must be ≤6.5s so it fits its 8-second Veo clip. If any scene is longer, go back to Step 6b before finishing — never hand over narration that will be cut off.
+Every narrated scene must be ≤ MAX_SPEECH (6.5s on Veo, 8.5s on 10s Omni) so it fits its clip. If any scene is longer, go back to Step 6b before finishing — never hand over narration that will be cut off.
 
 ## Narrative Arc Guide
 
@@ -394,7 +399,7 @@ When writing narrator text for 30-40 scenes, follow a narrative arc:
 | Voice changes between scenes | Different `voice`/`style` per call | Use the same voice and style everywhere |
 | Style text is spoken aloud | Style not phrased as an instruction | Start with "Say ..." / "Speak ..." and keep it short |
 | `timing_source: estimated` | Timing call failed | Check `timing_error`; captions still work at sentence level |
-| Narration cut off in final video | Narration > 6.5s does not fit the 8s Veo clip (1s head skipped, 0.5s pause) | Step 6b: shorten the line and regenerate that scene; or give the scene a fixed look & feel length so the clip plays slower |
+| Narration cut off in final video | Narration longer than MAX_SPEECH does not fit the clip (1s head skipped, 0.5s pause): 6.5s on Veo, 8.5s on 10s Omni | Step 6b: shorten the line and regenerate that scene; or give the scene a fixed look & feel length so the clip plays slower |
 | Narration not found by the render | Generated without `scene_id` | Re-run `/api/tts/generate` for that scene with `scene_id` |
 | Narrator describes visuals | Bad writing style | Remove "we see", describe context/stakes instead |
 | Want a free voice all the time | — | Set `TTS_ENGINE=piper` (local) or `TTS_ENGINE=google` (gTTS) in `.env`; word timings still come from Gemini if a key is set |

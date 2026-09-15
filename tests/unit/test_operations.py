@@ -397,3 +397,40 @@ class TestVideoPromptLookFeel:
     async def test_ffmpeg_mode_adds_nothing(self):
         prompt = await self._build('{"mode": "ffmpeg", "motion": "pan_left"}')
         assert "Camera direction" not in prompt
+
+
+# ---------------------------------------------------------------------------
+# Test: which model family a scene video uses
+# ---------------------------------------------------------------------------
+
+class TestVideoModelFamily:
+    @pytest.fixture(autouse=True)
+    def omni_server_default(self, monkeypatch):
+        import agent.config as config
+        monkeypatch.setattr(config, "DEFAULT_VIDEO_MODEL_FAMILY", "omni_flash")
+        monkeypatch.setattr(config, "OMNI_FLASH_DURATION_S", 10)
+
+    def test_a_project_choice_wins_over_the_server_default(self):
+        assert ops_module.video_model_family({"video_model_family": "veo"}) == "veo"
+
+    @pytest.mark.parametrize("project", [None, {}, {"video_model_family": None}, {"video_model_family": "sora"}])
+    def test_no_valid_choice_falls_back_to_the_server_default(self, project):
+        assert ops_module.video_model_family(project) == "omni_flash"
+
+    def test_the_api_reports_the_effective_model_and_its_clip_length(self):
+        from agent.models.project import Project
+        body = Project(id="p", name="n").model_dump()
+        assert body["video_model_family"] is None
+        assert body["effective_video_model_family"] == "omni_flash"
+        assert body["video_clip_seconds"] == 10
+        assert Project(id="p", name="n", video_model_family="veo").model_dump()["video_clip_seconds"] == 8
+
+    @pytest.mark.parametrize("stored, expected", [(None, "omni_flash"), ("veo", "veo")])
+    async def test_scene_video_submits_with_the_projects_family(self, service, base_scene, mock_client,
+                                                                stored, expected):
+        mock_client.generate_video = AsyncMock(return_value={"data": {"operations": [
+            {"operation": {"name": "op-1"}, "status": "MEDIA_GENERATION_STATUS_PENDING"}]}})
+        with patch.object(ops_module.crud, "get_project", AsyncMock(return_value={"video_model_family": stored})),              patch.object(ops_module, "_build_video_prompt", AsyncMock(return_value="go")),              patch.object(ops_module, "_poll_operations", AsyncMock(return_value={"ok": True})):
+            await service.generate_scene_video(base_scene, "VERTICAL")
+
+        assert mock_client.generate_video.call_args.kwargs["model_family"] == expected

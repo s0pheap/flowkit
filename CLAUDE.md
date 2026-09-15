@@ -36,11 +36,18 @@ that change how you work:
 
 - **Projects are not created by Flow Kit any more.** Make one in the Flow UI and
   pin its uuid as `FLOW_PROJECT_ID`, or pass `flow_project_id` to `POST /api/projects`.
-- **Four capabilities are unported** because their payloads were never captured:
-  4K upscale, r2v, start+end-frame chaining, and Omni Flash. They fail with
-  `UNSUPPORTED_ON_BATCH_API` rather than silently producing the wrong thing.
-  `FLOW_ALLOW_DEGRADED=1` drops chaining and r2v to plain i2v; upscale has no
-  fallback. To restore one properly, see `docs/CAPTURE.md`.
+- **Three capabilities are unported** because their payloads were never captured:
+  4K upscale, r2v, and start+end-frame chaining (Omni's reference and first+last
+  modes too). They fail with `UNSUPPORTED_ON_BATCH_API` rather than silently
+  producing the wrong thing. `FLOW_ALLOW_DEGRADED=1` drops chaining and r2v to
+  plain i2v; upscale has no fallback. To restore one properly, see `docs/CAPTURE.md`.
+- **Scene videos are Veo or Omni Flash.** Omni first-frame video is the Veo
+  generate rpc with an `abra_i2v_<N>s` model in the model slot (`flow_batch.OMNI_VIDEO_MODELS`;
+  only `abra_i2v_10s` is proven). A project's `video_model_family` wins over
+  `default_video_model_family` in `models.json`; resolve it with
+  `agent.models.project.video_model_family()`. Clip length (8 s Veo,
+  `omni_flash_duration_s` Omni) sets the narration limit, so `/fk-gen-narrator`
+  reads `video_clip_seconds` from the project.
 - **A poll saying "Media not found." is not a failure.** Finished jobs report it.
 
 ## Development commands
