@@ -1,0 +1,6 @@
+{$DOMAIN} {
+	encode gzip
+	# The agent has no network of its own: it shares the browser container's,
+	# so the extension can reach it on 127.0.0.1. Its port is therefore on "browser".
+	reverse_proxy browser:8100
+}

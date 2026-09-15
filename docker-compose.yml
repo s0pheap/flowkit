@@ -1,0 +1,75 @@
+# Flow Kit on a Linux server. See "Docker" in docs/DEPLOY.md.
+#
+#   browser  Chromium with a web desktop, signed in to flow.google.com, extension loaded
+#   agent    API + dashboard + worker, sharing browser's network namespace so the
+#            extension's hardcoded ws://127.0.0.1:9222 and http://127.0.0.1:8100 reach it
+#   caddy    HTTPS on 80/443, the only public ports
+#
+# Needs in .env (next to this file): DOMAIN, ADMIN_API_KEY, BROWSER_PASSWORD, FLOW_PROJECT_ID.
+
+name: flowkit
+
+services:
+  browser:
+    image: lscr.io/linuxserver/chromium:latest
+    restart: unless-stopped
+    shm_size: 1gb
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: ${TZ:-Etc/UTC}
+      CUSTOM_USER: ${BROWSER_USER:-flowkit}
+      PASSWORD: ${BROWSER_PASSWORD:?set BROWSER_PASSWORD in .env}
+      CHROME_CLI: https://flow.google.com/
+    volumes:
+      - chrome-profile:/config
+      # Load unpacked from /extension once; the profile remembers it.
+      # Not read-only: Chrome writes _metadata/ into it for the declarativeNetRequest rules.
+      - ./extension:/extension
+    ports:
+      # Web desktop for signing in to Flow. Loopback only — reach it through an SSH tunnel.
+      - "127.0.0.1:3001:3001"
+
+  agent:
+    build: .
+    image: flowkit-agent
+    restart: unless-stopped
+    network_mode: service:browser
+    depends_on:
+      - browser
+    env_file: .env
+    environment:
+      FLOW_AGENT_DIR: /data
+      API_HOST: 0.0.0.0
+      API_PORT: "8100"
+      WS_HOST: 127.0.0.1
+      WS_PORT: "9222"
+      AUTH_ENABLED: "1"
+      ADMIN_API_KEY: ${ADMIN_API_KEY:?set ADMIN_API_KEY in .env}
+      PUBLIC_URL: https://${DOMAIN}
+    volumes:
+      - flowkit-data:/data
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - agent
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  flowkit-data:
+  chrome-profile:
+  caddy-data:
+  caddy-config:

@@ -247,6 +247,56 @@ Not available to remote users:
 - **If generation stalls,** RDP in and check that the Flow tab is still signed in
   and `extension_connected` is true. Then run `/fk-doctor` with the admin key.
 
+## Docker on a Linux server
+
+`docker-compose.yml` runs the whole thing on a plain Linux VM with no desktop:
+
+- **browser** runs Chromium with a web desktop (linuxserver/chromium). You sign in to
+  Flow there, and it keeps the Flow tab open.
+- **agent** is built from the `Dockerfile`. It shares the browser's network, which is
+  how the extension still reaches it on `127.0.0.1:9222` and `:8100`.
+- **caddy** handles HTTPS on ports 80 and 443, the only ports that are public.
+
+1. Point your domain at the VM, open TCP 80/443 (and SSH), and install Docker.
+2. `git clone` the repo, `cp .env.example .env`, and add these settings:
+
+   ```ini
+   DOMAIN=flowkit.example.com
+   ADMIN_API_KEY=<random string>
+   BROWSER_PASSWORD=<password for the browser desktop>
+   FLOW_PROJECT_ID=<uuid>
+   ```
+
+   Compose always sets `AUTH_ENABLED=1`, `API_HOST`, `WS_HOST` and `PUBLIC_URL`, so any
+   values for those in `.env` are ignored.
+3. `docker compose up -d --build`
+4. Sign in to Flow. The desktop is only bound to the VM's loopback, so tunnel to it:
+   `ssh -L 3001:127.0.0.1:3001 you@vm`. Then open `https://localhost:3001`, accept the
+   self-signed certificate, and log in as `flowkit` / `BROWSER_PASSWORD`. In Chromium:
+   - Sign in to `https://flow.google.com/`.
+   - In `chrome://extensions`, turn on Developer mode, click **Load unpacked** and pick
+     `/extension`.
+   - Pin the Flow tab.
+   - Turn off Memory Saver.
+
+   The profile lives in the `chrome-profile` volume, so all of this survives restarts.
+5. Check the setup: `docker compose exec agent python -c "import urllib.request as u; print(u.urlopen('http://127.0.0.1:8100/health').read())"`
+   should show `"extension_connected": true`.
+
+Everyday commands:
+
+- **Users:** `docker compose exec agent python -m agent.users create alice --project <uuid>`
+- **Update:** `git pull && docker compose up -d --build`. If `extension/` changed, reload
+  the extension on the browser desktop.
+- **If the browser container restarts,** run `docker compose restart agent`. The agent
+  stays attached to the old network, and `extension_connected` stays false until it restarts.
+- **Back up** the `flowkit-data` volume. It holds `/data/flow_agent.db` and `/data/output`.
+- Model and provider changes (`PATCH /api/models`, `/api/providers`) are written inside
+  the image, so a rebuild resets them to the repo's `agent/models.json` and
+  `agent/providers.json`. To keep a change, commit it to those files.
+- Video review through a host CLI (`claude`/`agy`/`codex`) doesn't work, because the image
+  has no such CLI. Review with the caller's own agent instead.
+
 ## Ubuntu Desktop instead of Windows
 
 The same steps apply, with these differences:
