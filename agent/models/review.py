@@ -34,6 +34,7 @@ class SceneReview(BaseModel):
     errors: list[VideoError]
     usable_segments: list[SegmentScore]
     fix_guide: str
+    fix_prompt: str  # Actionable prompt addition to fix issues
     frames_analyzed: int
     fps_used: float
     has_critical_errors: bool = False

@@ -376,7 +376,7 @@ async def list_api_users() -> list[dict]:
     return [dict(r) for r in await cur.fetchall()]
 
 async def update_api_user(uid: str, **kw) -> Optional[dict]:
-    allowed = {k: v for k, v in kw.items() if k in {"name", "key_hash", "key_prefix", "is_admin", "disabled", "last_used_at"}}
+    allowed = {k: v for k, v in kw.items() if k in {"name", "key_hash", "key_prefix", "is_admin", "disabled", "last_used_at", "default_flow_project_id"}}
     if allowed:
         sets = ", ".join(f"{k}=?" for k in allowed)
         db = await get_db()
@@ -421,3 +421,90 @@ async def list_character_project_ids(cid: str) -> list[str]:
     db = await get_db()
     cur = await db.execute("SELECT project_id FROM project_character WHERE character_id=?", (cid,))
     return [r[0] for r in await cur.fetchall()]
+
+
+# ─── Flow Project Pool ───────────────────────────────────────────
+
+async def add_flow_project_to_pool(flow_project_id: str, notes: str = None) -> dict:
+    """Add a pre-created Flow project UUID to the pool for user assignment."""
+    db = await get_db()
+    now = _now()
+    async with _db_lock:
+        await db.execute(
+            "INSERT INTO flow_project_pool (flow_project_id,notes,created_at) VALUES (?,?,?)",
+            (flow_project_id, notes, now))
+        await db.commit()
+    return await get_flow_project_from_pool(flow_project_id)
+
+async def get_flow_project_from_pool(flow_project_id: str) -> Optional[dict]:
+    db = await get_db()
+    cur = await db.execute("SELECT * FROM flow_project_pool WHERE flow_project_id=?", (flow_project_id,))
+    row = await cur.fetchone()
+    return dict(row) if row else None
+
+async def list_flow_project_pool(assigned_only: bool = None) -> list[dict]:
+    """List Flow projects in the pool. Filter by assigned status if specified."""
+    db = await get_db()
+    if assigned_only is True:
+        query = "SELECT * FROM flow_project_pool WHERE assigned_to_user IS NOT NULL ORDER BY assigned_at DESC"
+    elif assigned_only is False:
+        query = "SELECT * FROM flow_project_pool WHERE assigned_to_user IS NULL ORDER BY created_at"
+    else:
+        query = "SELECT * FROM flow_project_pool ORDER BY created_at"
+    cur = await db.execute(query)
+    return [dict(r) for r in await cur.fetchall()]
+
+async def get_available_flow_project_from_pool() -> Optional[dict]:
+    """Get one unassigned Flow project from the pool."""
+    db = await get_db()
+    cur = await db.execute(
+        "SELECT * FROM flow_project_pool WHERE assigned_to_user IS NULL ORDER BY created_at LIMIT 1"
+    )
+    row = await cur.fetchone()
+    return dict(row) if row else None
+
+async def assign_flow_project_to_user(flow_project_id: str, user_id: str) -> Optional[dict]:
+    """Assign a Flow project from the pool to a user and grant them access."""
+    db = await get_db()
+    now = _now()
+    async with _db_lock:
+        # Assign in pool
+        await db.execute(
+            "UPDATE flow_project_pool SET assigned_to_user=?, assigned_at=? WHERE flow_project_id=?",
+            (user_id, now, flow_project_id))
+        # Grant access in user_project
+        await db.execute(
+            "INSERT OR IGNORE INTO user_project (user_id,project_id,created_at) VALUES (?,?,?)",
+            (user_id, flow_project_id, now))
+        await db.commit()
+    return await get_flow_project_from_pool(flow_project_id)
+
+async def unassign_flow_project(flow_project_id: str) -> Optional[dict]:
+    """Unassign a Flow project, making it available again."""
+    db = await get_db()
+    async with _db_lock:
+        await db.execute(
+            "UPDATE flow_project_pool SET assigned_to_user=NULL, assigned_at=NULL WHERE flow_project_id=?",
+            (flow_project_id,))
+        await db.commit()
+    return await get_flow_project_from_pool(flow_project_id)
+
+async def remove_flow_project_from_pool(flow_project_id: str) -> bool:
+    """Remove a Flow project from the pool entirely."""
+    db = await get_db()
+    async with _db_lock:
+        cur = await db.execute("DELETE FROM flow_project_pool WHERE flow_project_id=?", (flow_project_id,))
+        await db.commit()
+    return cur.rowcount > 0
+
+async def get_user_flow_projects_from_pool(user_id: str) -> list[dict]:
+    """Get all Flow projects assigned to a user from the pool."""
+    db = await get_db()
+    cur = await db.execute(
+        "SELECT * FROM flow_project_pool WHERE assigned_to_user=? ORDER BY assigned_at DESC",
+        (user_id,))
+    return [dict(r) for r in await cur.fetchall()]
+
+async def update_user_default_flow_project(user_id: str, flow_project_id: str = None) -> Optional[dict]:
+    """Set user's default Flow project (for auto-use when creating projects)."""
+    return await update_api_user(user_id, default_flow_project_id=flow_project_id)

@@ -4,6 +4,24 @@ Usage: `/fk-concat-fit-narrator <video_id> [--buffer 0.5] [--subs soft|burn|none
 
 Everything runs on the agent (ffmpeg on the server), so this works the same on the agent's own machine and from another computer. All timing comes from one source — `GET /api/videos/<VID>/assembly-plan` — so captions land exactly where the narration plays. By default each scene runs `narrator_duration + 0.5s` unless its look & feel (set in `/fk-review-board`) fixes a length.
 
+## Workflow: When to Run This
+
+**Step 10 of 10** — The final step in the complete video generation workflow.
+
+- **Run AFTER:** All videos are generated and reviewed, narration exists, and music is ready (optional)
+- **This is the LAST step:** Produces the final downloadable video
+
+**Why it matters:** This assembles all your scene clips into one polished video with:
+- Narration audio perfectly synced
+- Subtitles timed to each word
+- Text overlays for key facts
+- Background music (ducked under speech)
+- Smooth transitions between scenes
+
+**Quality tip:** Before running this, ensure all clips are marked "Good" in `/fk-review-board`. If any clips need regeneration, do that first. Use `--subs soft` to keep subtitles as a toggleable track, or `--subs burn` to permanently embed them in the video.
+
+**For videos without narration:** Use `/fk-concat` instead of this skill. It simply joins clips without narration timing or subtitles.
+
 ## Connection
 
 These commands work against a local agent or a shared server. The Flow Kit

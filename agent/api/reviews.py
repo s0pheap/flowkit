@@ -17,7 +17,7 @@ from agent.models.review import VideoReview, SceneReview
 from agent.services import video_reviewer
 from agent.services.video_reviewer import review_video, review_scene_video
 from agent import auth
-from agent.db.crud import get_video, get_project_characters, list_scenes
+from agent.db.crud import get_video, get_project_characters, list_scenes, update_scene
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +61,7 @@ async def review_video_endpoint(
     orientation: Optional[str] = Query(None, description="Orientation: VERTICAL or HORIZONTAL (auto-detected if omitted)"),
     scene_ids: Optional[str] = Query(None, description="Comma-separated scene IDs to review (omit for all)"),
     provider: Optional[str] = Query(None, description="Host CLI for the analysis: claude or agy (default: server setting)"),
+    save_fix_prompts: bool = Query(True, description="Auto-save fix prompts to scenes for regeneration"),
 ):
     """Review all scene videos in a video, with the vision analysis running on this host."""
     _check_mode_orientation(mode, orientation)
@@ -75,6 +76,14 @@ async def review_video_endpoint(
     try:
         result = await review_video(vid, project_id, mode=mode, orientation=orientation,
                                     scene_ids=parsed_scene_ids, provider=provider)
+
+        # Save fix prompts for all reviewed scenes
+        if save_fix_prompts:
+            field = f"{orientation.lower()}_ai_fix_prompt"
+            for scene_review in result.scene_reviews:
+                if scene_review.fix_prompt:
+                    await update_scene(scene_review.scene_id, **{field: scene_review.fix_prompt})
+                    logger.info("Saved fix prompt to scene %s: %s", scene_review.scene_id, scene_review.fix_prompt[:80])
     except Exception as e:
         logger.exception("Review failed for video %s: %s", vid, e)
         raise HTTPException(500, f"Review failed: {e}")
@@ -90,6 +99,7 @@ async def review_scene_endpoint(
     mode: str = Query("light", description="Review mode: light (4fps) or deep (8fps)"),
     orientation: Optional[str] = Query(None, description="Orientation: VERTICAL or HORIZONTAL (auto-detected if omitted)"),
     provider: Optional[str] = Query(None, description="Host CLI for the analysis: claude or agy (default: server setting)"),
+    save_fix_prompt: bool = Query(True, description="Auto-save the fix prompt to the scene for regeneration"),
 ):
     """Review a single scene video, with the vision analysis running on this host."""
     _check_mode_orientation(mode, orientation)
@@ -106,6 +116,12 @@ async def review_scene_endpoint(
     try:
         result = await review_scene_video(scene, characters, mode=mode, orientation=orientation,
                                           project_id=project_id, provider=provider)
+
+        # Save fix prompt to scene if requested and fix prompt is not empty
+        if save_fix_prompt and result.fix_prompt:
+            field = f"{orientation.lower()}_ai_fix_prompt"
+            await update_scene(sid, **{field: result.fix_prompt})
+            logger.info("Saved fix prompt to scene %s (%s): %s", sid, orientation, result.fix_prompt[:80])
     except ValueError as e:
         raise HTTPException(400, str(e))
     except Exception as e:
@@ -230,3 +246,86 @@ async def _detect_orientation(video_id: str) -> str:
         if scene.get("vertical_image_status") == "COMPLETED":
             return "VERTICAL"
     return "VERTICAL"
+
+
+# ─── Fix prompts management ───────────────────────────────────────
+
+@router.get("/{vid}/scenes/{sid}/fix-prompt")
+async def get_scene_fix_prompt(
+    vid: str,
+    sid: str,
+    orientation: Optional[str] = Query(None, description="Orientation: VERTICAL or HORIZONTAL (both if omitted)"),
+):
+    """Get the AI-generated fix prompt(s) for a scene."""
+    await auth.require_video(vid)
+    scene = await auth.require_scene(sid)
+    if scene.get("video_id") != vid:
+        raise HTTPException(404, "Scene does not belong to this video")
+
+    if orientation:
+        orientation = orientation.upper()
+        if orientation not in ("VERTICAL", "HORIZONTAL"):
+            raise HTTPException(400, "orientation must be 'VERTICAL' or 'HORIZONTAL'")
+        field = f"{orientation.lower()}_ai_fix_prompt"
+        return {
+            "scene_id": sid,
+            "orientation": orientation,
+            "fix_prompt": scene.get(field) or "",
+        }
+    else:
+        return {
+            "scene_id": sid,
+            "vertical_fix_prompt": scene.get("vertical_ai_fix_prompt") or "",
+            "horizontal_fix_prompt": scene.get("horizontal_ai_fix_prompt") or "",
+        }
+
+
+@router.put("/{vid}/scenes/{sid}/fix-prompt")
+async def update_scene_fix_prompt(
+    vid: str,
+    sid: str,
+    fix_prompt: str = Body(..., embed=True, max_length=500),
+    orientation: str = Query(..., description="Orientation: VERTICAL or HORIZONTAL"),
+):
+    """Manually set or update the fix prompt for a scene. This prompt will be appended to video_prompt when regenerating."""
+    await auth.require_video(vid)
+    scene = await auth.require_scene(sid)
+    if scene.get("video_id") != vid:
+        raise HTTPException(404, "Scene does not belong to this video")
+
+    orientation = orientation.upper()
+    if orientation not in ("VERTICAL", "HORIZONTAL"):
+        raise HTTPException(400, "orientation must be 'VERTICAL' or 'HORIZONTAL'")
+
+    field = f"{orientation.lower()}_ai_fix_prompt"
+    await update_scene(sid, **{field: fix_prompt or None})
+    logger.info("Updated fix prompt for scene %s (%s): %s", sid, orientation, fix_prompt[:80] if fix_prompt else "(cleared)")
+
+    return {"scene_id": sid, "orientation": orientation, "fix_prompt": fix_prompt}
+
+
+@router.delete("/{vid}/scenes/{sid}/fix-prompt")
+async def clear_scene_fix_prompt(
+    vid: str,
+    sid: str,
+    orientation: Optional[str] = Query(None, description="Orientation: VERTICAL, HORIZONTAL, or omit to clear both"),
+):
+    """Clear the fix prompt(s) for a scene."""
+    await auth.require_video(vid)
+    scene = await auth.require_scene(sid)
+    if scene.get("video_id") != vid:
+        raise HTTPException(404, "Scene does not belong to this video")
+
+    if orientation:
+        orientation = orientation.upper()
+        if orientation not in ("VERTICAL", "HORIZONTAL"):
+            raise HTTPException(400, "orientation must be 'VERTICAL' or 'HORIZONTAL'")
+        field = f"{orientation.lower()}_ai_fix_prompt"
+        await update_scene(sid, **{field: None})
+        cleared = [orientation]
+    else:
+        await update_scene(sid, vertical_ai_fix_prompt=None, horizontal_ai_fix_prompt=None)
+        cleared = ["VERTICAL", "HORIZONTAL"]
+
+    logger.info("Cleared fix prompts for scene %s (%s)", sid, ", ".join(cleared))
+    return {"scene_id": sid, "cleared": cleared}

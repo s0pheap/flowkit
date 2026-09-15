@@ -27,8 +27,8 @@ export interface SkillCategory {
 
 export const SKILL_CATEGORIES: SkillCategory[] = [
   {
-    id: 'start',
-    title: { en: 'Start a project', ko: '프로젝트 시작' },
+    id: 'workflow',
+    title: { en: 'Main Workflow', ko: '주요 워크플로' },
     skills: [
       {
         name: 'fk-research',
@@ -70,6 +70,120 @@ export const SKILL_CATEGORIES: SkillCategory[] = [
           },
         ],
       },
+      {
+        name: 'fk-gen-refs',
+        remote: true,
+        usage: ['/fk-gen-refs <project_id>'],
+        summary: {
+          en: 'Generates a reference image for every character, location and prop, so they look the same in every scene.',
+          ko: '모든 캐릭터, 장소, 소품의 레퍼런스 이미지를 만들어 장면마다 같은 모습이 되게 합니다.',
+        },
+        when: {
+          en: 'Right after creating the project, before scene images.',
+          ko: '프로젝트를 만든 직후, 장면 이미지보다 먼저 실행합니다.',
+        },
+        needs: ['Flow tab'],
+      },
+      {
+        name: 'fk-gen-images',
+        remote: true,
+        usage: ['/fk-gen-images <project_id> <video_id>'],
+        summary: {
+          en: 'Generates the keyframe image for every scene, using the reference images of the entities it names.',
+          ko: '각 장면이 참조하는 엔티티의 레퍼런스 이미지를 사용해 모든 장면의 키프레임 이미지를 만듭니다.',
+        },
+        when: {
+          en: 'After every entity has a reference image.',
+          ko: '모든 엔티티에 레퍼런스 이미지가 생긴 뒤 실행합니다.',
+        },
+        needs: ['Flow tab'],
+        tips: [{
+          en: 'A new image clears that scene\'s video, so regenerate images before videos, not after.',
+          ko: '이미지를 새로 만들면 해당 장면의 비디오가 지워지므로, 비디오보다 먼저 이미지를 다시 만드세요.',
+        }],
+      },
+      {
+        name: 'fk-gen-narrator',
+        remote: true,
+        usage: ['/fk-gen-narrator <video_id> [--force] [--language ko] [--voice Kore] [--style "..."] [--speed 1.0]'],
+        summary: {
+          en: 'Writes narrator text for each scene, speaks it with Gemini TTS, and saves word timings next to each wav for subtitles.',
+          ko: '장면마다 내레이션 문장을 쓰고 Gemini TTS로 읽은 뒤, 자막용 단어 타이밍을 wav 옆에 저장합니다.',
+        },
+        when: {
+          en: 'After scenes exist, and before videos if any scene uses ffmpeg (its length comes from the narration).',
+          ko: '장면이 만들어진 뒤 실행하고, ffmpeg 장면이 있으면 비디오보다 먼저 실행합니다(길이가 내레이션에서 정해짐).',
+        },
+        needs: ['GEMINI_API_KEY'],
+        tips: [{
+          en: '--force rewrites text that already exists. TTS_ENGINE=google switches to the free gTTS voice.',
+          ko: '--force는 기존 문장을 다시 씁니다. TTS_ENGINE=google로 무료 gTTS 음성으로 바꿀 수 있습니다.',
+        }],
+      },
+      {
+        name: 'fk-review-board',
+        remote: true,
+        usage: ['/fk-review-board [<video_id>]'],
+        summary: {
+          en: 'Opens the review board (served at /review-board on this server) to watch every scene, tag it Good / Redo / Skip, write notes, and set each scene\'s look & feel: Veo or ffmpeg, motion, transition and length.',
+          ko: '리뷰 보드(이 서버의 /review-board)를 열어 모든 장면을 보고 Good / Redo / Skip 태그와 메모를 남기며, 장면별 룩앤필(Veo 또는 ffmpeg, 모션, 전환, 길이)을 지정합니다.',
+        },
+        when: {
+          en: 'Before generating videos to choose Veo vs ffmpeg, and again before the final cut.',
+          ko: 'Veo와 ffmpeg 중 무엇을 쓸지 정하기 위해 비디오 생성 전에, 그리고 최종 편집 전에 한 번 더 사용합니다.',
+        },
+        tips: [{
+          en: 'It uses the key you signed in with on this dashboard. Notes are saved on the server per video; you can also open it from Projects → Videos.',
+          ko: '이 대시보드에 로그인한 키를 사용합니다. 메모는 비디오별로 서버에 저장되며, 프로젝트 → 비디오에서도 열 수 있습니다.',
+        }],
+      },
+      {
+        name: 'fk-gen-videos',
+        remote: true,
+        usage: ['/fk-gen-videos <project_id> <video_id>'],
+        summary: {
+          en: 'Makes a clip for every scene: Veo scenes are queued on Flow in one batch, ffmpeg scenes are rendered locally as a pan/zoom over the keyframe.',
+          ko: '모든 장면의 클립을 만듭니다. Veo 장면은 Flow에 한 번에 배치로 요청하고, ffmpeg 장면은 키프레임에 팬/줌을 적용해 로컬에서 렌더링합니다.',
+        },
+        when: {
+          en: 'After scene images are done (and after narration, if any scene uses ffmpeg).',
+          ko: '장면 이미지가 끝난 뒤 실행합니다(ffmpeg 장면이 있으면 내레이션 이후).',
+        },
+        needs: ['Flow tab', 'ffmpeg'],
+        tips: [{
+          en: 'Veo takes 2-5 minutes per scene. The worker throttles itself; never loop requests from a script.',
+          ko: 'Veo는 장면당 2~5분 걸립니다. 워커가 알아서 속도를 조절하니 스크립트로 요청을 반복하지 마세요.',
+        }],
+      },
+      {
+        name: 'fk-concat-fit-narrator',
+        remote: true,
+        usage: ['/fk-concat-fit-narrator <video_id> [--buffer 0.5] [--subs soft|burn|none]'],
+        summary: {
+          en: 'Renders the final video on the server from the assembly plan — each clip fitted to its narration, with audio mix, text overlays, transitions and subtitles — then downloads it.',
+          ko: '조립 계획에 따라 서버에서 최종 영상을 렌더링하고(클립을 내레이션에 맞추고 오디오, 텍스트 오버레이, 전환 효과, 자막 포함) 내려받습니다.',
+        },
+        when: {
+          en: 'The last step for a narrated video. You can also press Render under Projects → Videos.',
+          ko: '내레이션이 있는 영상의 마지막 단계입니다. 프로젝트 → 비디오에서 렌더링 버튼을 눌러도 됩니다.',
+        },
+        tips: [
+          {
+            en: 'soft keeps subtitles as a track you can turn off; burn draws them into the picture.',
+            ko: 'soft는 끌 수 있는 자막 트랙으로, burn은 화면에 직접 새깁니다.',
+          },
+          {
+            en: 'One render runs at a time on the server. If a link has expired, run /fk-refresh-urls and render again.',
+            ko: '서버에서는 한 번에 하나만 렌더링합니다. 링크가 만료됐다면 /fk-refresh-urls 후 다시 렌더링하세요.',
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'project',
+    title: { en: 'Project management', ko: '프로젝트 관리' },
+    skills: [
       {
         name: 'fk-switch-project',
         remote: true,
@@ -125,8 +239,8 @@ export const SKILL_CATEGORIES: SkillCategory[] = [
     ],
   },
   {
-    id: 'images',
-    title: { en: 'Style and images', ko: '스타일과 이미지' },
+    id: 'advanced',
+    title: { en: 'Advanced features', ko: '고급 기능' },
     skills: [
       {
         name: 'fk-add-material',
@@ -145,42 +259,10 @@ export const SKILL_CATEGORIES: SkillCategory[] = [
         }],
       },
       {
-        name: 'fk-gen-refs',
-        remote: true,
-        usage: ['/fk-gen-refs <project_id>'],
-        summary: {
-          en: 'Generates a reference image for every character, location and prop, so they look the same in every scene.',
-          ko: '모든 캐릭터, 장소, 소품의 레퍼런스 이미지를 만들어 장면마다 같은 모습이 되게 합니다.',
-        },
-        when: {
-          en: 'Right after creating the project, before scene images.',
-          ko: '프로젝트를 만든 직후, 장면 이미지보다 먼저 실행합니다.',
-        },
-        needs: ['Flow tab'],
-      },
-      {
-        name: 'fk-gen-images',
-        remote: true,
-        usage: ['/fk-gen-images <project_id> <video_id>'],
-        summary: {
-          en: 'Generates the keyframe image for every scene, using the reference images of the entities it names.',
-          ko: '각 장면이 참조하는 엔티티의 레퍼런스 이미지를 사용해 모든 장면의 키프레임 이미지를 만듭니다.',
-        },
-        when: {
-          en: 'After every entity has a reference image.',
-          ko: '모든 엔티티에 레퍼런스 이미지가 생긴 뒤 실행합니다.',
-        },
-        needs: ['Flow tab'],
-        tips: [{
-          en: 'A new image clears that scene’s video, so regenerate images before videos, not after.',
-          ko: '이미지를 새로 만들면 해당 장면의 비디오가 지워지므로, 비디오보다 먼저 이미지를 다시 만드세요.',
-        }],
-      },
-      {
         name: 'fk-upload-image',
         usage: ['/fk-upload-image <file_path> [--project <project_id>] [--entity <entity_id>]'],
         summary: {
-          en: 'Uploads a local image to Flow and returns its media_id, optionally setting it as an entity’s reference.',
+          en: 'Uploads a local image to Flow and returns its media_id, optionally setting it as an entity\'s reference.',
           ko: '로컬 이미지를 Flow에 업로드해 media_id를 받고, 원하면 엔티티의 레퍼런스로 지정합니다.',
         },
         when: {
@@ -197,43 +279,8 @@ export const SKILL_CATEGORIES: SkillCategory[] = [
   },
   {
     id: 'video',
-    title: { en: 'Video', ko: '비디오' },
+    title: { en: 'Video extras', ko: '비디오 추가 기능' },
     skills: [
-      {
-        name: 'fk-gen-videos',
-        remote: true,
-        usage: ['/fk-gen-videos <project_id> <video_id>'],
-        summary: {
-          en: 'Makes a clip for every scene: Veo scenes are queued on Flow in one batch, ffmpeg scenes are rendered locally as a pan/zoom over the keyframe.',
-          ko: '모든 장면의 클립을 만듭니다. Veo 장면은 Flow에 한 번에 배치로 요청하고, ffmpeg 장면은 키프레임에 팬/줌을 적용해 로컬에서 렌더링합니다.',
-        },
-        when: {
-          en: 'After scene images are done (and after narration, if any scene uses ffmpeg).',
-          ko: '장면 이미지가 끝난 뒤 실행합니다(ffmpeg 장면이 있으면 내레이션 이후).',
-        },
-        needs: ['Flow tab', 'ffmpeg'],
-        tips: [{
-          en: 'Veo takes 2-5 minutes per scene. The worker throttles itself; never loop requests from a script.',
-          ko: 'Veo는 장면당 2~5분 걸립니다. 워커가 알아서 속도를 조절하니 스크립트로 요청을 반복하지 마세요.',
-        }],
-      },
-      {
-        name: 'fk-review-board',
-        remote: true,
-        usage: ['/fk-review-board [<video_id>]'],
-        summary: {
-          en: 'Opens the review board (served at /review-board on this server) to watch every scene, tag it Good / Redo / Skip, write notes, and set each scene’s look & feel: Veo or ffmpeg, motion, transition and length.',
-          ko: '리뷰 보드(이 서버의 /review-board)를 열어 모든 장면을 보고 Good / Redo / Skip 태그와 메모를 남기며, 장면별 룩앤필(Veo 또는 ffmpeg, 모션, 전환, 길이)을 지정합니다.',
-        },
-        when: {
-          en: 'Before generating videos to choose Veo vs ffmpeg, and again before the final cut.',
-          ko: 'Veo와 ffmpeg 중 무엇을 쓸지 정하기 위해 비디오 생성 전에, 그리고 최종 편집 전에 한 번 더 사용합니다.',
-        },
-        tips: [{
-          en: 'It uses the key you signed in with on this dashboard. Notes are saved on the server per video; you can also open it from Projects → Videos.',
-          ko: '이 대시보드에 로그인한 키를 사용합니다. 메모는 비디오별로 서버에 저장되며, 프로젝트 → 비디오에서도 열 수 있습니다.',
-        }],
-      },
       {
         name: 'fk-review-video',
         usage: ['/fk-review-video <video_id> [--mode light|deep]'],
@@ -267,7 +314,7 @@ export const SKILL_CATEGORIES: SkillCategory[] = [
         name: 'fk-gen-chain-videos',
         usage: ['/fk-gen-chain-videos <project_id> <video_id>'],
         summary: {
-          en: 'Would use the next scene’s image as each clip’s end frame for seamless cuts.',
+          en: 'Would use the next scene\'s image as each clip\'s end frame for seamless cuts.',
           ko: '다음 장면의 이미지를 각 클립의 마지막 프레임으로 써서 끊김 없이 이어지게 하는 기능입니다.',
         },
         when: {
@@ -313,26 +360,8 @@ export const SKILL_CATEGORIES: SkillCategory[] = [
   },
   {
     id: 'sound',
-    title: { en: 'Narration and sound', ko: '내레이션과 사운드' },
+    title: { en: 'Audio & extras', ko: '오디오 및 추가 기능' },
     skills: [
-      {
-        name: 'fk-gen-narrator',
-        remote: true,
-        usage: ['/fk-gen-narrator <video_id> [--force] [--language ko] [--voice Kore] [--style "..."] [--speed 1.0]'],
-        summary: {
-          en: 'Writes narrator text for each scene, speaks it with Gemini TTS, and saves word timings next to each wav for subtitles.',
-          ko: '장면마다 내레이션 문장을 쓰고 Gemini TTS로 읽은 뒤, 자막용 단어 타이밍을 wav 옆에 저장합니다.',
-        },
-        when: {
-          en: 'After scenes exist, and before videos if any scene uses ffmpeg (its length comes from the narration).',
-          ko: '장면이 만들어진 뒤 실행하고, ffmpeg 장면이 있으면 비디오보다 먼저 실행합니다(길이가 내레이션에서 정해짐).',
-        },
-        needs: ['GEMINI_API_KEY'],
-        tips: [{
-          en: '--force rewrites text that already exists. TTS_ENGINE=google switches to the free gTTS voice.',
-          ko: '--force는 기존 문장을 다시 씁니다. TTS_ENGINE=google로 무료 gTTS 음성으로 바꿀 수 있습니다.',
-        }],
-      },
       {
         name: 'fk-gen-text-overlays',
         remote: true,
@@ -355,7 +384,7 @@ export const SKILL_CATEGORIES: SkillCategory[] = [
           ko: 'Suno로 반주 배경음악을 만들어 프로젝트에 저장합니다. 최종 렌더링에서 바로 쓸 수 있습니다.',
         },
         when: {
-          en: 'Before /fk-concat-fit-narrator when the video needs a soundtrack. Uses the server’s Suno credits.',
+          en: 'Before /fk-concat-fit-narrator when the video needs a soundtrack. Uses the server\'s Suno credits.',
           ko: '영상에 배경음악이 필요할 때 /fk-concat-fit-narrator 전에 실행하세요. 서버의 Suno 크레딧을 씁니다.',
         },
         needs: ['SUNO_API_KEY'],
@@ -392,31 +421,8 @@ export const SKILL_CATEGORIES: SkillCategory[] = [
   },
   {
     id: 'assemble',
-    title: { en: 'Assemble', ko: '합치기' },
+    title: { en: 'Assembly (no narration)', ko: '합치기 (내레이션 없음)' },
     skills: [
-      {
-        name: 'fk-concat-fit-narrator',
-        remote: true,
-        usage: ['/fk-concat-fit-narrator <video_id> [--buffer 0.5] [--subs soft|burn|none]'],
-        summary: {
-          en: 'Renders the final video on the server from the assembly plan — each clip fitted to its narration, with audio mix, text overlays, transitions and subtitles — then downloads it.',
-          ko: '조립 계획에 따라 서버에서 최종 영상을 렌더링하고(클립을 내레이션에 맞추고 오디오, 텍스트 오버레이, 전환 효과, 자막 포함) 내려받습니다.',
-        },
-        when: {
-          en: 'The last step for a narrated video. You can also press Render under Projects → Videos.',
-          ko: '내레이션이 있는 영상의 마지막 단계입니다. 프로젝트 → 비디오에서 렌더링 버튼을 눌러도 됩니다.',
-        },
-        tips: [
-          {
-            en: 'soft keeps subtitles as a track you can turn off; burn draws them into the picture.',
-            ko: 'soft는 끌 수 있는 자막 트랙으로, burn은 화면에 직접 새깁니다.',
-          },
-          {
-            en: 'One render runs at a time on the server. If a link has expired, run /fk-refresh-urls and render again.',
-            ko: '서버에서는 한 번에 하나만 렌더링합니다. 링크가 만료됐다면 /fk-refresh-urls 후 다시 렌더링하세요.',
-          },
-        ],
-      },
       {
         name: 'fk-concat',
         usage: ['/fk-concat <video_id> [--with-tts]'],
@@ -537,15 +543,15 @@ export const SKILL_CATEGORIES: SkillCategory[] = [
 /** The usual order of a video, for the Workflow tab. Each step names the skills it uses. */
 export const WORKFLOW: { title: Localized; body: Localized; skills: string[] }[] = [
   {
-    title: { en: 'Research (documentaries only)', ko: '조사 (다큐멘터리만)' },
+    title: { en: '1. Research your topic', ko: '1. 주제 조사' },
     body: {
-      en: 'Fact-check the story before you write it.',
-      ko: '대본을 쓰기 전에 사실을 확인합니다.',
+      en: 'Start with /fk-research to fact-check and gather information before creating your project. Specify language with --language flag.',
+      ko: '프로젝트를 만들기 전에 /fk-research로 사실 확인과 정보 수집을 시작하세요. --language 플래그로 언어를 지정하세요.',
     },
     skills: ['fk-research'],
   },
   {
-    title: { en: 'Create the project', ko: '프로젝트 만들기' },
+    title: { en: '2. Create the project', ko: '2. 프로젝트 만들기' },
     body: {
       en: 'Make a project in the Flow UI, then describe the story, style, entities and scenes.',
       ko: 'Flow UI에서 프로젝트를 만든 뒤 스토리, 스타일, 엔티티, 장면을 정합니다.',
@@ -553,7 +559,7 @@ export const WORKFLOW: { title: Localized; body: Localized; skills: string[] }[]
     skills: ['fk-create-project', 'fk-switch-project'],
   },
   {
-    title: { en: 'Reference images', ko: '레퍼런스 이미지' },
+    title: { en: '3. Reference images', ko: '3. 레퍼런스 이미지' },
     body: {
       en: 'One image per character, location and prop keeps them consistent.',
       ko: '캐릭터, 장소, 소품마다 이미지 한 장씩 만들어 일관성을 유지합니다.',
@@ -561,50 +567,50 @@ export const WORKFLOW: { title: Localized; body: Localized; skills: string[] }[]
     skills: ['fk-gen-refs'],
   },
   {
-    title: { en: 'Scene images', ko: '장면 이미지' },
+    title: { en: '4. Scene images', ko: '4. 장면 이미지' },
     body: {
-      en: 'A keyframe for every scene.',
-      ko: '모든 장면의 키프레임을 만듭니다.',
+      en: 'Generate keyframe images for every scene.',
+      ko: '모든 장면의 키프레임 이미지를 생성합니다.',
     },
     skills: ['fk-gen-images'],
   },
   {
-    title: { en: 'Narration', ko: '내레이션' },
+    title: { en: '5. Narration and text overlays', ko: '5. 내레이션 및 텍스트 오버레이' },
     body: {
-      en: 'Narrator text, Gemini voice and word timings. Do it now if any scene will use ffmpeg.',
-      ko: '내레이션 문장, Gemini 음성, 단어 타이밍을 만듭니다. ffmpeg 장면이 있으면 지금 실행하세요.',
+      en: 'Generate narrator text in your chosen language, create voiceover with TTS, and extract key facts as on-screen text overlays.',
+      ko: '선택한 언어로 내레이터 텍스트를 생성하고 TTS로 음성을 만들며, 핵심 정보를 화면 텍스트로 추출합니다.',
     },
     skills: ['fk-gen-narrator', 'fk-gen-text-overlays'],
   },
   {
-    title: { en: 'Look & feel', ko: '룩앤필' },
+    title: { en: '6. Look & feel settings', ko: '6. 룩앤필 설정' },
     body: {
-      en: 'Pick Veo or an ffmpeg pan/zoom for each scene, plus transitions and lengths.',
-      ko: '장면마다 Veo 또는 ffmpeg 팬/줌을 고르고 전환 효과와 길이를 정합니다.',
+      en: 'Choose between Veo (AI-generated motion) or ffmpeg (pan/zoom effects) for each scene, and configure transitions, timing, and motion style.',
+      ko: '각 장면에 Veo(AI 모션 생성) 또는 ffmpeg(팬/줌 효과) 중 선택하고, 전환 효과, 타이밍, 모션 스타일을 구성합니다.',
     },
     skills: ['fk-review-board'],
   },
   {
-    title: { en: 'Videos', ko: '비디오' },
+    title: { en: '7. Generate videos', ko: '7. 비디오 생성' },
     body: {
-      en: 'Veo clips are queued on Flow; ffmpeg clips render locally at no Flow cost.',
-      ko: 'Veo 클립은 Flow에 요청하고, ffmpeg 클립은 Flow 비용 없이 로컬에서 렌더링합니다.',
+      en: 'Generate video clips for all scenes. Veo scenes queue on Flow for AI motion; ffmpeg scenes render locally with your chosen effects.',
+      ko: '모든 장면의 비디오 클립을 생성합니다. Veo 장면은 Flow에서 AI 모션으로, ffmpeg 장면은 선택한 효과로 로컬에서 렌더링합니다.',
     },
     skills: ['fk-gen-videos', 'fk-insert-scene'],
   },
   {
-    title: { en: 'Review', ko: '리뷰' },
+    title: { en: '8. Review', ko: '8. 리뷰' },
     body: {
-      en: 'Score the Veo clips and regenerate the weak ones.',
-      ko: 'Veo 클립을 평가하고 부족한 클립을 다시 만듭니다.',
+      en: 'Score the clips and regenerate any that need improvement.',
+      ko: '클립을 평가하고 개선이 필요한 클립을 다시 생성합니다.',
     },
     skills: ['fk-review-video', 'fk-review-board'],
   },
   {
-    title: { en: 'Assemble', ko: '합치기' },
+    title: { en: '9. Final render with subtitles', ko: '9. 자막 포함 최종 렌더링' },
     body: {
-      en: 'Fit clips to narration, add music, overlays, transitions and subtitles.',
-      ko: '클립을 내레이션에 맞추고 음악, 오버레이, 전환 효과, 자막을 넣습니다.',
+      en: 'Assemble all clips with narration timing, add music, overlays, transitions and burn in or embed subtitles.',
+      ko: '모든 클립을 내레이션 타이밍에 맞춰 합치고, 음악, 오버레이, 전환 효과를 추가하며, 자막을 삽입하거나 임베드합니다.',
     },
     skills: ['fk-gen-music', 'fk-concat-fit-narrator', 'fk-concat'],
   },

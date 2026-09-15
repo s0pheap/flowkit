@@ -4,7 +4,7 @@ Usage: `/fk-review-video <video_id> [--mode light|deep] [--provider claude|agy]`
 
 Default mode: `light`. The server turns each scene's clip into timestamped contact sheets; a vision model scores them. **Who does the vision analysis:**
 
-1. **Your own AI agent (preferred)** — the agent running this skill (Claude Code, Codex, Gemini CLI, …) looks at the contact sheets itself and sends its JSON back. Uses your agent, not the server.
+1. **Your own AI agent (preferred)** — the agent running this skill (Claude Code, Codex, Gemini CLI, ...) looks at the contact sheets itself and sends its JSON back. Uses your agent, not the server.
 2. **The host's CLI (fallback)** — when your agent cannot view images, the server runs `claude` or `agy` on its own machine.
 
 ## Connection
@@ -49,14 +49,14 @@ curl -s "$FK/api/scenes?video_id=<VID>" -H "$KEY"        # which scenes have a c
 
 ## Step 3A: Review with your own agent
 
-**1. Prepare** — the server downloads each clip and makes its contact sheets (all scenes at once, or one scene with `…/scenes/<SID>/review/prepare`):
+**1. Prepare** — the server downloads each clip and makes its contact sheets (all scenes at once, or one scene with `.../scenes/<SID>/review/prepare`):
 
 ```bash
 . ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
 curl -s -m 900 -X POST "$FK/api/videos/<VID>/review/prepare?project_id=<PID>&mode=light&orientation=${ORI}" -H "$KEY" > review_jobs.json
 ```
 
-Response: `{"reviews": [{"review_id", "scene_id", "display_order", "n_frames", "fps", "sheet_count", "prompt", "sheets": ["/api/videos/<VID>/reviews/<RID>/sheets/1.jpg", …], "result_url"}], "skipped": [{"scene_id", "reason"}]}`.
+Response: `{"reviews": [{"review_id", "scene_id", "display_order", "n_frames", "fps", "sheet_count", "prompt", "sheets": ["/api/videos/<VID>/reviews/<RID>/sheets/1.jpg", ...], "result_url"}], "skipped": [{"scene_id", "reason"}]}`.
 
 **2. For each review, one scene at a time:**
 
@@ -83,14 +83,14 @@ The reply is that scene's `SceneReview` (Step 4). Delete the downloaded sheets w
 curl -s -m 1800 -X POST "$FK/api/videos/<VID>/review?project_id=<PID>&mode=light&orientation=${ORI}&provider=<claude|agy>" -H "$KEY"
 ```
 
-One call reviews every scene and waits for all of them (about a minute per scene). For one scene use `POST $FK/api/videos/<VID>/scenes/<SID>/review?…&provider=…`. Add `&scene_ids=<SID1>,<SID2>` to review a subset. Leaving out `provider` uses the server's default (`/fk-change-provider`, admin only).
+One call reviews every scene and waits for all of them (about a minute per scene). For one scene use `POST $FK/api/videos/<VID>/scenes/<SID>/review?...&provider=...`. Add `&scene_ids=<SID1>,<SID2>` to review a subset. Leaving out `provider` uses the server's default (`/fk-change-provider`, admin only).
 
-- `400 … not installed on this server` → pick an installed provider, or use Step 3A.
-- `500 Review failed: … CLI timed out` → review scenes one at a time.
+- `400 ... not installed on this server` → pick an installed provider, or use Step 3A.
+- `500 Review failed: ... CLI timed out` → review scenes one at a time.
 
 ## Step 4: Interpret results
 
-Each scene review (Step 3A per scene; Step 3B returns `{"overall_score", "verdict", "scene_reviews": […], "scenes_reviewed", "scenes_skipped"}`):
+Each scene review (Step 3A per scene; Step 3B returns `{"overall_score", "verdict", "scene_reviews": [...], "scenes_reviewed", "scenes_skipped"}`):
 
 ```json
 {

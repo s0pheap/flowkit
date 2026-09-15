@@ -20,6 +20,7 @@ from agent.api.videos import router as videos_router
 from agent.api.scenes import router as scenes_router
 from agent.api.requests import router as requests_router
 from agent.api.flow import router as flow_router
+from agent.api.flow_pool import router as flow_pool_router
 from agent.api.reviews import router as reviews_router
 from agent.api.tts import router as tts_router
 from agent.api.materials import router as materials_router
@@ -151,6 +152,7 @@ app.include_router(videos_router, prefix="/api")
 app.include_router(scenes_router, prefix="/api")
 app.include_router(requests_router, prefix="/api")
 app.include_router(flow_router, prefix="/api")
+app.include_router(flow_pool_router, prefix="/api")
 app.include_router(reviews_router, prefix="/api")
 app.include_router(tts_router, prefix="/api")
 app.include_router(materials_router, prefix="/api")
@@ -208,6 +210,38 @@ def _has_callback_secret(request: Request) -> bool:
 def _is_direct_local(request: Request) -> bool:
     forwarded = any(h in request.headers for h in ("x-forwarded-for", "forwarded", "x-real-ip", "cf-connecting-ip"))
     return bool(request.client) and request.client.host in _LOOPBACK and not forwarded
+
+
+@app.post("/api/ext/netlog")
+async def ext_netlog(request: Request):
+    """Capture network logs from extension for RPC payload analysis.
+
+    TEMPORARY ENDPOINT: Only use during payload capture sessions.
+    Remove or comment out after capturing the needed RPC.
+    """
+    if not _is_direct_local(request):
+        return JSONResponse({"ok": False, "reason": "netlog only accepted from localhost"}, status_code=403)
+
+    from pathlib import Path
+    import datetime
+
+    try:
+        data = await request.json()
+        capture_dir = config.BASE_DIR / "output" / "_captures"
+        capture_dir.mkdir(parents=True, exist_ok=True)
+
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        filename = f"netlog_{timestamp}.json"
+        filepath = capture_dir / filename
+
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+
+        logger.info("Netlog captured: %s", filepath)
+        return {"ok": True, "file": str(filepath)}
+    except Exception as e:
+        logger.exception("netlog capture failed: %s", e)
+        return {"ok": False, "error": str(e)}
 
 
 @app.get("/health")

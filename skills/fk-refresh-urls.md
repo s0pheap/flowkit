@@ -86,8 +86,8 @@ row — re-sign it directly:
 ```bash
 . ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
 curl -s "$FK/api/flow/media/<MEDIA_ID>" -H "$KEY"
-# Returns: {"video": {"fifeUrl": "https://flow-content.google/video/…"},
-#           "image": {"fifeUrl": "https://flow-content.google/image/…"}}
+# Returns: {"video": {"fifeUrl": "https://flow-content.google/video/..."},
+#           "image": {"fifeUrl": "https://flow-content.google/image/..."}}
 ```
 
 A record with only `image` and no `video` means the clip is not finished being

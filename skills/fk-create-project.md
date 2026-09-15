@@ -9,6 +9,25 @@ Create a new Google Flow video project. Ask the user for:
 
 Then execute:
 
+## Workflow: When to Run This
+
+**Step 2 of 10** in the complete video generation workflow.
+
+- **Run AFTER:** `/fk-research` (optional but recommended for factual content)
+- **Run BEFORE:** `/fk-gen-refs` - Creates the entities that need reference images
+
+**Why it matters:** This is the foundation of your video. You define:
+- The visual style (material) that applies to ALL images
+- Characters, locations, and props (entities) that appear across scenes
+- The story structure (number and sequence of scenes)
+
+**Quality tip:**
+- For characters, describe only their BASE look in ONE outfit. Different clothes per scene go in the scene prompts, not here.
+- Be specific about visual style - "realistic" for documentaries, "3d_pixar" for animated stories
+- Plan your scene count carefully - each Veo scene takes 2-5 minutes to generate
+
+**Next step:** After creating the project, run `/fk-gen-refs <project_id>` to generate reference images for visual consistency.
+
 ## Connection
 
 These commands work against a local agent or a shared server. The Flow Kit

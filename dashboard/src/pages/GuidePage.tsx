@@ -96,7 +96,7 @@ const STATUS_COLOR: Record<SkillStatus, string> = {
 const TABS = ['start', 'workflow', 'skills', 'trouble', 'server'] as const
 type Tab = (typeof TABS)[number]
 
-const FIRST_VIDEO = ['fk-create-project', 'fk-gen-refs', 'fk-gen-images', 'fk-gen-videos', 'fk-gen-narrator', 'fk-review-board', 'fk-concat-fit-narrator']
+const FIRST_VIDEO = ['fk-research', 'fk-create-project', 'fk-gen-refs', 'fk-gen-images', 'fk-gen-narrator', 'fk-review-board', 'fk-gen-videos', 'fk-concat-fit-narrator']
 
 function useMe() {
   const [me, setMe] = useState<{ auth_enabled: boolean; name: string; is_admin: boolean; project_ids: string[] | null } | null>(null)

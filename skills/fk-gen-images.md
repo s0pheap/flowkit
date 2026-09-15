@@ -4,6 +4,19 @@ Usage: `/fk-gen-images <project_id> <video_id>`
 
 If not provided, ask or list projects/videos.
 
+## Workflow: When to Run This
+
+**Step 4 of 10** in the complete video generation workflow.
+
+- **Run AFTER:** `/fk-gen-refs` - All entity references MUST have media_id first
+- **Run BEFORE:** `/fk-gen-videos` - Videos need these keyframe images
+
+**Why it matters:** These are the keyframe images for each scene. They use entity reference images to maintain visual consistency (same characters, same locations across all scenes).
+
+**Critical warning:** A new image clears that scene's video. If you regenerate an image after generating its video, you will need to regenerate that video too. Always fix images BEFORE generating videos.
+
+**Quality tip:** Review all scene images before proceeding to videos. Check that characters look consistent with their refs, scenes match your vision, and compositions are good. Regenerating images is fast; regenerating videos takes 2-5 minutes per scene.
+
 ## Connection
 
 These commands work against a local agent or a shared server. The Flow Kit

@@ -448,7 +448,7 @@ class OperationService:
             base_prompt = scene["transition_prompt"]
         else:
             base_prompt = scene.get("video_prompt") or scene.get("prompt", "")
-        prompt = await _build_video_prompt(base_prompt, scene, pid)
+        prompt = await _build_video_prompt(base_prompt, scene, pid, orientation)
 
         # Check if already submitted (op_name saved from previous attempt)
         # OLD schema (Lite/Fast/Ultra): op_name is "models/.../operations/..." → re-poll via check_video_status
@@ -528,7 +528,7 @@ class OperationService:
             base_prompt = scene["transition_prompt"]
         else:
             base_prompt = scene.get("video_prompt") or scene.get("prompt", "")
-        prompt = await _build_video_prompt(base_prompt, scene, pid)
+        prompt = await _build_video_prompt(base_prompt, scene, pid, orientation)
 
         char_names_raw = scene.get("character_names")
         if isinstance(char_names_raw, str):
@@ -904,13 +904,20 @@ class OperationService:
 # Prompt building (module-level for reuse)
 # ------------------------------------------------------------------
 
-async def _build_video_prompt(base_prompt: str, scene: dict, project_id: str | None) -> str:
-    """Enhance video prompt with camera direction, Veo 3 audio instructions and negative prompt."""
+async def _build_video_prompt(base_prompt: str, scene: dict, project_id: str | None, orientation: str = "VERTICAL") -> str:
+    """Enhance video prompt with camera direction, Veo 3 audio instructions, AI fix prompt, and negative prompt."""
     parts = [base_prompt.strip()]
 
     look = parse_look_feel(scene.get("look_feel"))
     if look and look.mode == "generate":
         parts.append(camera_direction(look))
+
+    # Append AI-generated fix prompt if available (from video review)
+    fix_prompt_field = f"{orientation.lower()}_ai_fix_prompt"
+    fix_prompt = scene.get(fix_prompt_field)
+    if fix_prompt and fix_prompt.strip():
+        parts.append(fix_prompt.strip())
+        logger.info("Applying AI fix prompt for scene %s (%s): %s", scene.get("id"), orientation, fix_prompt[:80])
 
     # Only append voice context when video_prompt contains dialogue (verb-based detection)
     dialogue_verbs = ("says", "whispers", "shouts", "asks", "replies", "murmurs", "exclaims", "gasps", "laughs", "mutters")

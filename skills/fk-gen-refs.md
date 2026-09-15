@@ -4,6 +4,17 @@ Usage: `/fk-gen-refs <project_id>`
 
 If no project_id provided, use `GET /api/active-project` or list projects via `GET /api/projects`.
 
+## Workflow: When to Run This
+
+**Step 3 of 10** in the complete video generation workflow.
+
+- **Run AFTER:** `/fk-create-project` - Project and entities must exist first
+- **Run BEFORE:** `/fk-gen-images` - Scene images need these refs to ensure consistency
+
+**Why it matters:** Reference images ensure characters, locations, and props look the same across all scenes. Without refs, each scene would generate different-looking versions of the same character.
+
+**Quality tip:** Review generated refs visually. If a character does not look right, regenerate with `REGENERATE_CHARACTER_IMAGE` before moving to scene images. Fixing refs now prevents regenerating all scene images later.
+
 ## Connection
 
 These commands work against a local agent or a shared server. The Flow Kit

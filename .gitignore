@@ -17,6 +17,8 @@ AGENTS.md
 GEMINI.md
 .fk-setup.json
 venv/
+.venv/
+extension/_metadata/
 
 # IDE and tool state
 .agy/

@@ -258,6 +258,14 @@ async def _run(cmd: list[str], cwd: Optional[Path] = None, timeout: int = 1800) 
         cwd=str(cwd) if cwd else None, timeout=timeout))
     if proc.returncode != 0:
         tail = proc.stderr.strip().splitlines()[-8:]
+        # Enhanced diagnostics
+        logger.error(f"Command failed: {' '.join(cmd)}")
+        logger.error(f"Return code: {proc.returncode}")
+        logger.error(f"Working directory: {cwd}")
+        logger.error(f"Stdout length: {len(proc.stdout)} chars")
+        logger.error(f"Stderr length: {len(proc.stderr)} chars")
+        logger.error(f"Stdout: {proc.stdout[:500]}")
+        logger.error(f"Stderr: {proc.stderr[:500]}")
         raise RenderError(f"{Path(cmd[0]).name} failed: " + " | ".join(tail)[-900:])
     return proc.stdout
 

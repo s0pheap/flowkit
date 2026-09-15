@@ -121,6 +121,73 @@ def _fix_guide(dims: dict, errors: list) -> str:
     return guides[lowest]
 
 
+def _generate_fix_prompt(dims: dict, errors: list) -> str:
+    """Generate an actionable prompt addition to fix video problems.
+
+    This prompt is meant to be appended to the video_prompt when regenerating,
+    providing specific guidance to the AI to avoid the detected issues.
+    """
+    critical_types = set()
+    for err in errors:
+        if err.severity == "CRITICAL":
+            desc = err.description.lower()
+            if "drift" in desc or "morph" in desc or "limb" in desc or "breed" in desc:
+                critical_types.add("drift")
+            if "swap" in desc or "wrong character" in desc:
+                critical_types.add("breed_swap")
+            if "count" in desc or "number of character" in desc:
+                critical_types.add("count")
+            if "logo" in desc or "brand" in desc:
+                critical_types.add("logo")
+            if "role" in desc or "wrong action" in desc:
+                critical_types.add("role")
+        elif err.severity == "HIGH":
+            desc = err.description.lower()
+            if "reverse" in desc:
+                critical_types.add("reverse")
+            if "camera" in desc and "drift" in desc:
+                critical_types.add("camera_drift")
+            if "morph" in desc or "object" in desc:
+                critical_types.add("object_morph")
+
+    # Build prompt additions based on detected issues
+    fixes = []
+
+    if "drift" in critical_types:
+        fixes.append("Maintain consistent character appearance throughout")
+        fixes.append("Keep character anatomy stable (no extra limbs, no morphing)")
+
+    if "breed_swap" in critical_types:
+        fixes.append("Keep each character visually distinct and consistent")
+
+    if "count" in critical_types:
+        fixes.append("Show exactly the correct number of characters, no more, no less")
+
+    if "logo" in critical_types:
+        fixes.append("No brand logos, no visible text, no trademarks")
+
+    if "role" in critical_types:
+        fixes.append("Ensure the correct character performs the correct action")
+
+    if "camera_drift" in critical_types:
+        fixes.append("Steady camera, maintain consistent framing and angle")
+
+    if "object_morph" in critical_types:
+        fixes.append("Keep held objects and props consistent in shape and appearance")
+
+    # If no critical/high errors, check dimension scores
+    if not fixes:
+        lowest = min(dims, key=dims.get)
+        if lowest == "motion_quality" and dims[lowest] < 7.0:
+            fixes.append("Smooth natural motion, no jitter or artifacts")
+        elif lowest == "temporal_coherence" and dims[lowest] < 7.0:
+            fixes.append("Consistent lighting and shadows throughout")
+        elif lowest == "composition" and dims[lowest] < 7.0:
+            fixes.append("Maintain proper framing and depth")
+
+    return ". ".join(fixes) + "." if fixes else ""
+
+
 # ─── Frame extraction ─────────────────────────────────────────
 
 _ssl_ctx = ssl.create_default_context(cafile=certifi.where())
@@ -626,6 +693,7 @@ def scene_review_from_analysis(scene_id: str, result: dict, n_frames: int, fps: 
         errors=errors,
         usable_segments=usable_segments,
         fix_guide=_fix_guide(dims_dict, errors),
+        fix_prompt=_generate_fix_prompt(dims_dict, errors),
         frames_analyzed=n_frames,
         fps_used=fps,
         has_critical_errors=has_critical,

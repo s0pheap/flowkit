@@ -15,7 +15,7 @@ Usage:
 ## What the model keys mean on the current Flow API
 
 Since Flow moved to `flow.google.com`, aspect ratio is its own payload slot and
-the REST-era suffixed names (`…_portrait`, `…_fl`, `…_relaxed`) are **rejected
+the REST-era suffixed names (`..._portrait`, `..._fl`, `..._relaxed`) are **rejected
 outright**. `models.json` still stores the old [tier][gen_type][aspect] map for
 the legacy path, and `resolve_video_model()` folds whatever it finds onto the
 three names the new path accepts:

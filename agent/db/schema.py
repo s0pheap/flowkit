@@ -185,6 +185,16 @@ CREATE TABLE IF NOT EXISTS user_project (
     PRIMARY KEY (user_id, project_id)
 );
 CREATE INDEX IF NOT EXISTS idx_user_project_project ON user_project(project_id);
+
+-- Flow project pool: pre-created Flow project UUIDs ready to be assigned to users
+CREATE TABLE IF NOT EXISTS flow_project_pool (
+    flow_project_id    TEXT PRIMARY KEY,
+    assigned_to_user   TEXT REFERENCES api_user(id) ON DELETE SET NULL,
+    assigned_at        TEXT,
+    notes              TEXT,
+    created_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+CREATE INDEX IF NOT EXISTS idx_flow_pool_assigned ON flow_project_pool(assigned_to_user);
 """
 
 
@@ -291,6 +301,12 @@ CREATE INDEX IF NOT EXISTS idx_request_scene ON request(scene_id);
         if "look_feel" not in scene_columns:
             await db.execute("ALTER TABLE scene ADD COLUMN look_feel TEXT")
             logger.info("Migrated: added look_feel column to scene table")
+        if "vertical_ai_fix_prompt" not in scene_columns:
+            await db.execute("ALTER TABLE scene ADD COLUMN vertical_ai_fix_prompt TEXT")
+            logger.info("Migrated: added vertical_ai_fix_prompt column to scene table")
+        if "horizontal_ai_fix_prompt" not in scene_columns:
+            await db.execute("ALTER TABLE scene ADD COLUMN horizontal_ai_fix_prompt TEXT")
+            logger.info("Migrated: added horizontal_ai_fix_prompt column to scene table")
         # Migration: add narrator fields to project table
         cursor = await db.execute("PRAGMA table_info(project)")
         project_columns = {row[1] for row in await cursor.fetchall()}
@@ -313,6 +329,23 @@ CREATE INDEX IF NOT EXISTS idx_request_scene ON request(scene_id);
             # NULL means "use the server's default_video_model_family".
             await db.execute("ALTER TABLE project ADD COLUMN video_model_family TEXT")
             logger.info("Migrated: added video_model_family column to project table")
+        # Migration: create flow_project_pool table if missing
+        cursor = await db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='flow_project_pool'")
+        if not await cursor.fetchone():
+            await db.execute("""CREATE TABLE flow_project_pool (
+    flow_project_id    TEXT PRIMARY KEY,
+    assigned_to_user   TEXT REFERENCES api_user(id) ON DELETE SET NULL,
+    assigned_at        TEXT,
+    notes              TEXT,
+    created_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')))""")
+            await db.execute("CREATE INDEX idx_flow_pool_assigned ON flow_project_pool(assigned_to_user)")
+            logger.info("Migrated: created flow_project_pool table")
+        # Migration: add default_flow_project_id to api_user table
+        cursor = await db.execute("PRAGMA table_info(api_user)")
+        user_columns = {row[1] for row in await cursor.fetchall()}
+        if "default_flow_project_id" not in user_columns:
+            await db.execute("ALTER TABLE api_user ADD COLUMN default_flow_project_id TEXT")
+            logger.info("Migrated: added default_flow_project_id column to api_user table")
         # Migration: add orientation to video table + backfill from scene data
         cursor = await db.execute("PRAGMA table_info(video)")
         video_columns = {row[1] for row in await cursor.fetchall()}

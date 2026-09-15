@@ -10,7 +10,18 @@ Produces, per narrated scene, on the server (`output/<project>/tts/`):
 
 Everything is generated and stored by the agent, so this works from another computer too.
 
-Then feeds `/fk-review-board` (narration length sets each scene's length) and `/fk-concat-fit-narrator`.
+## Workflow: When to Run This
+
+**Step 5 of 10** in the complete video generation workflow.
+
+- **Run AFTER:** `/fk-gen-images` - Scene images should exist (narrator can describe visuals)
+- **Run BEFORE:** `/fk-review-board` and `/fk-gen-videos` - Narration length determines scene duration for ffmpeg
+
+**Why it matters:** Narration provides professional voiceover and word timings for subtitles. For ffmpeg scenes (pan/zoom effects), the narration length determines how long each scene clip should be.
+
+**Optional:** Skip this if making a video without narration. Use `/fk-concat` instead of `/fk-concat-fit-narrator` for final assembly.
+
+**Quality tip:** Use `--language` to match your target audience. Gemini TTS supports multiple languages with natural-sounding voices. Listen to generated narration before proceeding - use `--force` to regenerate if needed.
 
 ## Connection
 

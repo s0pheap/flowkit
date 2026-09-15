@@ -2,6 +2,21 @@ Generate videos for all scenes in a video.
 
 Usage: `/fk-gen-videos <project_id> <video_id>`
 
+## Workflow: When to Run This
+
+**Step 7 of 10** in the complete video generation workflow.
+
+- **Run AFTER:** `/fk-gen-images` (all scenes must have images) AND `/fk-review-board` (look & feel must be set)
+- **Run BEFORE:** `/fk-review-video` (quality check) and `/fk-concat-fit-narrator` (final assembly)
+
+**Why it matters:** This generates the actual video clips. Veo scenes use AI to create natural motion from your keyframe images. Ffmpeg scenes use pan/zoom effects over static images.
+
+**Time required:** Veo scenes take 2-5 minutes each. Ffmpeg scenes render instantly locally.
+
+**Quality tip:** Run `/fk-review-board` BEFORE this step to set each scene's look & feel (Veo vs ffmpeg, motion style, transitions). This prevents generating Veo videos for scenes that should use ffmpeg, saving time and credits.
+
+**Important:** For scenes using ffmpeg, narration must exist first (narration length = clip duration). Veo scenes use the model's default 8 seconds or the configured `omni_flash_duration_s`.
+
 ## Connection
 
 These commands work against a local agent or a shared server. The Flow Kit

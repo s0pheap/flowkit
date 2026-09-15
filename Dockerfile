@@ -18,8 +18,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # ffmpeg renders the final cut. The fonts are the ones render.py looks for on
 # Linux: Noto CJK for Korean/Japanese/Chinese, Noto Sans Khmer, DejaVu otherwise.
+# libfreetype6, fontconfig, and libfontconfig1 provide drawtext filter support.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ffmpeg fonts-noto-cjk fonts-noto-core fonts-dejavu-core \
+ && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    libfreetype6 \
+    fontconfig \
+    libfontconfig1 \
+    fonts-noto-cjk \
+    fonts-noto-core \
+    fonts-dejavu-core \
  && rm -rf /var/lib/apt/lists/*
 
 RUN useradd --create-home --uid 1000 flowkit

@@ -112,7 +112,7 @@ curl -s "$FK/api/flow/status" -H "$KEY"
   path, so `flow_key_present: false` in `/api/flow/status` is **normal**, not a
   fault. Requires a Flow tab open and `FLOW_PROJECT_ID` pinned.
 - **legacy REST** (`USE_BATCH_RPC=0`) — the pre-migration `aisandbox-pa` path.
-  It needs a `Bearer ya29.…` Flow no longer mints, so it will 401 on any fresh
+  It needs a `Bearer ya29....` Flow no longer mints, so it will 401 on any fresh
   profile. Treat any report of it "suddenly breaking" as the migration, not a
   regression: if `token_age_s` only climbs across tab reloads, the token is not
   stale, it is gone.
@@ -172,7 +172,7 @@ Detection lives in `agent/worker/_parsing.py:_is_error`. A result is treated as 
 | `NO_FLOW_PROJECT` | No Flow project to scope the RPC to | **Terminal — not retried** | Create a project in the Flow UI, pin its uuid as `FLOW_PROJECT_ID` (or pass `flow_project_id` on `POST /api/projects`) |
 | `UNSUPPORTED_ON_BATCH_API` | A capability whose payload was never captured off the new UI: **video upscale**, **r2v**, **start+end-frame chaining** | **Terminal — not retried** | For chaining and r2v, `FLOW_ALLOW_DEGRADED=1` falls back to plain i2v off the start frame. Upscale has no fallback. Real fix: capture the payload — `docs/CAPTURE.md` |
 | `UNSUPPORTED_ON_BATCH_API: this Omni Flash mode` | Omni references (r2v) or first+last frames through `/api/flow/generate-video-omni` / `-refs`: those payloads were never captured | **Terminal — not retried** | Omni first-frame works: `POST /api/flow/generate-video` with `model_family=omni_flash`, or set the project's `video_model_family` to `omni_flash` and use `/fk-gen-videos` |
-| `INVALID_MODEL_CONFIG: Omni Flash has no Ns clip` / `… not an Omni model the batch path knows` | `omni_flash_duration_s` or `omni_flash_models.frame_to_video` in `models.json` is wrong | **Terminal** | Admin: `PATCH /api/models` with a duration of 4/6/8/10 and an `abra_i2v_<N>s` key (see `/fk-change-model`) |
+| `INVALID_MODEL_CONFIG: Omni Flash has no Ns clip` / `... not an Omni model the batch path knows` | `omni_flash_duration_s` or `omni_flash_models.frame_to_video` in `models.json` is wrong | **Terminal** | Admin: `PATCH /api/models` with a duration of 4/6/8/10 and an `abra_i2v_<N>s` key (see `/fk-change-model`) |
 | `PUBLIC_ERROR_UNUSUAL_ACTIVITY` | A reCAPTCHA token was replayed — they are single-use | Retried as a captcha error | Usually self-clears; if it persists the extension is reusing a token, reload it |
 | `no ogiZ0b envelope in response` | The RPC answered but not with the payload we came for — usually a signed-out page returning an HTML redirect | Retried with backoff | Re-sign in on the Flow tab |
 | `Polling timeout after Ns: Media not found.` | The job never produced media inside the budget | Terminal after `MAX_RETRIES` | The quoted complaint is a **diagnostic, not the cause** — finished jobs report it too. Check the Flow UI: if the clip is there, raise `VIDEO_POLL_TIMEOUT` |

@@ -42,7 +42,7 @@ lists only the projects your key can use.
 curl -s "$FK/api/active-project" -H "$KEY"
 ```
 
-Print `Active: <project_name> (<first 8 of project_id>…)`, the `video_id` and the
+Print `Active: <project_name> (<first 8 of project_id>...)`, the `video_id` and the
 `source`, or "No active project set" when `project_id` is null.
 
 ## Step 3: Switch Project

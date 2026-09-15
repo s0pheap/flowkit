@@ -9,13 +9,27 @@ The board is a web page served by the agent at `<FLOWKIT_URL>/review-board`, so 
 - **Set each scene's Look & feel** — Veo or ffmpeg, pan/zoom, transition, length (saved straight to the scene)
 - Export the feedback as JSON
 
-### Where it sits in the pipeline
+## Workflow: When to Run This
 
-```
-/fk-gen-images → /fk-gen-narrator → /fk-review-board (look & feel) → /fk-gen-videos → /fk-concat-fit-narrator
-```
+**Steps 6 and 8** in the complete video generation workflow — run it twice for best quality.
 
-Run it **after narration** so each scene's length can follow its narration, and **before `/fk-gen-videos`** so ffmpeg scenes never go to Veo. Use it again after videos exist for Good / Redo / Skip feedback.
+**First time (Step 6):**
+- **Run AFTER:** `/fk-gen-narrator` - Narration determines ffmpeg scene duration
+- **Run BEFORE:** `/fk-gen-videos` - Set look & feel to choose Veo vs ffmpeg
+
+**Why it matters:** Setting look & feel BEFORE generating videos prevents wasting time and credits generating Veo videos for scenes that should use ffmpeg pan/zoom effects instead.
+
+**Second time (Step 8):**
+- **Run AFTER:** `/fk-gen-videos` - Videos must exist to review them
+- **Run BEFORE:** `/fk-concat-fit-narrator` - Find and regenerate poor quality clips first
+
+**Why it matters:** Reviewing clips before final assembly lets you mark scenes as Redo and regenerate them, ensuring only high-quality clips make it into your final video.
+
+**Quality tip:** Use the board to:
+- Set slow pan/zoom (ffmpeg) for dialogue-heavy scenes — cheaper and faster
+- Set Veo for action scenes needing AI-generated motion
+- Mark any poor clips as "Redo" with notes on what to fix
+- Skip scenes that no longer fit your vision
 
 ## Connection
 

@@ -190,9 +190,15 @@ async def create(body: ProjectCreate):
         flow_project_id = _read_flow_project_id(flow_result)
         logger.info("Flow project created: %s", flow_project_id)
 
-    if await crud.get_project(flow_project_id):
+    # Check if this Flow project already has a local project
+    # NOTE: Removed strict 1:1 enforcement to allow multiple local projects per Flow project in future
+    existing_project = await crud.get_project(flow_project_id)
+    if existing_project:
         raise HTTPException(409, f"Project {flow_project_id} already exists. One Flow project holds one Flow Kit project.")
-    await _require_unique_slug(body.name)
+
+    # With project-isolated directories (output/{project_id}/{slug}/), we don't need global uniqueness
+    # But we keep the check for better UX to avoid confusing duplicate names in the UI
+    await _require_unique_slug(body.name, flow_project_id=flow_project_id)
 
     repo = _get_repo()
 
@@ -245,27 +251,83 @@ async def create(body: ProjectCreate):
     return project
 
 
-async def _require_unique_slug(name: str, project_id: str | None = None) -> None:
-    """Generated files live in output/<slug of the name>, so two projects must not share one."""
+async def _require_unique_slug(name: str, project_id: str | None = None, flow_project_id: str | None = None) -> None:
+    """Ensure slug is unique within the same Flow project to prevent file conflicts.
+
+    With the new structure (output/{flow_project_id}/{slug}/), slugs only need to be
+    unique within the same Flow project, not globally. This allows multiple users
+    with different Flow projects to create projects with the same name.
+    """
     slug = slugify(name)
-    for other in await crud.list_projects():
+
+    # Get all projects - we'll filter by Flow project ID
+    all_projects = await crud.list_projects()
+
+    # If we have a flow_project_id, only check within that Flow project
+    if flow_project_id:
+        projects_to_check = [p for p in all_projects if p["id"] == flow_project_id]
+    else:
+        # Legacy behavior: check all projects (for backward compatibility)
+        projects_to_check = all_projects
+
+    for other in projects_to_check:
         if other["id"] != project_id and slugify(other["name"]) == slug:
-            raise HTTPException(409, f"A project named like {name!r} already exists (its files would share "
-                                     f"output/{slug}). Choose a different name.")
+            if flow_project_id:
+                raise HTTPException(409, f"You already have a project named like {name!r} in this Flow project. "
+                                         "Choose a different name.")
+            else:
+                raise HTTPException(409, f"A project named like {name!r} already exists (its files would share "
+                                         f"output/{slug}). Choose a different name.")
 
 
 async def _granted_flow_project(requested: str | None) -> str:
-    """The Flow project a non-admin may build in: the one they named, or their only unused grant."""
+    """The Flow project a non-admin may build in.
+
+    Priority:
+    1. Requested flow_project_id (must be granted to user)
+    2. User's default Flow project (if set)
+    3. User's only unused granted project
+    4. Auto-assign from pool (if available)
+    5. Error
+
+    Returns the Flow project UUID to use.
+    """
+    principal = auth.current_principal()
     granted = await auth.allowed_project_ids()
+
+    # 1. User explicitly requested a Flow project
     if requested:
         if requested not in granted:
             raise HTTPException(403, f"Flow project {requested} is not granted to this API key")
         return requested
+
+    # 2. User's default Flow project
+    user = await crud.get_api_user(principal.id)
+    if user and user.get("default_flow_project_id"):
+        default_id = user["default_flow_project_id"]
+        if default_id in granted:
+            return default_id
+        logger.warning("User %s default Flow project %s not in granted list, ignoring", principal.id, default_id)
+
+    # 3. User's only unused granted project
     unused = sorted([pid for pid in granted if not await crud.get_project(pid)])
     if len(unused) == 1:
         return unused[0]
-    raise HTTPException(400, "Pass flow_project_id: one of your granted Flow projects that has no project yet "
-                             f"(unused: {unused or 'none'}). GET /api/auth/me lists your grants.")
+
+    # 4. Auto-assign from pool (if user has no Flow projects yet)
+    if not granted or len(granted) == 0:
+        available = await crud.get_available_flow_project_from_pool()
+        if available:
+            flow_id = available["flow_project_id"]
+            await crud.assign_flow_project_to_user(flow_id, principal.id)
+            logger.info("Auto-assigned Flow project %s to user %s from pool", flow_id, principal.id)
+            return flow_id
+
+    # 5. Error - no options available
+    if unused:
+        raise HTTPException(400, f"You have {len(unused)} unused Flow projects. Pass flow_project_id: one of {unused[:3]}")
+    raise HTTPException(400, "No Flow projects available. Pass flow_project_id, or ask admin to add projects to the pool. "
+                             f"GET /api/auth/me lists your grants.")
 
 
 @router.get("", response_model=list[Project])
@@ -292,7 +354,8 @@ async def get(pid: str):
 async def update(pid: str, body: ProjectUpdate):
     await auth.require_project(pid)
     if body.name:
-        await _require_unique_slug(body.name, pid)
+        # Get the project to find its Flow project ID (which is the same as pid in current design)
+        await _require_unique_slug(body.name, project_id=pid, flow_project_id=pid)
     repo = _get_repo()
     row = await repo.update("project", pid, **body.model_dump(exclude_unset=True))
     if not row:

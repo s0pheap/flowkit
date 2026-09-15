@@ -40,9 +40,11 @@ RPC_OPERATION = "jwpduf"
 RPC_PROJECT_MEDIA = "Zzl0ze"
 RPC_MEDIA = "as29s"
 RPC_UPLOAD_IMAGE = "maseQ"
+RPC_CREATE_PROJECT = "UNKNOWN"  # TODO: Capture from Flow UI - see docs/CAPTURE_PROJECT.md
 
 CAPTCHA_IMAGE = "IMAGE_GENERATION"
 CAPTCHA_VIDEO = "VIDEO_GENERATION"
+CAPTCHA_CREATE_PROJECT = "PROJECT_CREATION"  # May not need captcha, TBD during capture
 
 #: The extension substitutes a freshly minted reCAPTCHA token for this marker.
 #: It has to be a placeholder rather than a real token because the mint has to
@@ -386,6 +388,29 @@ def project_media_request(project_id: str) -> str:
 
 def media_request(media_id: str) -> str:
     return build_envelope(RPC_MEDIA, [media_id])
+
+
+def create_project_request(project_name: str, tool_name: str = "PINHOLE") -> str:
+    """Create a new Flow project.
+
+    TODO: This is a STUB. The actual payload structure needs to be captured from
+    the Flow UI. See docs/CAPTURE_PROJECT.md for instructions.
+
+    Args:
+        project_name: Display name for the project
+        tool_name: Tool identifier (PINHOLE, KALEIDOSCOPE, etc.)
+
+    Returns:
+        Envelope string ready to send via batch_rpc
+
+    Raises:
+        NotImplementedError: Until the RPC is captured and implemented
+    """
+    raise NotImplementedError(
+        "Project creation RPC not yet captured. "
+        "Create a project in the Flow UI manually and capture the RPC payload. "
+        "See docs/CAPTURE_PROJECT.md for instructions."
+    )
 
 
 # ── response readers ─────────────────────────────────────────────────────────

@@ -576,6 +576,23 @@ class FlowClient:
     async def create_project(self, project_title: str, tool_name: str = "PINHOLE") -> dict:
         if not USE_BATCH_RPC:
             return await self._legacy_create_project(project_title, tool_name)
+
+        # Try the captured batch RPC method first
+        try:
+            from agent.services import flow_batch
+            payload = flow_batch.create_project_request(project_title, tool_name)
+            result = await self.batch_rpc(payload, flow_batch.CAPTCHA_CREATE_PROJECT)
+            if result.get("error"):
+                logger.warning("Project creation RPC failed: %s", result["error"])
+            else:
+                logger.info("Created Flow project via batch RPC: %s", project_title)
+                return result
+        except NotImplementedError:
+            # RPC not yet captured, fall back to reusing existing project
+            logger.debug("Project creation RPC not captured yet, falling back to FLOW_PROJECT_ID")
+            pass
+
+        # Fallback: reuse pinned Flow project
         pid = self.flow_project_id()
         if not pid:
             return {"error": _UNSUPPORTED_CREATE_PROJECT}
