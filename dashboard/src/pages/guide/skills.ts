@@ -602,6 +602,79 @@ export const SKILL_CATEGORIES: SkillCategory[] = [
 ]
 
 /** The usual order of a video, for the Workflow tab. Each step names the skills it uses. */
+/** A worked path for story videos, which need different choices than the documentary default. */
+export const STORY_RECIPE: {
+  title: Localized
+  intro: Localized
+  prompt: Localized
+  points: { label: Localized; body: Localized }[]
+} = {
+  title: { en: 'Telling a story (folk tales, legends, myth)', ko: '이야기 영상 (설화, 전설, 신화)' },
+  intro: {
+    en: 'The default path assumes a documentary, where the pictures carry the video. A folk tale is the other way round — the telling carries it, and the pictures illustrate. Six choices decide whether it works, and all of them are made before any image is generated.',
+    ko: '기본 경로는 그림이 영상을 이끄는 다큐멘터리를 가정합니다. 설화는 반대입니다. 이야기가 영상을 이끌고 그림은 그것을 보여줍니다. 성패를 가르는 여섯 가지 선택은 모두 이미지를 만들기 전에 정해집니다.',
+  },
+  prompt: {
+    en: `Make a storytelling video of the Khmer folk tale "<name>" from ប្រជុំរឿងព្រេងខ្មែរ. Narration in Khmer, oil painting style, vertical.
+Here is the full tale: <paste the whole tale, not a summary>
+Show me the beat sheet before creating any scene. It is narration-led, so use ffmpeg look & feel.`,
+    ko: `ប្រជុំរឿងព្រេងខ្មែរ의 크메르 설화 "<제목>"로 이야기 영상을 만들어 주세요. 내레이션은 크메르어, 유화 스타일, 세로형입니다.
+설화 전문: <요약이 아닌 전문을 붙여넣으세요>
+장면을 만들기 전에 비트 시트를 먼저 보여주세요. 내레이션 중심이므로 ffmpeg look & feel을 써 주세요.`,
+  },
+  points: [
+    {
+      label: { en: 'Say it is a story, not a documentary', ko: '다큐멘터리가 아니라 이야기라고 말하기' },
+      body: {
+        en: 'This is the one choice everything else follows from. It picks the beat sheet and the narrator’s voice — a teller telling the tale, not a reporter explaining it. Asked for a documentary, the skill writes commentary over pictures, which is the usual reason a legend comes out flat.',
+        ko: '나머지 모든 것이 여기서 갈립니다. 비트 시트와 내레이터의 어조가 정해집니다. 이야기를 들려주는 사람이지, 설명하는 기자가 아닙니다. 다큐멘터리로 요청하면 그림 위에 해설을 얹게 되고, 전설이 밋밋해지는 가장 흔한 이유가 됩니다.',
+      },
+    },
+    {
+      label: { en: 'Paste the whole tale, not a summary', ko: '요약이 아니라 전문을 붙여넣기' },
+      body: {
+        en: 'A one-line summary gives a one-line video. The skill can only dramatise detail it has been given: the names, the repetitions, the exact bargain, the ending. If you only know the tale roughly, run /fk-research on it first.',
+        ko: '한 줄 요약은 한 줄짜리 영상이 됩니다. 스킬은 주어진 세부 사항만 장면으로 만들 수 있습니다. 이름, 반복되는 구절, 정확한 거래 조건, 결말이 필요합니다. 줄거리만 안다면 먼저 /fk-research를 실행하세요.',
+      },
+    },
+    {
+      label: { en: 'Ask for the beat sheet first', ko: '비트 시트를 먼저 요청하기' },
+      body: {
+        en: 'Say "show me the beat sheet before creating scenes". It is the one cheap checkpoint: redirecting a list of beats costs nothing, redirecting sixty generated images costs credits and an afternoon.',
+        ko: '"장면을 만들기 전에 비트 시트를 보여 달라"고 말하세요. 비용이 들지 않는 유일한 확인 지점입니다. 비트 목록을 고치는 것은 공짜지만, 이미 만든 이미지 60장을 고치는 것은 크레딧과 반나절을 씁니다.',
+      },
+    },
+    {
+      label: { en: 'Say it is narration-led', ko: '내레이션 중심이라고 말하기' },
+      body: {
+        en: 'A generated clip caps each line at about one sentence — 75 Khmer characters. An ffmpeg scene (pan and zoom over the still) has no cap and runs as long as the sentence takes. Ask for ffmpeg look & feel, or set it in /fk-review-board before narration. Get this wrong and the tale arrives as fragments.',
+        ko: '생성된 클립은 한 줄을 약 한 문장, 크메르어 75자로 제한합니다. ffmpeg 장면(정지 이미지 위 팬·줌)은 제한이 없어 문장이 필요한 만큼 이어집니다. ffmpeg look & feel을 요청하거나 내레이션 전에 /fk-review-board에서 설정하세요. 이것을 놓치면 이야기가 조각으로 나옵니다.',
+      },
+    },
+    {
+      label: { en: 'Let the story set the scene count', ko: '장면 수는 이야기가 정하게 하기' },
+      body: {
+        en: 'Count beats, not minutes. Three minutes of Khmer narration is roughly 2,250 characters: about 12 narration-led scenes. Asking for "10 scenes" because it sounds right is how beats get dropped — and the beat that gets dropped is usually the ending.',
+        ko: '분이 아니라 비트를 세세요. 크메르어 내레이션 3분은 약 2,250자이고, 내레이션 중심 장면으로 약 12개입니다. 그럴듯해 보인다는 이유로 "10장면"을 요청하면 비트가 빠지고, 보통 빠지는 것은 결말입니다.',
+      },
+    },
+    {
+      label: { en: 'Keep the ending that explains something', ko: '무언가를 설명하는 결말 지키기' },
+      body: {
+        en: 'Khmer legends usually close by explaining a real place name, a custom or a lesson. That closing beat is why the tale survived and it is what the audience is waiting for. Tell the skill to keep it, and check it is still in the beat sheet.',
+        ko: '크메르 전설은 보통 실제 지명, 관습, 교훈을 설명하며 끝납니다. 그 마지막 비트가 이야기가 살아남은 이유이고 관객이 기다리는 부분입니다. 스킬에 남기라고 말하고, 비트 시트에 남아 있는지 확인하세요.',
+      },
+    },
+    {
+      label: { en: 'Style and voice settings', ko: '스타일과 음성 설정' },
+      body: {
+        en: 'oil_painting or 3d_pixar suit a folk tale; realistic fights the register. Narration is Khmer (/fk-gen-narrator --language km) while image and video prompts stay English — the generator works best that way. Leave allow_voice off so the clips stay silent and the only voice is the narrator.',
+        ko: '설화에는 oil_painting이나 3d_pixar가 어울리고, realistic은 분위기와 부딪칩니다. 내레이션은 크메르어(/fk-gen-narrator --language km), 이미지와 비디오 프롬프트는 영어로 둡니다. 생성기가 영어에서 가장 잘 작동합니다. allow_voice는 꺼 두어 클립은 무음으로 남기고 목소리는 내레이터만 나오게 하세요.',
+      },
+    },
+  ],
+}
+
 export const WORKFLOW: { title: Localized; body: Localized; skills: string[] }[] = [
   {
     title: { en: '1. Research your topic', ko: '1. 주제 조사' },

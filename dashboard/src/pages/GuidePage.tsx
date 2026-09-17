@@ -7,7 +7,7 @@ import type { TranslationKey } from '../i18n/translations'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card'
 import { Badge } from '../components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs'
-import { SKILL_CATEGORIES, WORKFLOW, type SkillGuide, type SkillStatus } from './guide/skills'
+import { SKILL_CATEGORIES, WORKFLOW, STORY_RECIPE, type SkillGuide, type SkillStatus } from './guide/skills'
 
 interface HealthResponse {
   status: string
@@ -258,11 +258,45 @@ function SkillChip({ name, onOpen }: { name: string; onOpen: (name: string) => v
   )
 }
 
+function StoryRecipeCard() {
+  const { lang } = useTranslation()
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{STORY_RECIPE.title[lang]}</CardTitle>
+        <CardDescription>{STORY_RECIPE.intro[lang]}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-col gap-3">
+          <ol className="m-0 p-0 list-none flex flex-col gap-2.5">
+            {STORY_RECIPE.points.map((point, i) => (
+              <li key={point.label.en} className="flex gap-2.5">
+                <span
+                  className="flex-shrink-0 flex items-center justify-center rounded-full text-[11px] font-semibold mt-px"
+                  style={{ width: 18, height: 18, background: 'var(--accent-soft)', color: 'var(--accent)' }}
+                >
+                  {i + 1}
+                </span>
+                <div className="flex flex-col gap-0.5 min-w-0">
+                  <span className="text-[13px] font-semibold" style={{ color: 'var(--text)' }}>{point.label[lang]}</span>
+                  <span className="text-[13px] leading-relaxed" style={{ color: 'var(--muted)' }}>{point.body[lang]}</span>
+                </div>
+              </li>
+            ))}
+          </ol>
+          <CommandLine command={STORY_RECIPE.prompt[lang]} />
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 function WorkflowTab({ onOpenSkill }: { onOpenSkill: (name: string) => void }) {
   const { t, lang } = useTranslation()
   return (
     <div className="flex flex-col gap-3">
       <p className="text-[13px] m-0" style={{ color: 'var(--muted)' }}>{t('guide.workflow.intro')}</p>
+      <StoryRecipeCard />
       <Card>
         <CardContent>
           <ol className="m-0 p-0 list-none flex flex-col">
