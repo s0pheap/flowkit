@@ -7,7 +7,7 @@ import type { TranslationKey } from '../i18n/translations'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card'
 import { Badge } from '../components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs'
-import { SKILL_CATEGORIES, WORKFLOW, STORY_RECIPE, STORY_EXAMPLE, type SkillGuide, type SkillStatus } from './guide/skills'
+import { SKILL_CATEGORIES, WORKFLOW, RECIPES, type SkillGuide, type SkillStatus } from './guide/skills'
 
 interface HealthResponse {
   status: string
@@ -258,18 +258,42 @@ function SkillChip({ name, onOpen }: { name: string; onOpen: (name: string) => v
   )
 }
 
-function StoryRecipeCard() {
+function RecipeCard() {
   const { lang } = useTranslation()
+  const [active, setActive] = useState(RECIPES[0].id)
+  const recipe = RECIPES.find(r => r.id === active) ?? RECIPES[0]
+  const ex = recipe.example
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{STORY_RECIPE.title[lang]}</CardTitle>
-        <CardDescription>{STORY_RECIPE.intro[lang]}</CardDescription>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex flex-col gap-1.5 min-w-0">
+            <CardTitle>{recipe.title[lang]}</CardTitle>
+            <CardDescription>{recipe.intro[lang]}</CardDescription>
+          </div>
+          <div className="flex gap-1 flex-shrink-0 rounded-lg p-0.5" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+            {RECIPES.map(r => (
+              <button
+                key={r.id}
+                type="button"
+                onClick={() => setActive(r.id)}
+                aria-pressed={r.id === active}
+                className="h-7 px-3 rounded-md text-[13px] font-medium transition-colors"
+                style={r.id === active
+                  ? { background: 'var(--accent-soft)', color: 'var(--accent)' }
+                  : { background: 'transparent', color: 'var(--muted)' }}
+              >
+                {r.tab[lang]}
+              </button>
+            ))}
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-5">
           <ol className="m-0 p-0 list-none flex flex-col gap-2.5">
-            {STORY_RECIPE.points.map((point, i) => (
+            {recipe.points.map((point, i) => (
               <li key={point.label.en} className="flex gap-2.5">
                 <span
                   className="flex-shrink-0 flex items-center justify-center rounded-full text-[11px] font-semibold mt-px"
@@ -284,62 +308,51 @@ function StoryRecipeCard() {
               </li>
             ))}
           </ol>
-          <CommandLine command={STORY_RECIPE.prompt[lang]} />
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
 
-function StoryExampleCard() {
-  const { lang } = useTranslation()
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{STORY_EXAMPLE.title[lang]}</CardTitle>
-        <CardDescription>{STORY_EXAMPLE.why[lang]}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col">
-            {STORY_EXAMPLE.beats.map(b => (
-              <div
-                key={b.beat.en}
-                className="flex gap-3 py-1.5 items-baseline border-b last:border-b-0"
-                style={{ borderColor: 'var(--border)' }}
-              >
-                <span className="text-[13px] font-semibold w-[140px] flex-shrink-0" style={{ color: 'var(--text)' }}>
-                  {b.beat[lang]}
-                </span>
-                <span className="text-[13px] leading-relaxed flex-1 min-w-0" style={{ color: 'var(--muted)' }}>
-                  {b.happens[lang]}
-                </span>
-                <span
-                  className="text-[11px] tabular-nums flex-shrink-0 rounded-full px-2 py-0.5"
-                  style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}
+          <CommandLine command={recipe.prompt[lang]} />
+
+          <div className="flex flex-col gap-3 pt-1 border-t" style={{ borderColor: 'var(--border)' }}>
+            <div className="flex flex-col gap-1 pt-3">
+              <span className="text-[13px] font-semibold" style={{ color: 'var(--text)' }}>{ex.title[lang]}</span>
+              <span className="text-[13px] leading-relaxed" style={{ color: 'var(--muted)' }}>{ex.why[lang]}</span>
+            </div>
+
+            <div className="flex flex-col">
+              {ex.beats.map(b => (
+                <div
+                  key={b.beat.en}
+                  className="flex flex-wrap gap-x-3 gap-y-0.5 py-1.5 items-baseline border-b last:border-b-0"
+                  style={{ borderColor: 'var(--border)' }}
                 >
-                  {b.scenes}
-                </span>
+                  <span className="text-[13px] font-semibold w-[130px] flex-shrink-0" style={{ color: 'var(--text)' }}>
+                    {b.beat[lang]}
+                  </span>
+                  <span className="text-[13px] leading-relaxed flex-1 min-w-[180px]" style={{ color: 'var(--muted)' }}>
+                    {b.happens[lang]}
+                  </span>
+                  <span
+                    className="text-[11px] tabular-nums flex-shrink-0 rounded-full px-2 py-0.5"
+                    style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}
+                  >
+                    {b.scenes}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <span className="text-[13px] font-semibold" style={{ color: 'var(--text)' }}>{ex.registerLabel[lang]}</span>
+              <div className="rounded-lg border px-3 py-2" style={{ borderColor: 'rgb(255 107 107 / 0.3)', background: 'rgb(255 107 107 / 0.06)' }}>
+                <span className="text-[13px] leading-relaxed" style={{ color: 'var(--muted)' }}>{ex.registerBad[lang]}</span>
               </div>
-            ))}
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <span className="text-[13px] font-semibold" style={{ color: 'var(--text)' }}>
-              {STORY_EXAMPLE.registerLabel[lang]}
-            </span>
-            <div className="rounded-lg border px-3 py-2" style={{ borderColor: 'rgb(255 107 107 / 0.3)', background: 'rgb(255 107 107 / 0.06)' }}>
-              <span className="text-[13px] leading-relaxed" style={{ color: 'var(--muted)' }}>{STORY_EXAMPLE.registerBad[lang]}</span>
+              <div className="rounded-lg border px-3 py-2" style={{ borderColor: 'rgb(61 220 151 / 0.3)', background: 'rgb(61 220 151 / 0.06)' }}>
+                <span className="text-[13px] leading-relaxed" style={{ color: 'var(--text)' }}>{ex.registerGood[lang]}</span>
+              </div>
+              <span className="text-[13px] leading-relaxed" style={{ color: 'var(--muted)' }}>{ex.registerNote[lang]}</span>
             </div>
-            <div className="rounded-lg border px-3 py-2" style={{ borderColor: 'rgb(61 220 151 / 0.3)', background: 'rgb(61 220 151 / 0.06)' }}>
-              <span className="text-[13px] leading-relaxed" style={{ color: 'var(--text)' }}>{STORY_EXAMPLE.registerGood[lang]}</span>
-            </div>
-            <span className="text-[13px] leading-relaxed" style={{ color: 'var(--muted)' }}>{STORY_EXAMPLE.registerNote[lang]}</span>
-          </div>
 
-          <p className="m-0 text-[13px] leading-relaxed" style={{ color: 'var(--yellow)' }}>
-            {STORY_EXAMPLE.closing[lang]}
-          </p>
+            <p className="m-0 text-[13px] leading-relaxed" style={{ color: 'var(--yellow)' }}>{ex.closing[lang]}</p>
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -351,8 +364,7 @@ function WorkflowTab({ onOpenSkill }: { onOpenSkill: (name: string) => void }) {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-[13px] m-0" style={{ color: 'var(--muted)' }}>{t('guide.workflow.intro')}</p>
-      <StoryRecipeCard />
-      <StoryExampleCard />
+      <RecipeCard />
       <Card>
         <CardContent>
           <ol className="m-0 p-0 list-none flex flex-col">

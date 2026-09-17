@@ -602,155 +602,211 @@ export const SKILL_CATEGORIES: SkillCategory[] = [
 ]
 
 /** The usual order of a video, for the Workflow tab. Each step names the skills it uses. */
-/** A worked path for story videos, which need different choices than the documentary default. */
-export const STORY_RECIPE: {
+/** A worked path for a kind of video that needs different choices than the default. */
+export interface Recipe {
+  id: string
+  /** Short label for the selector. */
+  tab: Localized
   title: Localized
   intro: Localized
+  /** Copyable opening message carrying every choice below. */
   prompt: Localized
   points: { label: Localized; body: Localized }[]
-} = {
-  title: { en: 'Telling a story (folk tales, legends, myth)', ko: '이야기 영상 (설화, 전설, 신화)' },
-  intro: {
-    en: 'The default path assumes a documentary, where the pictures carry the video. A folk tale is the other way round — the telling carries it, and the pictures illustrate. Six choices decide whether it works, and all of them are made before any image is generated.',
-    ko: '기본 경로는 그림이 영상을 이끄는 다큐멘터리를 가정합니다. 설화는 반대입니다. 이야기가 영상을 이끌고 그림은 그것을 보여줍니다. 성패를 가르는 여섯 가지 선택은 모두 이미지를 만들기 전에 정해집니다.',
-  },
-  prompt: {
-    en: `Make a storytelling video of the Khmer folk tale "<name>" from ប្រជុំរឿងព្រេងខ្មែរ. Narration in Khmer, oil painting style, vertical.
-Here is the full tale: <paste the whole tale, not a summary>
-Show me the beat sheet before creating any scene. It is narration-led, so use ffmpeg look & feel.`,
-    ko: `ប្រជុំរឿងព្រេងខ្មែរ의 크메르 설화 "<제목>"로 이야기 영상을 만들어 주세요. 내레이션은 크메르어, 유화 스타일, 세로형입니다.
-설화 전문: <요약이 아닌 전문을 붙여넣으세요>
-장면을 만들기 전에 비트 시트를 먼저 보여주세요. 내레이션 중심이므로 ffmpeg look & feel을 써 주세요.`,
-  },
-  points: [
-    {
-      label: { en: 'Say it is a story, not a documentary', ko: '다큐멘터리가 아니라 이야기라고 말하기' },
-      body: {
-        en: 'This is the one choice everything else follows from. It picks the beat sheet and the narrator’s voice — a teller telling the tale, not a reporter explaining it. Asked for a documentary, the skill writes commentary over pictures, which is the usual reason a legend comes out flat.',
-        ko: '나머지 모든 것이 여기서 갈립니다. 비트 시트와 내레이터의 어조가 정해집니다. 이야기를 들려주는 사람이지, 설명하는 기자가 아닙니다. 다큐멘터리로 요청하면 그림 위에 해설을 얹게 되고, 전설이 밋밋해지는 가장 흔한 이유가 됩니다.',
-      },
-    },
-    {
-      label: { en: 'Paste the whole tale, not a summary', ko: '요약이 아니라 전문을 붙여넣기' },
-      body: {
-        en: 'A one-line summary gives a one-line video. The skill can only dramatise detail it has been given: the names, the repetitions, the exact bargain, the ending. If you only know the tale roughly, run /fk-research on it first.',
-        ko: '한 줄 요약은 한 줄짜리 영상이 됩니다. 스킬은 주어진 세부 사항만 장면으로 만들 수 있습니다. 이름, 반복되는 구절, 정확한 거래 조건, 결말이 필요합니다. 줄거리만 안다면 먼저 /fk-research를 실행하세요.',
-      },
-    },
-    {
-      label: { en: 'Ask for the beat sheet first', ko: '비트 시트를 먼저 요청하기' },
-      body: {
-        en: 'Say "show me the beat sheet before creating scenes". It is the one cheap checkpoint: redirecting a list of beats costs nothing, redirecting sixty generated images costs credits and an afternoon.',
-        ko: '"장면을 만들기 전에 비트 시트를 보여 달라"고 말하세요. 비용이 들지 않는 유일한 확인 지점입니다. 비트 목록을 고치는 것은 공짜지만, 이미 만든 이미지 60장을 고치는 것은 크레딧과 반나절을 씁니다.',
-      },
-    },
-    {
-      label: { en: 'Say it is narration-led', ko: '내레이션 중심이라고 말하기' },
-      body: {
-        en: 'A generated clip caps each line at about one sentence — 75 Khmer characters. An ffmpeg scene (pan and zoom over the still) has no cap and runs as long as the sentence takes. Ask for ffmpeg look & feel, or set it in /fk-review-board before narration. Get this wrong and the tale arrives as fragments.',
-        ko: '생성된 클립은 한 줄을 약 한 문장, 크메르어 75자로 제한합니다. ffmpeg 장면(정지 이미지 위 팬·줌)은 제한이 없어 문장이 필요한 만큼 이어집니다. ffmpeg look & feel을 요청하거나 내레이션 전에 /fk-review-board에서 설정하세요. 이것을 놓치면 이야기가 조각으로 나옵니다.',
-      },
-    },
-    {
-      label: { en: 'Let the story set the scene count', ko: '장면 수는 이야기가 정하게 하기' },
-      body: {
-        en: 'Count beats, not minutes. Three minutes of Khmer narration is roughly 2,250 characters: about 12 narration-led scenes. Asking for "10 scenes" because it sounds right is how beats get dropped — and the beat that gets dropped is usually the ending.',
-        ko: '분이 아니라 비트를 세세요. 크메르어 내레이션 3분은 약 2,250자이고, 내레이션 중심 장면으로 약 12개입니다. 그럴듯해 보인다는 이유로 "10장면"을 요청하면 비트가 빠지고, 보통 빠지는 것은 결말입니다.',
-      },
-    },
-    {
-      label: { en: 'Keep the ending that explains something', ko: '무언가를 설명하는 결말 지키기' },
-      body: {
-        en: 'Khmer legends usually close by explaining a real place name, a custom or a lesson. That closing beat is why the tale survived and it is what the audience is waiting for. Tell the skill to keep it, and check it is still in the beat sheet.',
-        ko: '크메르 전설은 보통 실제 지명, 관습, 교훈을 설명하며 끝납니다. 그 마지막 비트가 이야기가 살아남은 이유이고 관객이 기다리는 부분입니다. 스킬에 남기라고 말하고, 비트 시트에 남아 있는지 확인하세요.',
-      },
-    },
-    {
-      label: { en: 'Style and voice settings', ko: '스타일과 음성 설정' },
-      body: {
-        en: 'oil_painting or 3d_pixar suit a folk tale; realistic fights the register. Narration is Khmer (/fk-gen-narrator --language km) while image and video prompts stay English — the generator works best that way. Leave allow_voice off so the clips stay silent and the only voice is the narrator.',
-        ko: '설화에는 oil_painting이나 3d_pixar가 어울리고, realistic은 분위기와 부딪칩니다. 내레이션은 크메르어(/fk-gen-narrator --language km), 이미지와 비디오 프롬프트는 영어로 둡니다. 생성기가 영어에서 가장 잘 작동합니다. allow_voice는 꺼 두어 클립은 무음으로 남기고 목소리는 내레이터만 나오게 하세요.',
-      },
-    },
-  ],
+  example: {
+    title: Localized
+    why: Localized
+    beats: { beat: Localized; happens: Localized; scenes: number }[]
+    registerLabel: Localized
+    registerBad: Localized
+    registerGood: Localized
+    registerNote: Localized
+    closing: Localized
+  }
 }
 
-/** One tale worked end to end, so the recipe above can be read against something real. */
-export const STORY_EXAMPLE: {
-  title: Localized
-  why: Localized
-  beats: { beat: Localized; happens: Localized; scenes: number }[]
-  registerLabel: Localized
-  registerBad: Localized
-  registerGood: Localized
-  registerNote: Localized
-  closing: Localized
-} = {
-  title: { en: 'Worked example — ភ្នំប្រុស ភ្នំស្រី (Phnom Pros and Phnom Srei)', ko: '실제 예시 — ភ្នំប្រុស ភ្នំស្រី (프놈 프로스와 프놈 스레이)' },
-  why: {
-    en: 'Short, widely known, and it ends by explaining two hills that still stand in Kampong Cham — so it shows every point above, especially the closing beat. Eight beats, twelve narration-led scenes, about three minutes.',
-    ko: '짧고 널리 알려져 있으며, 오늘날 캄퐁참에 남아 있는 두 언덕을 설명하며 끝납니다. 위의 모든 항목, 특히 마지막 비트를 보여 줍니다. 비트 8개, 내레이션 중심 장면 12개, 약 3분.',
+export const RECIPES: Recipe[] = [
+  {
+    id: 'story',
+    tab: { en: 'Story', ko: '이야기' },
+    title: { en: 'Telling a story (folk tales, legends, myth)', ko: '이야기 영상 (설화, 전설, 신화)' },
+    intro: {
+      en: 'The default path assumes a documentary, where the pictures carry the video. A folk tale is the other way round — the telling carries it, and the pictures illustrate. Six choices decide whether it works, and all of them are made before any image is generated.',
+      ko: '기본 경로는 그림이 영상을 이끄는 다큐멘터리를 가정합니다. 설화는 반대입니다. 이야기가 영상을 이끌고 그림은 그것을 보여줍니다. 성패를 가르는 여섯 가지 선택은 모두 이미지를 만들기 전에 정해집니다.',
+    },
+    prompt: {
+      en: `Make a storytelling video of the Khmer folk tale "<name>" from ប្រជុំរឿងព្រេងខ្មែរ. Narration in Khmer, oil painting style, vertical.
+Here is the full tale: <paste the whole tale, not a summary>
+Show me the beat sheet before creating any scene. It is narration-led, so use ffmpeg look & feel.`,
+      ko: `ប្រជុំរឿងព្រេងខ្មែរ의 크메르 설화 "<제목>"로 이야기 영상을 만들어 주세요. 내레이션은 크메르어, 유화 스타일, 세로형입니다.
+설화 전문: <요약이 아닌 전문을 붙여넣으세요>
+장면을 만들기 전에 비트 시트를 먼저 보여주세요. 내레이션 중심이므로 ffmpeg look & feel을 써 주세요.`,
+    },
+    points: [
+      {
+        label: { en: 'Say it is a story, not a documentary', ko: '다큐멘터리가 아니라 이야기라고 말하기' },
+        body: {
+          en: 'This is the one choice everything else follows from. It picks the beat sheet and the narrator’s voice — a teller telling the tale, not a reporter explaining it. Asked for a documentary, the skill writes commentary over pictures, which is the usual reason a legend comes out flat.',
+          ko: '나머지 모든 것이 여기서 갈립니다. 비트 시트와 내레이터의 어조가 정해집니다. 이야기를 들려주는 사람이지, 설명하는 기자가 아닙니다. 다큐멘터리로 요청하면 그림 위에 해설을 얹게 되고, 전설이 밋밋해지는 가장 흔한 이유가 됩니다.',
+        },
+      },
+      {
+        label: { en: 'Paste the whole tale, not a summary', ko: '요약이 아니라 전문을 붙여넣기' },
+        body: {
+          en: 'A one-line summary gives a one-line video. The skill can only dramatise detail it has been given: the names, the repetitions, the exact bargain, the ending. If you only know the tale roughly, run /fk-research on it first.',
+          ko: '한 줄 요약은 한 줄짜리 영상이 됩니다. 스킬은 주어진 세부 사항만 장면으로 만들 수 있습니다. 이름, 반복되는 구절, 정확한 거래 조건, 결말이 필요합니다. 줄거리만 안다면 먼저 /fk-research를 실행하세요.',
+        },
+      },
+      {
+        label: { en: 'Ask for the beat sheet first', ko: '비트 시트를 먼저 요청하기' },
+        body: {
+          en: 'Say "show me the beat sheet before creating scenes". It is the one cheap checkpoint: redirecting a list of beats costs nothing, redirecting sixty generated images costs credits and an afternoon.',
+          ko: '"장면을 만들기 전에 비트 시트를 보여 달라"고 말하세요. 비용이 들지 않는 유일한 확인 지점입니다. 비트 목록을 고치는 것은 공짜지만, 이미 만든 이미지 60장을 고치는 것은 크레딧과 반나절을 씁니다.',
+        },
+      },
+      {
+        label: { en: 'Say it is narration-led', ko: '내레이션 중심이라고 말하기' },
+        body: {
+          en: 'A generated clip caps each line at about one sentence — 75 Khmer characters. An ffmpeg scene (pan and zoom over the still) has no cap and runs as long as the sentence takes. Ask for ffmpeg look & feel, or set it in /fk-review-board before narration. Get this wrong and the tale arrives as fragments.',
+          ko: '생성된 클립은 한 줄을 약 한 문장, 크메르어 75자로 제한합니다. ffmpeg 장면(정지 이미지 위 팬·줌)은 제한이 없어 문장이 필요한 만큼 이어집니다. ffmpeg look & feel을 요청하거나 내레이션 전에 /fk-review-board에서 설정하세요. 이것을 놓치면 이야기가 조각으로 나옵니다.',
+        },
+      },
+      {
+        label: { en: 'Let the story set the scene count', ko: '장면 수는 이야기가 정하게 하기' },
+        body: {
+          en: 'Count beats, not minutes. Three minutes of Khmer narration is roughly 2,250 characters: about 12 narration-led scenes. Asking for "10 scenes" because it sounds right is how beats get dropped — and the beat that gets dropped is usually the ending.',
+          ko: '분이 아니라 비트를 세세요. 크메르어 내레이션 3분은 약 2,250자이고, 내레이션 중심 장면으로 약 12개입니다. 그럴듯해 보인다는 이유로 "10장면"을 요청하면 비트가 빠지고, 보통 빠지는 것은 결말입니다.',
+        },
+      },
+      {
+        label: { en: 'Keep the ending that explains something', ko: '무언가를 설명하는 결말 지키기' },
+        body: {
+          en: 'Khmer legends usually close by explaining a real place name, a custom or a lesson. That closing beat is why the tale survived and it is what the audience is waiting for. Tell the skill to keep it, and check it is still in the beat sheet.',
+          ko: '크메르 전설은 보통 실제 지명, 관습, 교훈을 설명하며 끝납니다. 그 마지막 비트가 이야기가 살아남은 이유이고 관객이 기다리는 부분입니다. 스킬에 남기라고 말하고, 비트 시트에 남아 있는지 확인하세요.',
+        },
+      },
+      {
+        label: { en: 'Style and voice settings', ko: '스타일과 음성 설정' },
+        body: {
+          en: 'oil_painting or 3d_pixar suit a folk tale; realistic fights the register. Narration is Khmer (/fk-gen-narrator --language km) while image and video prompts stay English — the generator works best that way. Leave allow_voice off so the clips stay silent and the only voice is the narrator.',
+          ko: '설화에는 oil_painting이나 3d_pixar가 어울리고, realistic은 분위기와 부딪칩니다. 내레이션은 크메르어(/fk-gen-narrator --language km), 이미지와 비디오 프롬프트는 영어로 둡니다. 생성기가 영어에서 가장 잘 작동합니다. allow_voice는 꺼 두어 클립은 무음으로 남기고 목소리는 내레이터만 나오게 하세요.',
+        },
+      },
+    ],
+    example: {
+      title: { en: 'ភ្នំប្រុស ភ្នំស្រី (Phnom Pros and Phnom Srei)', ko: 'ភ្នំប្រុស ភ្នំស្រី (프놈 프로스와 프놈 스레이)' },
+      why: {
+        en: 'Short, widely known, and it ends by explaining two hills that still stand in Kampong Cham — so it shows every point above, especially the closing beat. Eight beats, twelve narration-led scenes, about three minutes.',
+        ko: '짧고 널리 알려져 있으며, 오늘날 캄퐁참에 남아 있는 두 언덕을 설명하며 끝납니다. 위의 모든 항목, 특히 마지막 비트를 보여 줍니다. 비트 8개, 내레이션 중심 장면 12개, 약 3분.',
+      },
+      beats: [
+        { beat: { en: 'The world', ko: '세계' }, happens: { en: 'Long ago in Kampong Cham, custom held that women had to ask men for marriage.', ko: '옛날 캄퐁참에서는 여자가 남자에게 청혼해야 하는 관습이 있었습니다.' }, scenes: 1 },
+        { beat: { en: 'The lack', ko: '결핍' }, happens: { en: 'The women are tired of it, and say so.', ko: '여자들은 그 관습에 지쳐 불만을 말합니다.' }, scenes: 1 },
+        { beat: { en: 'The disturbance', ko: '사건의 시작' }, happens: { en: 'A contest is agreed: each side builds a hill in one night. The taller hill decides who must do the asking, for ever.', ko: '내기가 정해집니다. 양쪽이 하룻밤 사이에 언덕을 쌓고, 더 높은 쪽이 앞으로 누가 청혼할지를 결정합니다.' }, scenes: 1 },
+        { beat: { en: 'The attempt', ko: '시도' }, happens: { en: 'Both sides dig and carry earth through the dark.', ko: '양쪽 모두 어둠 속에서 흙을 파고 나릅니다.' }, scenes: 2 },
+        { beat: { en: 'The opposing force', ko: '맞서는 힘' }, happens: { en: 'The men are stronger and their hill rises faster. The women are losing.', ko: '남자들이 더 힘이 세어 언덕이 빨리 올라갑니다. 여자들이 지고 있습니다.' }, scenes: 2 },
+        { beat: { en: 'The turn', ko: '반전' }, happens: { en: 'The women raise a lantern on a tall pole. The men take it for the morning star, believe dawn has come, and lie down to sleep.', ko: '여자들이 긴 장대에 등불을 매답니다. 남자들은 그것을 샛별로 여겨 날이 밝았다고 믿고 잠자리에 듭니다.' }, scenes: 2 },
+        { beat: { en: 'The consequence', ko: '결과' }, happens: { en: 'At real dawn the women’s hill is the taller one. The men have lost their own wager.', ko: '진짜 새벽이 오자 여자들의 언덕이 더 높습니다. 남자들은 자기들이 건 내기에 졌습니다.' }, scenes: 2 },
+        { beat: { en: 'Why it is still told', ko: '지금도 전해지는 이유' }, happens: { en: 'The two hills stand in Kampong Cham to this day, and ever since it is the men who must ask.', ko: '두 언덕은 오늘날까지 캄퐁참에 서 있고, 그때부터 청혼은 남자의 몫이 되었습니다.' }, scenes: 1 },
+      ],
+      registerLabel: { en: 'The difference a register makes', ko: '어조가 만드는 차이' },
+      registerBad: { en: 'The women tricked the men with a light and won the contest.', ko: '여자들은 불빛으로 남자들을 속여 내기에서 이겼습니다.' },
+      registerGood: { en: 'They hung one lantern high on a pole. The men looked up, saw the morning star, and set down their baskets. All the rest of that night, only the women were digging.', ko: '여자들은 장대 높이 등불 하나를 매달았습니다. 남자들은 고개를 들어 샛별을 보고는 바구니를 내려놓았습니다. 그날 밤 남은 시간 동안 땅을 판 것은 여자들뿐이었습니다.' },
+      registerNote: { en: 'Both say the same thing. The first summarises the beat, the second tells it — and only the second gives the scene something to show. When a line reads like the first one, the video will too.', ko: '둘은 같은 내용입니다. 앞의 것은 비트를 요약하고, 뒤의 것은 이야기를 들려줍니다. 장면에 보여 줄 거리를 주는 것은 뒤의 것뿐입니다. 대사가 앞의 것처럼 읽히면 영상도 그렇게 됩니다.' },
+      closing: { en: 'Cut the last beat to save thirty seconds and the video stops being this tale — it becomes a story about a digging contest. Check it survives into the beat sheet before you approve it.', ko: '30초를 아끼려고 마지막 비트를 자르면 이 설화가 아니라 그저 땅파기 시합 이야기가 됩니다. 승인하기 전에 비트 시트에 그 비트가 남아 있는지 확인하세요.' },
+    },
   },
-  beats: [
-    {
-      beat: { en: 'The world', ko: '세계' },
-      happens: { en: 'Long ago in Kampong Cham, custom held that women had to ask men for marriage.', ko: '옛날 캄퐁참에서는 여자가 남자에게 청혼해야 하는 관습이 있었습니다.' },
-      scenes: 1,
+  {
+    id: 'explainer',
+    tab: { en: 'Explainer', ko: '설명 영상' },
+    title: { en: 'Explaining how something works', ko: '작동 원리를 설명하기' },
+    intro: {
+      en: 'An explainer is not a story and not a news report. The viewer should be able to do or understand something afterwards that they could not before, and every scene either moves toward that or is cut. The commonest failure is not being wrong — it is covering five things adequately instead of one thing properly.',
+      ko: '설명 영상은 이야기도 뉴스도 아닙니다. 시청자가 영상을 보고 나면 이전에는 못 하던 것을 하거나 이해할 수 있어야 하고, 모든 장면은 그 목표로 나아가거나 잘려야 합니다. 가장 흔한 실패는 틀리는 것이 아니라, 하나를 제대로 다루는 대신 다섯 가지를 적당히 훑는 것입니다.',
     },
-    {
-      beat: { en: 'The lack', ko: '결핍' },
-      happens: { en: 'The women are tired of it, and say so.', ko: '여자들은 그 관습에 지쳐 불만을 말합니다.' },
-      scenes: 1,
+    prompt: {
+      en: `Make an explainer video about <topic>. Narration in <language>, realistic style, horizontal.
+After watching, the viewer should understand: <one sentence — the single thing they take away>
+Audience: <who they are and what they already know>
+Run /fk-research first, then show me the outline before creating any scene. It is narration-led, so use ffmpeg look & feel, and add text overlays for the numbers and terms.`,
+      ko: `<주제>에 대한 설명 영상을 만들어 주세요. 내레이션은 <언어>, 사실적인 스타일, 가로형입니다.
+영상을 본 뒤 시청자가 이해해야 할 것: <한 문장 — 가져갈 단 하나>
+대상: <누구이며 이미 무엇을 알고 있는지>
+먼저 /fk-research를 실행하고, 장면을 만들기 전에 아웃라인을 보여주세요. 내레이션 중심이므로 ffmpeg look & feel을 쓰고, 숫자와 용어에는 텍스트 오버레이를 넣어 주세요.`,
     },
-    {
-      beat: { en: 'The disturbance', ko: '사건의 시작' },
-      happens: { en: 'A contest is agreed: each side builds a hill in one night. The taller hill decides who must do the asking, for ever.', ko: '내기가 정해집니다. 양쪽이 하룻밤 사이에 언덕을 쌓고, 더 높은 쪽이 앞으로 누가 청혼할지를 결정합니다.' },
-      scenes: 1,
+    points: [
+      {
+        label: { en: 'Write the takeaway in one sentence first', ko: '핵심 한 문장을 먼저 쓰기' },
+        body: {
+          en: '"After watching, the viewer understands X." If you cannot write it, the video does not have a subject yet and no amount of good footage will rescue it. Give that sentence to the skill — it is what every scene gets measured against.',
+          ko: '"영상을 본 뒤 시청자는 X를 이해한다." 이 문장을 쓸 수 없다면 아직 주제가 없는 것이고, 좋은 화면을 아무리 붙여도 소용없습니다. 그 문장을 스킬에 주세요. 모든 장면이 그 기준으로 평가됩니다.',
+        },
+      },
+      {
+        label: { en: 'Say who is watching and what they already know', ko: '시청자가 누구이고 무엇을 아는지 말하기' },
+        body: {
+          en: 'The same topic for a curious teenager and for an engineer are two different videos. Without this the skill aims at nobody, and the result explains too much of the easy part and skips the hard part.',
+          ko: '같은 주제라도 호기심 많은 청소년용과 엔지니어용은 전혀 다른 영상입니다. 이것을 말하지 않으면 스킬은 아무도 겨냥하지 못하고, 쉬운 부분만 길게 설명하고 어려운 부분은 건너뜁니다.',
+        },
+      },
+      {
+        label: { en: 'Research before scripting', ko: '대본 전에 조사하기' },
+        body: {
+          en: 'Run /fk-research on the topic first. A story can be retold loosely; an explainer that gets a number or a mechanism wrong is worse than no video, and the error is the thing people repeat.',
+          ko: '먼저 주제에 /fk-research를 실행하세요. 이야기는 느슨하게 다시 들려줄 수 있지만, 숫자나 원리가 틀린 설명 영상은 없느니만 못합니다. 사람들이 따라 옮기는 것은 바로 그 오류입니다.',
+        },
+      },
+      {
+        label: { en: 'Ask for the outline before scenes', ko: '장면 전에 아웃라인 요청하기' },
+        body: {
+          en: 'Hook, why it matters, what you need to know first, the mechanism, one worked example, the catch, the so-what. Approve that list before any image exists — same cheap checkpoint as a beat sheet.',
+          ko: '훅, 왜 중요한지, 먼저 알아야 할 것, 작동 원리, 구체적인 사례 하나, 한계, 그래서 어떻게. 이미지가 만들어지기 전에 이 목록을 승인하세요. 비트 시트와 같은 저렴한 확인 지점입니다.',
+        },
+      },
+      {
+        label: { en: 'One idea per scene', ko: '한 장면에 하나의 개념' },
+        body: {
+          en: 'A scene that carries two ideas teaches neither. If a line needs the word "and" to join two mechanisms, it is two scenes. This is the single biggest quality difference between explainers that land and ones that wash over people.',
+          ko: '두 개념을 담은 장면은 둘 다 가르치지 못합니다. 두 원리를 "그리고"로 이어야 하는 문장이라면 두 장면입니다. 와닿는 설명 영상과 흘려보내는 영상의 가장 큰 차이입니다.',
+        },
+      },
+      {
+        label: { en: 'Pick one metaphor and keep it', ko: '비유 하나를 골라 끝까지 쓰기' },
+        body: {
+          en: 'Tell the skill the metaphor rather than letting each scene invent its own. A video that compares a network to plumbing, then to traffic, then to a postal service has spent its budget three times and built nothing.',
+          ko: '장면마다 다른 비유를 만들게 두지 말고 비유를 정해 주세요. 네트워크를 배관에 비유했다가 교통에, 다시 우편에 비유하는 영상은 예산을 세 번 쓰고 아무것도 쌓지 못합니다.',
+        },
+      },
+      {
+        label: { en: 'Put the numbers on screen', ko: '숫자는 화면에 띄우기' },
+        body: {
+          en: 'Run /fk-gen-text-overlays after narration. A figure that is only spoken is gone in a second; the same figure on screen is what people screenshot. Keep them to the few that carry the point — an overlay on every scene reads as noise.',
+          ko: '내레이션 뒤에 /fk-gen-text-overlays를 실행하세요. 말로만 지나간 숫자는 1초면 사라지지만, 화면에 뜬 숫자는 사람들이 캡처합니다. 핵심을 담은 몇 개만 남기세요. 모든 장면에 얹으면 소음이 됩니다.',
+        },
+      },
+    ],
+    example: {
+      title: { en: 'Why the Tonle Sap flows backwards', ko: '톤레삽강이 거꾸로 흐르는 이유' },
+      why: {
+        en: 'One mechanism, one takeaway, one metaphor (a full drain backing up), and a real number worth putting on screen. Seven beats, eleven narration-led scenes, under three minutes.',
+        ko: '하나의 원리, 하나의 핵심, 하나의 비유(꽉 찬 배수구가 역류하는 모습), 그리고 화면에 띄울 만한 실제 숫자. 비트 7개, 내레이션 중심 장면 11개, 3분 이내.',
+      },
+      beats: [
+        { beat: { en: 'Hook', ko: '훅' }, happens: { en: 'Once a year a river in Cambodia turns around and runs the wrong way.', ko: '해마다 한 번, 캄보디아의 한 강이 방향을 바꿔 거꾸로 흐릅니다.' }, scenes: 1 },
+        { beat: { en: 'Why it matters', ko: '왜 중요한가' }, happens: { en: 'That reversal fills the lake that feeds much of the country.', ko: '그 역류가 나라를 먹여 살리는 호수를 채웁니다.' }, scenes: 1 },
+        { beat: { en: 'What you need first', ko: '먼저 알아야 할 것' }, happens: { en: 'The Tonle Sap river is short, and joins the lake to the Mekong.', ko: '톤레삽강은 짧고, 호수와 메콩강을 잇습니다.' }, scenes: 1 },
+        { beat: { en: 'The mechanism', ko: '작동 원리' }, happens: { en: 'In the monsoon the Mekong rises faster than it can drain to the sea. The water has to go somewhere, and the nearest low ground is the lake — so the current reverses.', ko: '우기에 메콩강은 바다로 빠지는 속도보다 빠르게 불어납니다. 물은 어디론가 가야 하고, 가장 가까운 낮은 땅이 호수입니다. 그래서 흐름이 뒤집힙니다.' }, scenes: 3 },
+        { beat: { en: 'The worked example', ko: '구체적인 사례' }, happens: { en: 'The lake swells several times its dry-season area and gets many times deeper, then drains back when the Mekong falls.', ko: '호수는 건기 면적의 몇 배로 불어나고 훨씬 깊어졌다가, 메콩강 수위가 내려가면 다시 빠져나갑니다.' }, scenes: 2 },
+        { beat: { en: 'The catch', ko: '한계' }, happens: { en: 'Upstream dams and a changing climate are weakening the pulse that all of this depends on.', ko: '상류의 댐과 기후 변화가 이 모든 것이 의존하는 물의 맥박을 약하게 만들고 있습니다.' }, scenes: 2 },
+        { beat: { en: 'So what', ko: '그래서 어떻게' }, happens: { en: 'The day the river turns back is marked by a national festival — the calendar itself is built on this.', ko: '강이 다시 방향을 되돌리는 날은 국가적인 축제로 기념됩니다. 달력 자체가 이 현상 위에 세워져 있습니다.' }, scenes: 1 },
+      ],
+      registerLabel: { en: 'Explain the mechanism, do not state the fact', ko: '사실을 말하지 말고 원리를 설명하기' },
+      registerBad: { en: 'During the monsoon, rising water levels in the Mekong cause the Tonle Sap river to reverse its direction of flow.', ko: '우기에 메콩강의 수위가 상승하면 톤레삽강의 흐름이 역전됩니다.' },
+      registerGood: { en: 'By July the Mekong is carrying more water than its channel can take to the sea. It has to go somewhere. The nearest low ground is the lake upstream — so the little river between them gives up, turns around, and starts running backwards.', ko: '7월이면 메콩강은 자기 물길이 바다로 보낼 수 있는 양보다 많은 물을 안고 있습니다. 물은 어디론가 가야 합니다. 가장 가까운 낮은 땅은 상류의 호수입니다. 그래서 그 사이의 작은 강이 버티기를 그만두고 방향을 돌려 거꾸로 흐르기 시작합니다.' },
+      registerNote: { en: 'The first is correct and teaches nothing — it names the effect and calls it an explanation. The second makes the viewer feel the pressure build and arrive at the reversal themselves. That feeling is the whole product.', ko: '앞의 것은 맞는 말이지만 아무것도 가르치지 않습니다. 결과를 이름 붙이고 설명이라고 부를 뿐입니다. 뒤의 것은 시청자가 압력이 쌓이는 것을 느끼고 스스로 역류에 도달하게 합니다. 그 감각이 바로 이 영상의 전부입니다.' },
+      closing: { en: 'Verify the figures with /fk-research before shipping. In a story a loose detail is a variant; in an explainer it is the part people repeat, and they will repeat it wrong.', ko: '공개 전에 /fk-research로 수치를 확인하세요. 이야기에서 느슨한 세부 사항은 이본(異本)이지만, 설명 영상에서는 사람들이 그대로 옮기는 부분이고, 틀린 채로 퍼집니다.' },
     },
-    {
-      beat: { en: 'The attempt', ko: '시도' },
-      happens: { en: 'Both sides dig and carry earth through the dark.', ko: '양쪽 모두 어둠 속에서 흙을 파고 나릅니다.' },
-      scenes: 2,
-    },
-    {
-      beat: { en: 'The opposing force', ko: '맞서는 힘' },
-      happens: { en: 'The men are stronger and their hill rises faster. The women are losing.', ko: '남자들이 더 힘이 세어 언덕이 빨리 올라갑니다. 여자들이 지고 있습니다.' },
-      scenes: 2,
-    },
-    {
-      beat: { en: 'The turn', ko: '반전' },
-      happens: { en: 'The women raise a lantern on a tall pole. The men take it for the morning star, believe dawn has come, and lie down to sleep.', ko: '여자들이 긴 장대에 등불을 매답니다. 남자들은 그것을 샛별로 여겨 날이 밝았다고 믿고 잠자리에 듭니다.' },
-      scenes: 2,
-    },
-    {
-      beat: { en: 'The consequence', ko: '결과' },
-      happens: { en: 'At real dawn the women’s hill is the taller one. The men have lost their own wager.', ko: '진짜 새벽이 오자 여자들의 언덕이 더 높습니다. 남자들은 자기들이 건 내기에 졌습니다.' },
-      scenes: 2,
-    },
-    {
-      beat: { en: 'Why it is still told', ko: '지금도 전해지는 이유' },
-      happens: { en: 'The two hills stand in Kampong Cham to this day, and ever since it is the men who must ask.', ko: '두 언덕은 오늘날까지 캄퐁참에 서 있고, 그때부터 청혼은 남자의 몫이 되었습니다.' },
-      scenes: 1,
-    },
-  ],
-  registerLabel: { en: 'The difference a register makes', ko: '어조가 만드는 차이' },
-  registerBad: {
-    en: 'The women tricked the men with a light and won the contest.',
-    ko: '여자들은 불빛으로 남자들을 속여 내기에서 이겼습니다.',
   },
-  registerGood: {
-    en: 'They hung one lantern high on a pole. The men looked up, saw the morning star, and set down their baskets. All the rest of that night, only the women were digging.',
-    ko: '여자들은 장대 높이 등불 하나를 매달았습니다. 남자들은 고개를 들어 샛별을 보고는 바구니를 내려놓았습니다. 그날 밤 남은 시간 동안 땅을 판 것은 여자들뿐이었습니다.',
-  },
-  registerNote: {
-    en: 'Both say the same thing. The first summarises the beat, the second tells it — and only the second gives the scene something to show. When a line reads like the first one, the video will too.',
-    ko: '둘은 같은 내용입니다. 앞의 것은 비트를 요약하고, 뒤의 것은 이야기를 들려줍니다. 장면에 보여 줄 거리를 주는 것은 뒤의 것뿐입니다. 대사가 앞의 것처럼 읽히면 영상도 그렇게 됩니다.',
-  },
-  closing: {
-    en: 'Cut the last beat to save thirty seconds and the video stops being this tale — it becomes a story about a digging contest. Check it survives into the beat sheet before you approve it.',
-    ko: '30초를 아끼려고 마지막 비트를 자르면 이 설화가 아니라 그저 땅파기 시합 이야기가 됩니다. 승인하기 전에 비트 시트에 그 비트가 남아 있는지 확인하세요.',
-  },
-}
+]
 
 export const WORKFLOW: { title: Localized; body: Localized; skills: string[] }[] = [
   {
