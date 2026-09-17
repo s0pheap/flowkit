@@ -360,7 +360,7 @@ When a character appears in the scene image, their face MUST be fully visible (f
 
 **Rule:** If a character is in frame → show full face. If you don't want to show the face → use POV camera (hands/arms only) or wide environmental shot without the character. Never half-crop a face.
 
-**`voice_description`** on characters (max ~30 words) — auto-appended to video prompts by the worker. Dialogue tone must match voice profile. Example: `"Deep calm heroic voice, speaks slowly with confidence"`.
+**`voice_description`** on characters (max ~30 words) — only used when the project sets `allow_voice: true`, meaning you want the characters to speak *inside the clip*. On a normal narrated video the spoken track comes from `/fk-gen-narrator` (TTS), the clip stays free of speech, and this field is ignored. Example: `"Deep calm heroic voice, speaks slowly with confidence"`.
 
 See `fk-camera-guide.md` for full camera language reference.
 
@@ -395,7 +395,13 @@ Google Flow's AI filter rejects prompts with violent, aggressive, or graphic lan
 
 ### Video Prompt Formula (Veo 3)
 
-Write video prompts as **natural prose** — like briefing a film director. Veo 3 generates native audio (dialogue, SFX, ambient) from text.
+Write video prompts as **natural prose** — like briefing a film director. Veo 3 generates native audio (dialogue, SFX, ambient) from text, which is exactly why the prompt has to be careful about speech.
+
+> **Keep people from talking in the clip.** Narration comes from `/fk-gen-narrator` as a separate TTS track, so a clip that also invents its own dialogue gives you two voices over one scene. Leave `allow_voice` off (the default) and the worker appends a ban on speech, dialogue, singing, narration and voiceover for you.
+>
+> That ban is the only thing holding it back, so do not fight it: keep dialogue verbs — *says, asks, whispers, shouts, replies, murmurs, exclaims, mutters* — out of `video_prompt`. Describe what a character **does**, not what they **say**: "the captain turns sharply and points at the map", not "the captain says hold fast". Put the words in `narrator_text` instead.
+>
+> Set `allow_voice: true` only for a video where you genuinely want in-clip speech and no TTS narration over it.
 
 **5-component structure:** `[Camera/Shot] + [Subject] + [Action] + [Setting] + [Style & Audio]`
 

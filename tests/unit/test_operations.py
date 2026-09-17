@@ -400,6 +400,77 @@ class TestVideoPromptLookFeel:
 
 
 # ---------------------------------------------------------------------------
+# _build_video_prompt — keeping speech out of the clip
+# ---------------------------------------------------------------------------
+
+
+class TestVideoPromptAudio:
+    """The spoken track comes from TTS, so a clip must not invent its own.
+
+    `allow_music` and `allow_voice` are independent switches. The whole Audio
+    block used to be nested inside `if not allow_music`, so a project with music
+    enabled got no Audio line at all and the model was free to add dialogue.
+    """
+
+    async def _build(self, *, music, voice, prompt="A captain at the wheel.", chars=()):
+        scene = {"id": SCENE_ID, "character_names": '["Captain"]'}
+        with patch("agent.sdk.services.operations.crud") as mock_crud:
+            mock_crud.get_project = AsyncMock(
+                return_value={"allow_music": int(music), "allow_voice": int(voice)})
+            mock_crud.get_project_characters = AsyncMock(return_value=list(chars))
+            return await ops_module._build_video_prompt(prompt, scene, PROJECT_ID)
+
+    async def test_silent_project_bans_speech_and_music(self):
+        prompt = await self._build(music=False, voice=False)
+        assert "no background music" in prompt
+        assert "no speech" in prompt and "no dialogue" in prompt
+
+    async def test_music_allowed_still_bans_speech(self):
+        """The regression: music on used to mean no Audio line at all."""
+        prompt = await self._build(music=True, voice=False)
+        assert "Audio:" in prompt
+        assert "no speech" in prompt and "no dialogue" in prompt
+        assert "no background music" not in prompt
+
+    async def test_voice_allowed_keeps_dialogue(self):
+        prompt = await self._build(music=False, voice=True)
+        assert "Keep character dialogue" in prompt
+        assert "no speech" not in prompt
+
+    async def test_both_allowed_says_nothing_about_audio(self):
+        prompt = await self._build(music=True, voice=True)
+        assert "Audio:" not in prompt
+
+    async def test_narration_ban_alone_would_not_cover_a_talking_subject(self):
+        """A person on screen talking reads as dialogue, not narration."""
+        prompt = await self._build(music=False, voice=False)
+        banned = prompt[prompt.index("Audio:"):]
+        for word in ("speech", "dialogue", "singing", "narration", "voiceover"):
+            assert word in banned, f"{word} not banned"
+
+    async def test_voice_descriptions_stay_out_of_a_silent_project(self):
+        """A dialogue verb used to pull in voice descriptions whatever the flag."""
+        chars = [{"name": "Captain", "slug": "captain",
+                  "voice_description": "Deep calm heroic voice"}]
+        prompt = await self._build(music=False, voice=False,
+                                   prompt="The Captain says hold fast.", chars=chars)
+        assert "Character voices" not in prompt
+        assert "Deep calm heroic voice" not in prompt
+
+    async def test_voice_descriptions_still_arrive_when_voice_is_allowed(self):
+        chars = [{"name": "Captain", "slug": "captain",
+                  "voice_description": "Deep calm heroic voice"}]
+        prompt = await self._build(music=False, voice=True,
+                                   prompt="The Captain says hold fast.", chars=chars)
+        assert "Character voices: Captain: Deep calm heroic voice." in prompt
+
+    async def test_a_prompt_with_its_own_audio_label_is_left_alone(self):
+        prompt = await self._build(music=False, voice=False,
+                                   prompt="A ship. Audio: gulls and rigging.")
+        assert prompt.count("Audio:") == 1
+
+
+# ---------------------------------------------------------------------------
 # Test: which model family a scene video uses
 # ---------------------------------------------------------------------------
 

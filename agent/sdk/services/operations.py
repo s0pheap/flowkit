@@ -919,11 +919,26 @@ async def _build_video_prompt(base_prompt: str, scene: dict, project_id: str | N
         parts.append(fix_prompt.strip())
         logger.info("Applying AI fix prompt for scene %s (%s): %s", scene.get("id"), orientation, fix_prompt[:80])
 
-    # Only append voice context when video_prompt contains dialogue (verb-based detection)
-    dialogue_verbs = ("says", "whispers", "shouts", "asks", "replies", "murmurs", "exclaims", "gasps", "laughs", "mutters")
     prompt_lower = base_prompt.lower()
+
+    # Music and speech are independent switches, so they are read together and
+    # applied separately below.
+    allow_music = False
+    allow_voice = False
+    if project_id:
+        project = await crud.get_project(project_id)
+        if project:
+            allow_music = bool(project.get("allow_music"))
+            allow_voice = bool(project.get("allow_voice"))
+
+    # Voice descriptions tell the model how a character should sound, so they
+    # only belong in the prompt when the clip is allowed to carry speech at all.
+    # Appending them to a silent-dialogue project asks for the voice this scene
+    # is supposed not to have. The spoken track normally comes from TTS
+    # (/fk-gen-narrator), not from the clip.
+    dialogue_verbs = ("says", "whispers", "shouts", "asks", "replies", "murmurs", "exclaims", "gasps", "laughs", "mutters")
     has_dialogue = any(verb in prompt_lower for verb in dialogue_verbs)
-    if project_id and has_dialogue:
+    if project_id and has_dialogue and allow_voice:
         char_names_raw = scene.get("character_names")
         if isinstance(char_names_raw, str):
             try:
@@ -940,24 +955,21 @@ async def _build_video_prompt(base_prompt: str, scene: dict, project_id: str | N
             if voices:
                 parts.append("Character voices: " + ". ".join(voices) + ".")
 
-    # Check project-level audio flags — Veo 3 Audio label format
-    allow_music = False
-    allow_voice = False
-    if project_id:
-        project = await crud.get_project(project_id)
-        if project:
-            if project.get("allow_music"):
-                allow_music = True
-            if project.get("allow_voice"):
-                allow_voice = True
-
-    if not allow_music:
-        # Only append if prompt doesn't already have Audio:/Music: labels
-        if "audio:" not in prompt_lower and "music:" not in prompt_lower:
-            if allow_voice:
-                parts.append("Audio: no background music. Keep character dialogue and natural ambient sounds.")
-            else:
-                parts.append("Audio: natural ambient sounds only, no background music, no narration, no voiceover.")
+    # Veo 3 Audio label. This block used to sit inside `if not allow_music`, so a
+    # project that allowed music got no Audio line at all and the model was free
+    # to invent dialogue over it. The two flags are independent now.
+    #
+    # "no narration, no voiceover" alone does not stop a person on screen from
+    # talking — that reads as dialogue, not narration — so the ban names speech,
+    # dialogue and singing explicitly.
+    if "audio:" not in prompt_lower and "music:" not in prompt_lower:
+        no_voice = "no speech, no dialogue, no singing, no narration, no voiceover"
+        if not allow_music and not allow_voice:
+            parts.append(f"Audio: natural ambient sounds only, no background music, {no_voice}.")
+        elif not allow_music:
+            parts.append("Audio: no background music. Keep character dialogue and natural ambient sounds.")
+        elif not allow_voice:
+            parts.append(f"Audio: {no_voice}. Background music and natural ambient sounds are fine.")
 
     # Veo 3 negative prompt — always append unless already present
     if "negative:" not in prompt_lower:
