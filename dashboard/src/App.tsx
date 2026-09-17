@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { BrowserRouter, NavLink, Routes, Route, useLocation, useSearchParams } from 'react-router-dom'
-import { LayoutDashboard, FolderOpen, Film, ScrollText, BookOpen, ChevronRight, Languages, Cpu, Plug } from 'lucide-react'
+import { LayoutDashboard, FolderOpen, Film, ScrollText, BookOpen, ChevronRight, Languages, Cpu, Plug, Shield } from 'lucide-react'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { WebSocketProvider } from './api/WebSocketContext'
 import { useWebSocketContext } from './api/useWebSocketContext'
@@ -9,6 +9,7 @@ import { useTranslation } from './i18n/useTranslation'
 import { LANGS, LANG_LABELS, type Lang } from './i18n/translations'
 import type { TranslationKey } from './i18n/translations'
 import { fetchAPI } from './api/client'
+import { useMe } from './api/useMe'
 import { ApiKeyGate, ApiKeyStatus } from './components/ApiKeyGate'
 import { BrandMark } from './components/BrandMark'
 import type { Project } from './types'
@@ -17,13 +18,15 @@ import ProjectsPage from './pages/ProjectsPage'
 import LogsPage from './pages/LogsPage'
 import GalleryPage from './pages/GalleryPage'
 import GuidePage from './pages/GuidePage'
+import AdminPage from './pages/AdminPage'
 
-const NAV: { to: string; icon: typeof LayoutDashboard; labelKey: TranslationKey; exact: boolean }[] = [
+const NAV: { to: string; icon: typeof LayoutDashboard; labelKey: TranslationKey; exact: boolean; adminOnly?: boolean }[] = [
   { to: '/', icon: LayoutDashboard, labelKey: 'nav.dashboard', exact: true },
   { to: '/projects', icon: FolderOpen, labelKey: 'nav.projects', exact: false },
   { to: '/gallery', icon: Film, labelKey: 'nav.gallery', exact: false },
   { to: '/logs', icon: ScrollText, labelKey: 'nav.logs', exact: false },
   { to: '/guide', icon: BookOpen, labelKey: 'nav.guide', exact: false },
+  { to: '/admin', icon: Shield, labelKey: 'nav.admin', exact: false, adminOnly: true },
 ]
 
 const BREADCRUMB_TAB_KEY: Record<string, TranslationKey> = {
@@ -59,6 +62,7 @@ function useBreadcrumbs() {
   } else if (loc.pathname.startsWith('/gallery')) crumbs.push(t('app.breadcrumb.gallery'))
   else if (loc.pathname.startsWith('/logs')) crumbs.push(t('app.breadcrumb.logs'))
   else if (loc.pathname.startsWith('/guide')) crumbs.push(t('app.breadcrumb.guide'))
+  else if (loc.pathname.startsWith('/admin')) crumbs.push(t('app.breadcrumb.admin'))
 
   return crumbs
 }
@@ -98,6 +102,7 @@ function StatusRow({ icon: Icon, label, value, tone }: { icon: typeof Cpu; label
 
 function Sidebar() {
   const { t } = useTranslation()
+  const { me } = useMe()
   const { worker } = useWebSocketContext()
   const [health, setHealth] = useState<{ extension_connected: boolean } | null>(null)
 
@@ -116,7 +121,7 @@ function Sidebar() {
       </div>
 
       <nav className="flex flex-col gap-1 px-3 pt-2">
-        {NAV.map(({ to, icon: Icon, labelKey, exact }) => (
+        {NAV.filter(item => !item.adminOnly || me?.is_admin).map(({ to, icon: Icon, labelKey, exact }) => (
           <NavLink
             key={to}
             to={to}
@@ -210,6 +215,7 @@ function Layout() {
               <Route path="/gallery" element={<GalleryPage />} />
               <Route path="/logs" element={<LogsPage />} />
               <Route path="/guide" element={<GuidePage />} />
+              <Route path="/admin" element={<AdminPage />} />
             </Routes>
           </div>
         </main>

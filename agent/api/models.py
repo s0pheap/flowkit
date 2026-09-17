@@ -41,8 +41,20 @@ def _reload_config(data: dict):
 
 @router.get("")
 async def get_models():
-    """Return current model configuration."""
-    return _read_models()
+    """Return current model configuration, plus what PATCH will accept.
+
+    The `choices` block mirrors the enums PATCH validates against, so a UI can
+    offer exactly the values that will be accepted instead of hardcoding a copy
+    that drifts when config changes.
+    """
+    data = _read_models()
+    data["choices"] = {
+        "default_video_model_family": list(config.VIDEO_MODEL_FAMILIES),
+        "omni_flash_duration_s": list(config.OMNI_FLASH_DURATIONS),
+        "default_image_model": sorted(data.get("image_models", {})),
+        "batch_video_models": list(data.get("batch_video_models", {}).get("accepted", [])),
+    }
+    return data
 
 
 @router.patch("")

@@ -387,8 +387,7 @@ function GetStartedTab({ me, onOpenSkill }: { me: ReturnType<typeof useMe>; onOp
 
       <Card>
         <CardContent>
-          <NumberedStep n={2} title={t('guide.start.step2.title')} body={t('guide.start.step2.body')}
-            commands={['winget install --id Git.Git -e']} />
+          <NumberedStep n={2} title={t('guide.start.step2.title')} body={t('guide.start.step2.body')} />
         </CardContent>
       </Card>
 
