@@ -1,6 +1,7 @@
 Create a new Google Flow video project. Ask the user for:
 
 1. **Project name** and **story** (brief plot summary)
+1b. **What kind of video** — documentary/news, or storytelling (folktale, legend, myth, fiction). Ask this first if it is not obvious: it decides the beat sheet in Step 3, the narrator register, and whether scenes are narration-led. A legend built as a documentary comes out as captions over pictures, which is the single most common way this skill disappoints.
 2. **Material** — the visual style for all images. Choose one of the 6 built-in styles or a custom material. Run `GET /api/materials` to show available options. Built-ins: `realistic`, `3d_pixar`, `anime`, `stop_motion`, `minecraft`, `oil_painting`. **Required.**
 3. **Characters** — name + visual description of their **base default look in ONE outfit only**. No scene-specific variants (e.g. "glamorous in studio, sporty in gym"). The reference image must be a single clean image, not a multi-panel grid. Different outfits per scene come from the scene prompts, not the character description.
 4. **Locations** — name + visual description of key places
@@ -192,7 +193,63 @@ curl -X POST "$FK/api/videos" -H "$KEY" \
 
 Save the returned `video_id`.
 
-## Step 3: Create scenes
+## Step 3: Shape the story before you write any scene
+
+Everything below this section is about *visuals* — chains, camera, composition.
+None of it decides whether the video is worth watching. Do this first.
+
+**Write the beat sheet, show it to the user, and only then create scenes.** A
+beat is one thing that happens and changes something. Scenes come from beats; a
+scene without a beat is a screensaver.
+
+### Which shape
+
+- **Documentary / news** — the default this skill was built for. Beats are
+  events in the order they happened, and the narrator supplies what the footage
+  cannot show. Keep using the formula further down.
+
+- **Storytelling** — folktales, legends, myth, fiction, anything where the
+  narrator *is* telling the story rather than commenting on it. Use the shape
+  below. This is what "make a video about ប្រជុំរឿងព្រេងខ្មែរ" means, and
+  treating it as a documentary is why such videos come out as disconnected
+  captions over pretty pictures.
+
+### The folktale shape
+
+Most oral legends — Khmer ones especially — already have this spine. Find it in
+the source before inventing anything:
+
+| Beat | What it does | Typical scenes |
+|------|--------------|----------------|
+| The world | Time, place, the way things were. "Long ago, in…" | 1 |
+| The person and the lack | Who this is about, and what they want or are missing | 1–2 |
+| The disturbance | The thing that breaks the ordinary | 1 |
+| The attempt | What they try. Usually fails, or costs something | 2–3 |
+| The opposing force | Rival, king, spirit, the river itself | 1–2 |
+| The turn | The trick, the sacrifice, the transformation | 1–2 |
+| The consequence | What it cost and who paid | 1–2 |
+| Why it is still told | The name, the mountain, the lesson | 1 |
+
+Many Khmer legends close by explaining a real place name or custom. **Do not
+cut that beat** — it is the reason the story survived, and audiences are waiting
+for it.
+
+### Before creating scenes, confirm with the user
+
+1. The beat sheet, in their language, one line per beat
+2. Scene count per beat (a beat can hold several scenes; a scene cannot hold
+   several beats)
+3. Whether this is **narration-led** — for storytelling it almost always is,
+   which means the scenes should be `ffmpeg` look & feel so narration is not
+   capped at one sentence. See `fk-gen-narrator.md`; get this wrong and the
+   telling is cut into fragments no listener can follow.
+
+If the requested scene count cannot hold the beats, say so and give the real
+number rather than compressing beats out of the story.
+
+---
+
+## Step 3b: Create scenes
 
 For each scene, write a prompt that describes **action + environment + mood** only. Reference entities by name. Never describe character appearance. **All `prompt` and `video_prompt` must be in English** regardless of project language — the AI generator performs best with English prompts.
 
@@ -450,21 +507,46 @@ See `fk-camera-guide.md` for full Veo 3 camera/lighting/audio vocabulary and pro
 
 ### Narrator Text Formula
 
+Two registers. Pick from the shape chosen in Step 3 — they are not
+interchangeable, and a folktale written in the documentary register is the most
+common reason a storytelling video reads as flat.
+
+**Documentary / news** — the narrator supplies what the footage cannot show:
+
 ```
 [What the viewer CANNOT see: context/stakes/motivation]. [Tension or consequence]. [Short punchy closer.]
 ```
 
-- 2-3 sentences max per 8s scene — strictly under 20 words per sentence
 - Mirror the video timing: calm opener → rising tension → punchy close
 - Add off-screen context: historical facts, character motivation, stakes
 - Never describe what is visually obvious: `"We see a ship sailing"` → cut it
 
-**Example:**
 ```
 Captain Harris spots unusual radar signatures. Dozens of Iranian fast boats race straight toward the convoy. He orders battle stations.
 ```
 
-See `fk-gen-narrator.md` for word count limits per language and narrative arc guide.
+**Storytelling** — the narrator *is* telling the story. The visuals illustrate
+the telling, not the other way round:
+
+```
+[Carry the story forward: what happens next]. [What it costs, or what it means]. [The line that pulls the listener to the next scene.]
+```
+
+- Tell events, do not summarise them. "He refused the king's offer" is a
+  summary; "Three times the king offered, and three times he refused" is telling
+- Keep the teller's voice: the cadence, the repetitions and the set phrases an
+  oral tale uses are the point, not padding to be trimmed
+- Name people and places out loud — the listener has no captions and no prior
+  knowledge
+- Do not restate the picture, but **do** carry the thread between pictures: the
+  narration is the only thing that makes scene 7 follow from scene 6
+- End each scene on something unresolved, except the last
+
+**Length.** `fk-gen-narrator.md` owns the limits, and they depend on the scene's
+look & feel, not on a fixed sentence count. A generated clip caps a line at
+about 6.5s (Veo) or 8.5s (Omni). An `ffmpeg` scene has **no cap** — which is why
+storytelling projects should be narration-led. Do not write a story to a
+clip-length budget; set the scene type first.
 
 ---
 
