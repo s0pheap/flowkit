@@ -4,13 +4,30 @@ Usage: `/fk-concat <video_id> [--with-tts] [--4k]`
 
 Default: uses best available quality (4K upscale > regular video), preserves original audio.
 
+## Connection
+
+These commands work against a local agent or a shared server. The Flow Kit
+installer (`<server>/install.sh` or `install.ps1`) writes `~/.flowkit/env` with
+`FLOWKIT_URL` and `FLOWKIT_API_KEY`; without that file they default to
+`http://127.0.0.1:8100` and no key. Shell state does not carry
+over between commands, so **start every command with this line**:
+
+```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+```
+
+Then call the API as `curl -s "$FK/api/..." -H "$KEY"`. A `401` means the key is
+missing or wrong; a `404` on an id you were given means it belongs to another user.
+In PowerShell use `$env:FLOWKIT_URL` and `-Headers @{"X-API-Key"=$env:FLOWKIT_API_KEY}`.
+
 ## Step 1: Get project, video, and scenes
 
 ```bash
-curl -s http://127.0.0.1:8100/api/videos/<VID>
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/videos/<VID>" -H "$KEY"
 # Get project_id from video response
-curl -s http://127.0.0.1:8100/api/projects/<PID>
-curl -s "http://127.0.0.1:8100/api/scenes?video_id=<VID>"
+curl -s "$FK/api/projects/<PID>" -H "$KEY"
+curl -s "$FK/api/scenes?video_id=<VID>" -H "$KEY"
 ```
 
 Note: project name (for output folder), orientation (HORIZONTAL or VERTICAL).
@@ -30,8 +47,9 @@ Check orientation from project or first scene. Use matching prefix (`horizontal_
 ## Step 3: Setup output directory
 
 ```bash
-# Get project output directory (creates dir + meta.json if needed)
-PROJ_OUT=$(curl -s http://127.0.0.1:8100/api/projects/<PID>/output-dir)
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+# Get the project's output directory on the server
+PROJ_OUT=$(curl -s "$FK/api/projects/<PID>/output-dir" -H "$KEY")
 OUTDIR=$(echo "$PROJ_OUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['path'])")
 SLUG=$(echo "$PROJ_OUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['slug'])")
 mkdir -p "${OUTDIR}/4k" "${OUTDIR}/narrated" "${OUTDIR}/norm"

@@ -2,6 +2,22 @@
 
 Image Material controls the **visual style** of every image generated in a project — both entity reference images and scene images. Set it once at project creation; it applies automatically to all generations.
 
+## Connection
+
+These commands work against a local agent or a shared server. The Flow Kit
+installer (`<server>/install.sh` or `install.ps1`) writes `~/.flowkit/env` with
+`FLOWKIT_URL` and `FLOWKIT_API_KEY`; without that file they default to
+`http://127.0.0.1:8100` and no key. Shell state does not carry
+over between commands, so **start every command with this line**:
+
+```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+```
+
+Then call the API as `curl -s "$FK/api/..." -H "$KEY"`. A `401` means the key is
+missing or wrong; a `404` on an id you were given means it belongs to another user.
+In PowerShell use `$env:FLOWKIT_URL` and `-Headers @{"X-API-Key"=$env:FLOWKIT_API_KEY}`.
+
 ## What Is Image Material?
 
 Each material is a named style profile with:
@@ -37,7 +53,8 @@ The `scene_prefix` is baked into each scene's `prompt` field when the scene is c
 ## List All Materials
 
 ```bash
-curl -s http://127.0.0.1:8100/api/materials
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/materials" -H "$KEY"
 ```
 
 Returns built-in + any custom materials you've added.
@@ -47,7 +64,8 @@ Returns built-in + any custom materials you've added.
 ## Create a Custom Material
 
 ```bash
-curl -X POST http://127.0.0.1:8100/api/materials \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -X POST "$FK/api/materials" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "id": "watercolor",
@@ -75,7 +93,8 @@ curl -X POST http://127.0.0.1:8100/api/materials \
 ## Delete a Custom Material
 
 ```bash
-curl -X DELETE http://127.0.0.1:8100/api/materials/watercolor
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -X DELETE "$FK/api/materials/watercolor" -H "$KEY"
 ```
 
 **Note:** Built-in materials (`realistic`, `3d_pixar`, `anime`, `stop_motion`, `minecraft`, `oil_painting`) cannot be deleted.
@@ -87,7 +106,8 @@ curl -X DELETE http://127.0.0.1:8100/api/materials/watercolor
 The `material` field is **required** when creating a project:
 
 ```bash
-curl -X POST http://127.0.0.1:8100/api/projects \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -X POST "$FK/api/projects" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "My Animated Story",

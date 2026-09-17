@@ -20,6 +20,22 @@ Examples:
 
 ---
 
+## Connection
+
+These commands work against a local agent or a shared server. The Flow Kit
+installer (`<server>/install.sh` or `install.ps1`) writes `~/.flowkit/env` with
+`FLOWKIT_URL` and `FLOWKIT_API_KEY`; without that file they default to
+`http://127.0.0.1:8100` and no key. Shell state does not carry
+over between commands, so **start every command with this line**:
+
+```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+```
+
+Then call the API as `curl -s "$FK/api/..." -H "$KEY"`. A `401` means the key is
+missing or wrong; a `404` on an id you were given means it belongs to another user.
+In PowerShell use `$env:FLOWKIT_URL` and `-Headers @{"X-API-Key"=$env:FLOWKIT_API_KEY}`.
+
 ## When to Use
 
 - Starting a new project from scratch (after scenes are created)
@@ -35,15 +51,16 @@ Examples:
 ### 1a. Fetch project
 
 ```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
 # Most recent project
-curl -s http://127.0.0.1:8100/api/projects
+curl -s "$FK/api/projects" -H "$KEY"
 # Use last item → {id, name}
 
 # Get video + scenes
-VID=$(curl -s "http://127.0.0.1:8100/api/videos?project_id=<PID>" | python3 -c "import sys,json; print(json.load(sys.stdin)[0]['id'])")
-curl -s "http://127.0.0.1:8100/api/scenes?video_id=$VID" > /tmp/fk_scenes.json
-curl -s "http://127.0.0.1:8100/api/projects/<PID>/characters" > /tmp/fk_chars.json
-curl -s "http://127.0.0.1:8100/api/projects/<PID>/output-dir" > /tmp/fk_outdir.json
+VID=$(curl -s "$FK/api/videos?project_id=<PID>" -H "$KEY" | python3 -c "import sys,json; print(json.load(sys.stdin)[0]['id'])")
+curl -s "$FK/api/scenes?video_id=$VID" -H "$KEY" > /tmp/fk_scenes.json
+curl -s "$FK/api/projects/<PID>/characters" -H "$KEY" > /tmp/fk_chars.json
+curl -s "$FK/api/projects/<PID>/output-dir" -H "$KEY" > /tmp/fk_outdir.json
 ```
 
 ### 1b. Derive slug and output dir
@@ -179,10 +196,11 @@ if concat_flag:
 Only run if any entity is missing `media_id`.
 
 ```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
 # For each entity missing media_id, submit GENERATE_CHARACTER_IMAGE
 # Batch 5 at a time
 for CID in <missing_ids>:
-  curl -X POST http://127.0.0.1:8100/api/requests \
+  curl -X POST "$FK/api/requests" -H "$KEY" \
     -H "Content-Type: application/json" \
     -d '{"type":"GENERATE_CHARACTER_IMAGE","character_id":"<CID>","project_id":"<PID>"}'
 ```
@@ -198,8 +216,9 @@ for CID in <missing_ids>:
 Only run after all refs have `media_id`.
 
 ```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
 # For each scene with image_status != COMPLETED:
-curl -X POST http://127.0.0.1:8100/api/requests \
+curl -X POST "$FK/api/requests" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{"type":"GENERATE_IMAGE","scene_id":"<SID>","project_id":"<PID>","video_id":"<VID>","orientation":"<ORIENTATION>"}'
 ```
@@ -215,7 +234,8 @@ Batch 5 at a time. Poll every 15s. Submit next batch when current batch complete
 Only run after all scene images COMPLETED.
 
 ```bash
-curl -X POST http://127.0.0.1:8100/api/requests \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -X POST "$FK/api/requests" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{"type":"GENERATE_VIDEO","scene_id":"<SID>","project_id":"<PID>","video_id":"<VID>","orientation":"<ORIENTATION>"}'
 ```
@@ -229,8 +249,9 @@ Batch 5. Poll 15s. Each video takes 2-5 min.
 Only run after all videos COMPLETED. Uses `/fk-review-video` to catch AI generation errors before upscaling.
 
 ```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
 # Run light review on all completed videos
-curl -X POST "http://127.0.0.1:8100/api/videos/<VID>/review?project_id=<PID>&mode=light&orientation=<ORIENTATION>"
+curl -X POST "$FK/api/videos/<VID>/review?project_id=<PID>&mode=light&orientation=<ORIENTATION>" -H "$KEY"
 # Poll until complete
 ```
 
@@ -276,7 +297,8 @@ for cycle in range(2):
 Only run after review passes (or max review cycles exhausted). TIER_TWO only.
 
 ```bash
-curl -X POST http://127.0.0.1:8100/api/requests \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -X POST "$FK/api/requests" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{"type":"UPSCALE_VIDEO","scene_id":"<SID>","project_id":"<PID>","video_id":"<VID>","orientation":"<ORIENTATION>"}'
 ```
@@ -290,12 +312,13 @@ Batch 5. **Resubmit failed upscales** once automatically.
 Runs in parallel with Stage 2 or 3. Requires `narrator_text` on scenes and a voice template.
 
 ```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
 # Check templates
-curl -s http://127.0.0.1:8100/api/tts/templates
+curl -s "$FK/api/tts/templates" -H "$KEY"
 # Pick template name (e.g. vi_male_narrator)
 
 # Trigger narration for video
-curl -X POST http://127.0.0.1:8100/api/videos/<VID>/narrate \
+curl -X POST "$FK/api/videos/<VID>/narrate" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{"template":"<template_name>"}'
 ```

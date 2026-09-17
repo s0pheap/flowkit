@@ -2,12 +2,29 @@ Generate videos for all scenes in a video.
 
 Usage: `/fk-gen-videos <project_id> <video_id>`
 
+## Connection
+
+These commands work against a local agent or a shared server. The Flow Kit
+installer (`<server>/install.sh` or `install.ps1`) writes `~/.flowkit/env` with
+`FLOWKIT_URL` and `FLOWKIT_API_KEY`; without that file they default to
+`http://127.0.0.1:8100` and no key. Shell state does not carry
+over between commands, so **start every command with this line**:
+
+```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+```
+
+Then call the API as `curl -s "$FK/api/..." -H "$KEY"`. A `401` means the key is
+missing or wrong; a `404` on an id you were given means it belongs to another user.
+In PowerShell use `$env:FLOWKIT_URL` and `-Headers @{"X-API-Key"=$env:FLOWKIT_API_KEY}`.
+
 ## Step 0: Detect orientation
 
 ```bash
-PROJ_OUT=$(curl -s http://127.0.0.1:8100/api/projects/<PID>/output-dir)
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+PROJ_OUT=$(curl -s "$FK/api/projects/<PID>/output-dir" -H "$KEY")
 OUTDIR=$(echo "$PROJ_OUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['path'])")
-ORI=$(cat ${OUTDIR}/meta.json | python3 -c "import sys,json; print(json.load(sys.stdin).get('orientation','HORIZONTAL'))")
+ORI=$(curl -s "$FK/api/videos/<VID>" -H "$KEY" | python3 -c "import sys,json; print(json.load(sys.stdin).get('orientation') or 'HORIZONTAL')")
 ori=$(echo "$ORI" | tr '[:upper:]' '[:lower:]')
 ```
 **NEVER hardcode VERTICAL or HORIZONTAL.** Use `${ORI}` for API params, `${ori}_*` for DB field lookups.
@@ -15,7 +32,8 @@ ori=$(echo "$ORI" | tr '[:upper:]' '[:lower:]')
 ## Step 1: Pre-check — all scene images must be ready
 
 ```bash
-curl -s "http://127.0.0.1:8100/api/scenes?video_id=<VID>"
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/scenes?video_id=<VID>" -H "$KEY"
 ```
 
 **ABORT** if any scene is missing `${ori}_image_media_id` (UUID) or `${ori}_image_status` != `"COMPLETED"`. Tell user to run `/fk-gen-images` first.
@@ -29,7 +47,8 @@ Only scenes where `${ori}_video_status` != `"COMPLETED"` or `${ori}_video_media_
 The server handles throttling automatically (max 5 concurrent, 10s cooldown). Submit everything in one batch call. Video generation takes 2-5 minutes per scene.
 
 ```bash
-curl -X POST http://127.0.0.1:8100/api/requests/batch \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -X POST "$FK/api/requests/batch" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "requests": [
@@ -44,7 +63,8 @@ Build the `requests` array from ALL scenes filtered in Step 2. Do NOT manually b
 Poll aggregate status every 30s until done (videos take longer):
 
 ```bash
-curl -s "http://127.0.0.1:8100/api/requests/batch-status?video_id=<VID>&type=GENERATE_VIDEO"
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/requests/batch-status?video_id=<VID>&type=GENERATE_VIDEO" -H "$KEY"
 # Wait for: "done": true
 # If "all_succeeded": false → some failed, check individual failures
 ```
@@ -52,7 +72,8 @@ curl -s "http://127.0.0.1:8100/api/requests/batch-status?video_id=<VID>&type=GEN
 ## Step 4: Verify
 
 ```bash
-curl -s "http://127.0.0.1:8100/api/scenes?video_id=<VID>"
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/scenes?video_id=<VID>" -H "$KEY"
 ```
 
 ## Step 5: Output

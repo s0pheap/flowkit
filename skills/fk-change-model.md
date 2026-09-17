@@ -11,6 +11,22 @@ Usage:
 
 ---
 
+## Connection
+
+These commands work against a local agent or a shared server. The Flow Kit
+installer (`<server>/install.sh` or `install.ps1`) writes `~/.flowkit/env` with
+`FLOWKIT_URL` and `FLOWKIT_API_KEY`; without that file they default to
+`http://127.0.0.1:8100` and no key. Shell state does not carry
+over between commands, so **start every command with this line**:
+
+```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+```
+
+Then call the API as `curl -s "$FK/api/..." -H "$KEY"`. A `401` means the key is
+missing or wrong; a `404` on an id you were given means it belongs to another user.
+In PowerShell use `$env:FLOWKIT_URL` and `-Headers @{"X-API-Key"=$env:FLOWKIT_API_KEY}`.
+
 ## What the model keys mean on the current Flow API
 
 Since Flow moved to `flow.google.com`, aspect ratio is its own payload slot and
@@ -36,7 +52,8 @@ which nickname is used.
 ## Step 1: Show Current Models
 
 ```bash
-curl -s http://127.0.0.1:8100/api/models | python3 -m json.tool
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/models" -H "$KEY" | python3 -m json.tool
 ```
 
 Display in a readable table:
@@ -89,8 +106,9 @@ Use `AskUserQuestion` with options:
 ### Change video model (all orientations for a tier + gen type)
 
 ```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
 # Example: switch TIER_TWO i2v to a different model
-curl -s -X PATCH http://127.0.0.1:8100/api/models \
+curl -s -X PATCH "$FK/api/models" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "video_models": {
@@ -107,8 +125,9 @@ curl -s -X PATCH http://127.0.0.1:8100/api/models \
 ### Change a single orientation
 
 ```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
 # Example: change only portrait video model for TIER_TWO i2v
-curl -s -X PATCH http://127.0.0.1:8100/api/models \
+curl -s -X PATCH "$FK/api/models" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "video_models": {
@@ -124,7 +143,8 @@ curl -s -X PATCH http://127.0.0.1:8100/api/models \
 ### Change image model
 
 ```bash
-curl -s -X PATCH http://127.0.0.1:8100/api/models \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s -X PATCH "$FK/api/models" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "image_models": {
@@ -136,7 +156,8 @@ curl -s -X PATCH http://127.0.0.1:8100/api/models \
 ### Change upscale model
 
 ```bash
-curl -s -X PATCH http://127.0.0.1:8100/api/models \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s -X PATCH "$FK/api/models" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "upscale_models": {
@@ -150,7 +171,8 @@ curl -s -X PATCH http://127.0.0.1:8100/api/models \
 After changing, verify the update took effect:
 
 ```bash
-curl -s http://127.0.0.1:8100/api/models | python3 -m json.tool
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/models" -H "$KEY" | python3 -m json.tool
 ```
 
 Changes are **hot-reloaded** — no server restart needed. The new model keys are used immediately for all subsequent requests.
@@ -201,28 +223,32 @@ These are model keys observed on Google Flow (may change as Google updates):
 
 **Switch to VEO 3.1 Lite Low Priority (TRUE 0-credit, works on ADVANCED tier — Recommended for Low Priority):**
 ```bash
-curl -s -X PATCH http://127.0.0.1:8100/api/models \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s -X PATCH "$FK/api/models" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{"video_models":{"PAYGATE_TIER_TWO":{"frame_2_video":{"VIDEO_ASPECT_RATIO_LANDSCAPE":"veo_3_1_i2v_lite_low_priority","VIDEO_ASPECT_RATIO_PORTRAIT":"veo_3_1_i2v_lite_low_priority"},"start_end_frame_2_video":{"VIDEO_ASPECT_RATIO_LANDSCAPE":"veo_3_1_i2v_lite_low_priority","VIDEO_ASPECT_RATIO_PORTRAIT":"veo_3_1_i2v_lite_low_priority"}}}}'
 ```
 
 **Switch to VEO 3.1 Lite (fast, ~5 credits per video, no r2v):**
 ```bash
-curl -s -X PATCH http://127.0.0.1:8100/api/models \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s -X PATCH "$FK/api/models" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{"video_models":{"PAYGATE_TIER_TWO":{"frame_2_video":{"VIDEO_ASPECT_RATIO_LANDSCAPE":"veo_3_1_i2v_lite","VIDEO_ASPECT_RATIO_PORTRAIT":"veo_3_1_i2v_lite"},"start_end_frame_2_video":{"VIDEO_ASPECT_RATIO_LANDSCAPE":"veo_3_1_i2v_lite","VIDEO_ASPECT_RATIO_PORTRAIT":"veo_3_1_i2v_lite"}}}}'
 ```
 
 **Switch to VEO 3.1 Low Priority "leaving" (0 credits, requires SERVICE_TIER_ULTRA — fails silently on ADVANCED):**
 ```bash
-curl -s -X PATCH http://127.0.0.1:8100/api/models \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s -X PATCH "$FK/api/models" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{"video_models":{"PAYGATE_TIER_TWO":{"frame_2_video":{"VIDEO_ASPECT_RATIO_LANDSCAPE":"veo_3_1_i2v_s_fast_ultra_relaxed","VIDEO_ASPECT_RATIO_PORTRAIT":"veo_3_1_i2v_s_fast_ultra_relaxed"},"start_end_frame_2_video":{"VIDEO_ASPECT_RATIO_LANDSCAPE":"veo_3_1_i2v_s_fast_ultra_relaxed","VIDEO_ASPECT_RATIO_PORTRAIT":"veo_3_1_i2v_s_fast_ultra_relaxed"},"reference_frame_2_video":{"VIDEO_ASPECT_RATIO_LANDSCAPE":"veo_3_1_r2v_fast_landscape_ultra_relaxed","VIDEO_ASPECT_RATIO_PORTRAIT":"veo_3_1_r2v_fast_landscape_ultra_relaxed"}}}}'
 ```
 
 **Switch to VEO 3.1 Fast Ultra (~10 credits per video, full quality, requires credits):**
 ```bash
-curl -s -X PATCH http://127.0.0.1:8100/api/models \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s -X PATCH "$FK/api/models" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{"video_models":{"PAYGATE_TIER_TWO":{"frame_2_video":{"VIDEO_ASPECT_RATIO_LANDSCAPE":"veo_3_1_i2v_s_fast_ultra","VIDEO_ASPECT_RATIO_PORTRAIT":"veo_3_1_i2v_s_fast_portrait_ultra"},"start_end_frame_2_video":{"VIDEO_ASPECT_RATIO_LANDSCAPE":"veo_3_1_i2v_s_fast_ultra_fl","VIDEO_ASPECT_RATIO_PORTRAIT":"veo_3_1_i2v_s_fast_portrait_ultra_fl"},"reference_frame_2_video":{"VIDEO_ASPECT_RATIO_LANDSCAPE":"veo_3_0_r2v_fast_ultra","VIDEO_ASPECT_RATIO_PORTRAIT":"veo_3_0_r2v_fast_portrait_ultra"}}}}'
 ```

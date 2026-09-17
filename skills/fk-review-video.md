@@ -4,6 +4,22 @@ Usage: `/fk-review-video <video_id> [--mode light|deep]`
 
 Default mode: `light`. Orientation auto-detected from project `meta.json`.
 
+## Connection
+
+These commands work against a local agent or a shared server. The Flow Kit
+installer (`<server>/install.sh` or `install.ps1`) writes `~/.flowkit/env` with
+`FLOWKIT_URL` and `FLOWKIT_API_KEY`; without that file they default to
+`http://127.0.0.1:8100` and no key. Shell state does not carry
+over between commands, so **start every command with this line**:
+
+```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+```
+
+Then call the API as `curl -s "$FK/api/..." -H "$KEY"`. A `401` means the key is
+missing or wrong; a `404` on an id you were given means it belongs to another user.
+In PowerShell use `$env:FLOWKIT_URL` and `-Headers @{"X-API-Key"=$env:FLOWKIT_API_KEY}`.
+
 ## Prerequisites
 
 - `ANTHROPIC_API_KEY` env var set
@@ -13,12 +29,13 @@ Default mode: `light`. Orientation auto-detected from project `meta.json`.
 ## Step 1: Pre-check
 
 ```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
 # Verify server + extension connected
-curl -s http://127.0.0.1:8100/health
+curl -s "$FK/health" -H "$KEY"
 # Must return: {"extension_connected": true}
 
 # Verify video exists
-curl -s http://127.0.0.1:8100/api/videos/<VID>
+curl -s "$FK/api/videos/<VID>" -H "$KEY"
 ```
 
 **ABORT** if extension not connected or video not found.
@@ -26,7 +43,8 @@ curl -s http://127.0.0.1:8100/api/videos/<VID>
 ## Step 2: Check scenes have completed videos
 
 ```bash
-curl -s "http://127.0.0.1:8100/api/scenes?video_id=<VID>"
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/scenes?video_id=<VID>" -H "$KEY"
 ```
 
 For each scene, verify `${ori}_video_status = COMPLETED` (orientation auto-detected from meta.json).
@@ -36,7 +54,8 @@ For each scene, verify `${ori}_video_status = COMPLETED` (orientation auto-detec
 ## Step 3: Run review via API
 
 ```bash
-curl -X POST "http://127.0.0.1:8100/api/videos/<VID>/review?project_id=<PID>&mode=light&orientation=${ORI}"
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -X POST "$FK/api/videos/<VID>/review?project_id=<PID>&mode=light&orientation=${ORI}" -H "$KEY"
 ```
 
 **Parameters:**
@@ -47,7 +66,8 @@ The API will extract frames from each scene video, send them to Claude Vision, a
 
 **Poll until complete:**
 ```bash
-curl -s http://127.0.0.1:8100/api/requests/<RID>
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/requests/<RID>" -H "$KEY"
 # Wait for status: "COMPLETED"
 ```
 
@@ -111,8 +131,9 @@ Errors in the `errors` array are prefixed with severity: `[CRITICAL]`, `[HIGH]`,
 ### Poor / Unusable scenes
 Regenerate the scene image first, then the video:
 ```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
 # Force-regenerate scene image (cascades video + upscale)
-curl -X POST http://127.0.0.1:8100/api/requests \
+curl -X POST "$FK/api/requests" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{"type": "REGENERATE_IMAGE", "scene_id": "<SID>", "project_id": "<PID>", "video_id": "<VID>", "orientation": "${ORI}"}'
 ```
@@ -125,7 +146,8 @@ Note `usable_segments` time ranges for manual editing. Use `/fk-concat` and trim
 - Verify all entity ref images have `media_id` (UUID format)
 - Use `EDIT_IMAGE` to re-anchor character appearance:
   ```bash
-  curl -X POST http://127.0.0.1:8100/api/requests \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+  curl -X POST "$FK/api/requests" -H "$KEY" \
     -H "Content-Type: application/json" \
     -d '{"type": "EDIT_IMAGE", "scene_id": "<SID>", "project_id": "<PID>", "video_id": "<VID>", "orientation": "${ORI}"}'
   ```
@@ -133,7 +155,8 @@ Note `usable_segments` time ranges for manual editing. Use `/fk-concat` and trim
 ### After fixes
 Run review again to verify improvements:
 ```bash
-curl -X POST "http://127.0.0.1:8100/api/videos/<VID>/review?project_id=<PID>&mode=deep"
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -X POST "$FK/api/videos/<VID>/review?project_id=<PID>&mode=deep" -H "$KEY"
 ```
 
 ## Modes

@@ -2,9 +2,25 @@
 
 Generate background music or songs for video projects using the Suno API (sunoapi.org).
 
+## Connection
+
+These commands work against a local agent or a shared server. The Flow Kit
+installer (`<server>/install.sh` or `install.ps1`) writes `~/.flowkit/env` with
+`FLOWKIT_URL` and `FLOWKIT_API_KEY`; without that file they default to
+`http://127.0.0.1:8100` and no key. Shell state does not carry
+over between commands, so **start every command with this line**:
+
+```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+```
+
+Then call the API as `curl -s "$FK/api/..." -H "$KEY"`. A `401` means the key is
+missing or wrong; a `404` on an id you were given means it belongs to another user.
+In PowerShell use `$env:FLOWKIT_URL` and `-Headers @{"X-API-Key"=$env:FLOWKIT_API_KEY}`.
+
 ## Prerequisites
 
-- GLA server running: `curl http://127.0.0.1:8100/health`
+- GLA server running: `curl "$FK/health`" -H "$KEY"
 - Suno API key configured: `export SUNO_API_KEY=your-key`
 - Get API key at https://sunoapi.org/api-key
 
@@ -15,11 +31,12 @@ Generate background music or songs for video projects using the Suno API (sunoap
 Browse available song templates to find the right style:
 
 ```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
 # List all templates
-curl -s http://127.0.0.1:8100/api/music/templates | python3 -m json.tool
+curl -s "$FK/api/music/templates" -H "$KEY" | python3 -m json.tool
 
 # Get a specific template (see style, tags, example lyrics)
-curl -s http://127.0.0.1:8100/api/music/templates/cinematic_epic
+curl -s "$FK/api/music/templates/cinematic_epic" -H "$KEY"
 ```
 
 Available categories: Children & Family, Love & Romance, Pop, Rock, Hip-Hop, Electronic, Country & Folk, Cinematic, Motivational.
@@ -33,8 +50,9 @@ Available categories: Children & Family, Love & Romance, Pop, Rock, Hip-Hop, Ele
 Use a template to auto-fill style tags. Provide custom lyrics or let the template's example lyrics run:
 
 ```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
 # With custom lyrics + template style
-curl -X POST http://127.0.0.1:8100/api/music/generate \
+curl -X POST "$FK/api/music/generate" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "template_id": "cinematic_epic",
@@ -44,7 +62,7 @@ curl -X POST http://127.0.0.1:8100/api/music/generate \
   }'
 
 # Template defaults (uses example lyrics + suno_tags)
-curl -X POST http://127.0.0.1:8100/api/music/generate \
+curl -X POST "$FK/api/music/generate" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "template_id": "lullaby_gentle",
@@ -58,7 +76,8 @@ curl -X POST http://127.0.0.1:8100/api/music/generate \
 Provide your own lyrics and style tags:
 
 ```bash
-curl -X POST http://127.0.0.1:8100/api/music/generate \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -X POST "$FK/api/music/generate" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "[Verse]\nWalking through the rain\nSearching for the light\n[Chorus]\nWe will find our way\nThrough the darkest night",
@@ -73,7 +92,8 @@ curl -X POST http://127.0.0.1:8100/api/music/generate \
 Just describe what you want in natural language:
 
 ```bash
-curl -X POST http://127.0.0.1:8100/api/music/generate \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -X POST "$FK/api/music/generate" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "an epic orchestral track for a military documentary about naval battles, dramatic and heroic",
@@ -88,11 +108,12 @@ curl -X POST http://127.0.0.1:8100/api/music/generate \
 Each generation produces **2 clips** (variations). When `poll: true`, the response waits for completion.
 
 ```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
 # If poll was false, check status manually:
-curl -s http://127.0.0.1:8100/api/music/tasks/<TASK_ID>
+curl -s "$FK/api/music/tasks/<TASK_ID>" -H "$KEY"
 
 # Poll until complete:
-curl -X POST http://127.0.0.1:8100/api/music/tasks/<TASK_ID>/poll
+curl -X POST "$FK/api/music/tasks/<TASK_ID>/poll" -H "$KEY"
 ```
 
 **Task statuses:** `PENDING` → `GENERATING` → `SUCCESS` or `FAILED`
@@ -100,7 +121,8 @@ curl -X POST http://127.0.0.1:8100/api/music/tasks/<TASK_ID>/poll
 ### Step 4: Download
 
 ```bash
-curl -X POST http://127.0.0.1:8100/api/music/tasks/<TASK_ID>/download
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -X POST "$FK/api/music/tasks/<TASK_ID>/download" -H "$KEY"
 # Returns: {"task_id": "...", "downloaded": [{"clip_id": "...", "path": "output/_shared/music/title_abcd1234.mp3", ...}]}
 ```
 
@@ -109,8 +131,9 @@ curl -X POST http://127.0.0.1:8100/api/music/tasks/<TASK_ID>/download
 Add the downloaded music as background for your concat video:
 
 ```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
 # Get project output directory
-PROJ_OUT=$(curl -s http://127.0.0.1:8100/api/projects/<PID>/output-dir)
+PROJ_OUT=$(curl -s "$FK/api/projects/<PID>/output-dir" -H "$KEY")
 OUTDIR=$(echo "$PROJ_OUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['path'])")
 SLUG=$(echo "$PROJ_OUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['slug'])")
 
@@ -125,7 +148,8 @@ ffmpeg -y -i "${OUTDIR}/${SLUG}_final.mp4" -i output/_shared/music/track.mp3 \
 Continue or extend an existing clip from a previous generation:
 
 ```bash
-curl -X POST http://127.0.0.1:8100/api/music/extend \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -X POST "$FK/api/music/extend" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "audio_id": "<AUDIO_ID from clip>",
@@ -140,7 +164,8 @@ curl -X POST http://127.0.0.1:8100/api/music/extend \
 Separate vocals from instrumental:
 
 ```bash
-curl -X POST http://127.0.0.1:8100/api/music/vocal-removal \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -X POST "$FK/api/music/vocal-removal" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "task_id": "<TASK_ID>",
@@ -155,7 +180,8 @@ curl -X POST http://127.0.0.1:8100/api/music/vocal-removal \
 Get lossless WAV from a generated clip:
 
 ```bash
-curl -X POST http://127.0.0.1:8100/api/music/convert-to-wav \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -X POST "$FK/api/music/convert-to-wav" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "task_id": "<TASK_ID>",
@@ -169,7 +195,8 @@ curl -X POST http://127.0.0.1:8100/api/music/convert-to-wav \
 Ask Suno's AI to write lyrics from a description, optionally guided by a template:
 
 ```bash
-curl -X POST http://127.0.0.1:8100/api/music/generate-lyrics \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -X POST "$FK/api/music/generate-lyrics" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "a song about a cat astronaut exploring a candy planet",
@@ -181,7 +208,8 @@ curl -X POST http://127.0.0.1:8100/api/music/generate-lyrics \
 ## Check Credits
 
 ```bash
-curl -s http://127.0.0.1:8100/api/music/credits
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/music/credits" -H "$KEY"
 ```
 
 ## API Reference

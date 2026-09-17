@@ -4,9 +4,25 @@ Create a reusable voice template for consistent narration across all scenes.
 
 **IMPORTANT:** Always create a voice template BEFORE narrating scenes. Without a template, each scene generates with a slightly different voice. With a template, voice cloning ensures 100% consistency.
 
+## Connection
+
+These commands work against a local agent or a shared server. The Flow Kit
+installer (`<server>/install.sh` or `install.ps1`) writes `~/.flowkit/env` with
+`FLOWKIT_URL` and `FLOWKIT_API_KEY`; without that file they default to
+`http://127.0.0.1:8100` and no key. Shell state does not carry
+over between commands, so **start every command with this line**:
+
+```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+```
+
+Then call the API as `curl -s "$FK/api/..." -H "$KEY"`. A `401` means the key is
+missing or wrong; a `404` on an id you were given means it belongs to another user.
+In PowerShell use `$env:FLOWKIT_URL` and `-Headers @{"X-API-Key"=$env:FLOWKIT_API_KEY}`.
+
 ## Prerequisites
 
-- GLA server running: `curl http://127.0.0.1:8100/health`
+- GLA server running: `curl "$FK/health`" -H "$KEY"
 - OmniVoice installed in the Python environment used by the agent (see below)
 
 ### Installing OmniVoice
@@ -80,8 +96,9 @@ This ensures `ref_text` is always known — no need to extract/transcribe later.
 **Why this text?** It's generic (not project-specific), covers varied phonemes (numbers, nouns, verbs), and is ~5s at normal speed — ideal for voice cloning reference.
 
 ```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
 # Example: Vietnamese template
-curl -X POST http://127.0.0.1:8100/api/tts/templates \
+curl -X POST "$FK/api/tts/templates" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "narrator_male_vn",
@@ -104,14 +121,16 @@ Open the returned `audio_path` and verify the voice matches your vision. If not,
 ### Step 3: Link to Project
 
 ```bash
-curl -X PATCH http://127.0.0.1:8100/api/projects/<PID> \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -X PATCH "$FK/api/projects/<PID>" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{"narrator_ref_audio": "<audio_path from step 1>"}'
 ```
 
 Or pass `template` name directly when narrating (recommended):
 ```bash
-curl -X POST http://127.0.0.1:8100/api/videos/<VID>/narrate \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -X POST "$FK/api/videos/<VID>/narrate" -H "$KEY" \
   -d '{"project_id": "<PID>", "template": "narrator_male_vn", "speed": 1.1}'
 ```
 

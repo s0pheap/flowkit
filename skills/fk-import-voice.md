@@ -2,6 +2,22 @@
 
 Register an existing WAV file as a reusable voice template for narration. Auto-transcribes the audio and registers it in the template system.
 
+## Connection
+
+These commands work against a local agent or a shared server. The Flow Kit
+installer (`<server>/install.sh` or `install.ps1`) writes `~/.flowkit/env` with
+`FLOWKIT_URL` and `FLOWKIT_API_KEY`; without that file they default to
+`http://127.0.0.1:8100` and no key. Shell state does not carry
+over between commands, so **start every command with this line**:
+
+```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+```
+
+Then call the API as `curl -s "$FK/api/..." -H "$KEY"`. A `401` means the key is
+missing or wrong; a `404` on an id you were given means it belongs to another user.
+In PowerShell use `$env:FLOWKIT_URL` and `-Headers @{"X-API-Key"=$env:FLOWKIT_API_KEY}`.
+
 ## When to Use
 
 - You have a real voice recording (WAV) you want to use for narration
@@ -10,7 +26,7 @@ Register an existing WAV file as a reusable voice template for narration. Auto-t
 
 ## Prerequisites
 
-- GLA server running: `curl http://127.0.0.1:8100/health`
+- GLA server running: `curl "$FK/health`" -H "$KEY"
 - `faster-whisper` installed in `/opt/homebrew/bin/python3.10`
 - WAV file placed in `output/_shared/tts_templates/`
 
@@ -77,7 +93,8 @@ Template name: derive from filename (e.g., `vi_male_narrator.wav` → `vi_male_n
 ### Step 4: Verify via API
 
 ```bash
-curl -s http://127.0.0.1:8100/api/tts/templates
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/tts/templates" -H "$KEY"
 # Should list the new template
 ```
 
@@ -86,7 +103,8 @@ curl -s http://127.0.0.1:8100/api/tts/templates
 Generate a short test sentence using the imported voice:
 
 ```bash
-curl -s -X POST http://127.0.0.1:8100/api/tts/generate \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s -X POST "$FK/api/tts/generate" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "text": "<SHORT_TEST_SENTENCE_IN_SAME_LANGUAGE>",

@@ -9,10 +9,27 @@ Usage:
 
 ---
 
+## Connection
+
+These commands work against a local agent or a shared server. The Flow Kit
+installer (`<server>/install.sh` or `install.ps1`) writes `~/.flowkit/env` with
+`FLOWKIT_URL` and `FLOWKIT_API_KEY`; without that file they default to
+`http://127.0.0.1:8100` and no key. Shell state does not carry
+over between commands, so **start every command with this line**:
+
+```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+```
+
+Then call the API as `curl -s "$FK/api/..." -H "$KEY"`. A `401` means the key is
+missing or wrong; a `404` on an id you were given means it belongs to another user.
+In PowerShell use `$env:FLOWKIT_URL` and `-Headers @{"X-API-Key"=$env:FLOWKIT_API_KEY}`.
+
 ## Step 1: List Available Projects
 
 ```bash
-curl -s http://127.0.0.1:8100/api/projects | python3 -c "
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/projects" -H "$KEY" | python3 -c "
 import sys, json
 projects = json.load(sys.stdin)
 print(f'{'#':>3}  {'Name':40} {'ID':36}  {'Status':8}  Material')
@@ -26,7 +43,8 @@ for i, p in enumerate(projects, 1):
 ## Step 2: Show Current Active Project
 
 ```bash
-curl -s http://127.0.0.1:8100/api/active-project | python3 -c "
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/active-project" -H "$KEY" | python3 -c "
 import sys, json
 ap = json.load(sys.stdin)
 if ap.get('project_id'):
@@ -43,7 +61,8 @@ else:
 If the user provided a `project_id` argument, use it directly. Otherwise, present an `AskUserQuestion` selector with up to 4 projects (most recent first, showing name + material + short ID). After user picks, switch:
 
 ```bash
-curl -s -X PUT http://127.0.0.1:8100/api/active-project \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s -X PUT "$FK/api/active-project" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{"project_id": "<PROJECT_ID>"}'
 ```
@@ -57,7 +76,8 @@ If more than 4 projects exist, show the 4 most recent and let the user type "Oth
 ## Step 4: Verify
 
 ```bash
-curl -s http://127.0.0.1:8100/api/active-project | python3 -c "
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/active-project" -H "$KEY" | python3 -c "
 import sys, json
 ap = json.load(sys.stdin)
 print(f'Switched to: {ap[\"project_name\"]}')
@@ -71,7 +91,8 @@ print(f'Video ID:    {ap.get(\"video_id\", \"none\")}')
 To revert to the default behavior (most recently created project):
 
 ```bash
-curl -s -X DELETE http://127.0.0.1:8100/api/active-project
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s -X DELETE "$FK/api/active-project" -H "$KEY"
 ```
 
 ---

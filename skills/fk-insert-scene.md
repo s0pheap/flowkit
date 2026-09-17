@@ -6,6 +6,22 @@ Example: `/insert-scene abc123 2 "Close-up of Hero's hand gripping Magic Sword, 
 
 This inserts a new scene AFTER the specified scene order, shifts subsequent scenes, and maintains the chain.
 
+## Connection
+
+These commands work against a local agent or a shared server. The Flow Kit
+installer (`<server>/install.sh` or `install.ps1`) writes `~/.flowkit/env` with
+`FLOWKIT_URL` and `FLOWKIT_API_KEY`; without that file they default to
+`http://127.0.0.1:8100` and no key. Shell state does not carry
+over between commands, so **start every command with this line**:
+
+```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+```
+
+Then call the API as `curl -s "$FK/api/..." -H "$KEY"`. A `401` means the key is
+missing or wrong; a `404` on an id you were given means it belongs to another user.
+In PowerShell use `$env:FLOWKIT_URL` and `-Headers @{"X-API-Key"=$env:FLOWKIT_API_KEY}`.
+
 ## Concept: Multi-angle from single moment
 
 One story moment can become multiple scenes with different camera angles:
@@ -21,7 +37,8 @@ All INSERT scenes use the SAME `character_names` as the parent for visual consis
 ## Step 1: Get current scenes
 
 ```bash
-curl -s "http://127.0.0.1:8100/api/scenes?video_id=<VID>"
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/scenes?video_id=<VID>" -H "$KEY"
 ```
 
 Find the scene at the specified `display_order`. This becomes the parent.
@@ -33,7 +50,8 @@ Ask the user for:
 - **character_names**: Default to same as parent scene (user can override)
 
 ```bash
-curl -X POST http://127.0.0.1:8100/api/scenes \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -X POST "$FK/api/scenes" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "video_id": "<VID>",
@@ -51,8 +69,9 @@ curl -X POST http://127.0.0.1:8100/api/scenes \
 All scenes with `display_order > parent_order` need their order incremented by 1:
 
 ```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
 # For each scene after the insert point:
-curl -X PATCH http://127.0.0.1:8100/api/scenes/<SID> \
+curl -X PATCH "$FK/api/scenes/<SID>" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{"display_order": <current_order + 1>}'
 ```

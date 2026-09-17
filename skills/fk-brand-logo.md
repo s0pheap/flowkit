@@ -11,6 +11,22 @@ Usage: `/fk-brand-logo <channel_name> <video_path> [--size 220] [--thumbnails] [
 - `--no-intro` — skip intro prepend
 - `--no-outro` — skip outro append
 
+## Connection
+
+These commands work against a local agent or a shared server. The Flow Kit
+installer (`<server>/install.sh` or `install.ps1`) writes `~/.flowkit/env` with
+`FLOWKIT_URL` and `FLOWKIT_API_KEY`; without that file they default to
+`http://127.0.0.1:8100` and no key. Shell state does not carry
+over between commands, so **start every command with this line**:
+
+```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+```
+
+Then call the API as `curl -s "$FK/api/..." -H "$KEY"`. A `401` means the key is
+missing or wrong; a `404` on an id you were given means it belongs to another user.
+In PowerShell use `$env:FLOWKIT_URL` and `-Headers @{"X-API-Key"=$env:FLOWKIT_API_KEY}`.
+
 ## Channel Directory Structure
 
 ```
@@ -152,7 +168,8 @@ fi
 ## Step 8: Apply to thumbnails (if --thumbnails)
 
 ```bash
-PROJ_OUT=$(curl -s http://127.0.0.1:8100/api/projects/<PID>/output-dir)
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+PROJ_OUT=$(curl -s "$FK/api/projects/<PID>/output-dir" -H "$KEY")
 OUTDIR=$(echo "$PROJ_OUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['path'])")
 
 for thumb in "${OUTDIR}/thumbnails/thumbnail_v"*_yt.png; do

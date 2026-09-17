@@ -9,10 +9,27 @@ Usage:
 
 ---
 
+## Connection
+
+These commands work against a local agent or a shared server. The Flow Kit
+installer (`<server>/install.sh` or `install.ps1`) writes `~/.flowkit/env` with
+`FLOWKIT_URL` and `FLOWKIT_API_KEY`; without that file they default to
+`http://127.0.0.1:8100` and no key. Shell state does not carry
+over between commands, so **start every command with this line**:
+
+```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+```
+
+Then call the API as `curl -s "$FK/api/..." -H "$KEY"`. A `401` means the key is
+missing or wrong; a `404` on an id you were given means it belongs to another user.
+In PowerShell use `$env:FLOWKIT_URL` and `-Headers @{"X-API-Key"=$env:FLOWKIT_API_KEY}`.
+
 ## Step 1: Show Current Status
 
 ```bash
-curl -s "http://127.0.0.1:8100/api/providers?live=true" | python3 -m json.tool
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/providers?live=true" -H "$KEY" | python3 -m json.tool
 ```
 
 Display in a readable table:
@@ -36,7 +53,8 @@ For any provider with `installed: false`, list it as unavailable with a note lik
 ## Step 3: Change the Provider
 
 ```bash
-curl -X PATCH http://127.0.0.1:8100/api/providers \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -X PATCH "$FK/api/providers" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{"active": "<provider>"}'
 ```
@@ -49,7 +67,8 @@ curl -X PATCH http://127.0.0.1:8100/api/providers \
 After changing, verify the update took effect:
 
 ```bash
-curl -s "http://127.0.0.1:8100/api/providers?live=true" | python3 -m json.tool
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/providers?live=true" -H "$KEY" | python3 -m json.tool
 ```
 
 Confirm the `active` field now matches the provider you selected.

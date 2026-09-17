@@ -1,5 +1,21 @@
 Diagnose any FlowKit error and prescribe a fix. Knows the full error taxonomy across Google Flow, the Chrome extension, the FastAPI layer, the worker, and the YouTube upload pipeline.
 
+## Connection
+
+These commands work against a local agent or a shared server. The Flow Kit
+installer (`<server>/install.sh` or `install.ps1`) writes `~/.flowkit/env` with
+`FLOWKIT_URL` and `FLOWKIT_API_KEY`; without that file they default to
+`http://127.0.0.1:8100` and no key. Shell state does not carry
+over between commands, so **start every command with this line**:
+
+```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+```
+
+Then call the API as `curl -s "$FK/api/..." -H "$KEY"`. A `401` means the key is
+missing or wrong; a `404` on an id you were given means it belongs to another user.
+In PowerShell use `$env:FLOWKIT_URL` and `-Headers @{"X-API-Key"=$env:FLOWKIT_API_KEY}`.
+
 ## When to use this skill
 
 **TRIGGER (auto-invoke) when:**
@@ -35,15 +51,16 @@ You are the on-call doctor for the FlowKit pipeline. Never guess — always cons
 ## Mode 1: Triage (no args)
 
 ```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
 # Health
-curl -s http://127.0.0.1:8100/health
-curl -s http://127.0.0.1:8100/api/flow/status
+curl -s "$FK/health" -H "$KEY"
+curl -s "$FK/api/flow/status" -H "$KEY"
 
 # Recent failures
-curl -s "http://127.0.0.1:8100/api/requests?status=FAILED&limit=20"
+curl -s "$FK/api/requests?status=FAILED&limit=20" -H "$KEY"
 
 # Stuck in PROCESSING > 10 min
-curl -s "http://127.0.0.1:8100/api/requests?status=PROCESSING"
+curl -s "$FK/api/requests?status=PROCESSING" -H "$KEY"
 ```
 
 Bucket the failures by `error_message` prefix, print a table, and for each bucket give the fix from the taxonomy.
@@ -51,7 +68,8 @@ Bucket the failures by `error_message` prefix, print a table, and for each bucke
 ## Mode 2: Single request (`/fk-doctor <RID>`)
 
 ```bash
-curl -s http://127.0.0.1:8100/api/requests/<RID>
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/requests/<RID>" -H "$KEY"
 ```
 
 Read:

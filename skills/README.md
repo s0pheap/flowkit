@@ -84,8 +84,9 @@ This walkthrough shows exactly how an AI agent uses skills to go from idea to fi
 **Agent executes:**
 
 ```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
 # Create project (gets projectId from Google Flow)
-curl -X POST http://127.0.0.1:8100/api/projects \
+curl -X POST "$FK/api/projects" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Luna the Space Cat",
@@ -100,14 +101,14 @@ curl -X POST http://127.0.0.1:8100/api/projects \
 # → project_id: "p-xxx"
 
 # Create video
-curl -X POST http://127.0.0.1:8100/api/videos \
+curl -X POST "$FK/api/videos" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{"project_id": "p-xxx", "title": "Luna Episode 1"}'
 # → video_id: "v-xxx"
 
 # Create 3 scenes
 # Scene 1: prompt (image) + video_prompt (8s sub-clip with camera + dialogue)
-curl -X POST http://127.0.0.1:8100/api/scenes -H "Content-Type: application/json" \
+curl -X POST "$FK/api/scenes" -H "$KEY" -H "Content-Type: application/json" \
   -d '{
     "video_id": "v-xxx", "display_order": 0,
     "prompt": "Luna steps out of a small rocket onto Candy Planet Surface. First footprint in candy dust. Wide shot, dramatic landing. Pixar 3D.",
@@ -117,7 +118,7 @@ curl -X POST http://127.0.0.1:8100/api/scenes -H "Content-Type: application/json
   }'
 # → scene_id: "s-1"
 
-curl -X POST http://127.0.0.1:8100/api/scenes -H "Content-Type: application/json" \
+curl -X POST "$FK/api/scenes" -H "$KEY" -H "Content-Type: application/json" \
   -d '{
     "video_id": "v-xxx", "display_order": 1,
     "prompt": "Luna kneels at the edge of Chocolate River on Candy Planet Surface, dipping a paw in. Surprised expression. Warm lighting. Pixar 3D.",
@@ -127,7 +128,7 @@ curl -X POST http://127.0.0.1:8100/api/scenes -H "Content-Type: application/json
   }'
 # → scene_id: "s-2"
 
-curl -X POST http://127.0.0.1:8100/api/scenes -H "Content-Type: application/json" \
+curl -X POST "$FK/api/scenes" -H "$KEY" -H "Content-Type: application/json" \
   -d '{
     "video_id": "v-xxx", "display_order": 2,
     "prompt": "Luna plants a small flag on top of Gummy Bear Mountain. Candy Planet Surface below. Sunset glow through gummy bears. Pixar 3D.",

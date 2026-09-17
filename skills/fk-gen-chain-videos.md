@@ -4,6 +4,22 @@ Usage: `/gen-chain-videos <project_id> <video_id>`
 
 This creates smooth transitions between scenes in a chain by using the **NEXT scene's image as the endImage** of the current scene's video, so the last frame of scene N matches the first frame of scene N+1 → seamless concat.
 
+## Connection
+
+These commands work against a local agent or a shared server. The Flow Kit
+installer (`<server>/install.sh` or `install.ps1`) writes `~/.flowkit/env` with
+`FLOWKIT_URL` and `FLOWKIT_API_KEY`; without that file they default to
+`http://127.0.0.1:8100` and no key. Shell state does not carry
+over between commands, so **start every command with this line**:
+
+```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+```
+
+Then call the API as `curl -s "$FK/api/..." -H "$KEY"`. A `401` means the key is
+missing or wrong; a `404` on an id you were given means it belongs to another user.
+In PowerShell use `$env:FLOWKIT_URL` and `-Headers @{"X-API-Key"=$env:FLOWKIT_API_KEY}`.
+
 ## Before you start: chaining is not on the new Flow API
 
 Flow's `flow.google.com` payload has an aspect slot and a single source-image
@@ -12,7 +28,8 @@ cannot be built. `GENERATE_VIDEO` with an `endImage` fails immediately with
 `UNSUPPORTED_ON_BATCH_API` (terminal — it is not retried).
 
 ```bash
-curl -s http://127.0.0.1:8100/api/flow/status | python3 -c "
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/flow/status" -H "$KEY" | python3 -c "
 import sys, json
 s = json.load(sys.stdin)
 print('transport:', s['transport'], '| degraded fallback:', s['allow_degraded'])
@@ -53,8 +70,9 @@ The `endImage` is the **CHILD scene's image** (the next scene's image_media_id),
 ## Step 1: Pre-check
 
 ```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
 # All scene images must be ready with UUID media_ids
-curl -s "http://127.0.0.1:8100/api/scenes?video_id=<VID>"
+curl -s "$FK/api/scenes?video_id=<VID>" -H "$KEY"
 ```
 
 ABORT if any scene is missing `${ori}_image_media_id` (UUID).
@@ -64,7 +82,8 @@ ABORT if any scene is missing `${ori}_image_media_id` (UUID).
 For each scene that has a CHILD in the chain (i.e. some other scene's `parent_scene_id == this.id`), set its `${ori}_end_scene_media_id` to that **child** scene's `${ori}_image_media_id`:
 
 ```bash
-curl -X PATCH http://127.0.0.1:8100/api/scenes/<SID> \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -X PATCH "$FK/api/scenes/<SID>" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{"${ori}_end_scene_media_id": "<child_scene_image_media_id>"}'
 ```
@@ -85,7 +104,8 @@ Logic:
 The server handles throttling automatically (max 5 concurrent, 10s cooldown). The worker reads `${ori}_end_scene_media_id` from each scene (set in Step 2) and passes it as `endImage` to the API. This triggers `start_end_frame_2_video` (i2v_fl) instead of plain `frame_2_video` (i2v).
 
 ```bash
-curl -X POST http://127.0.0.1:8100/api/requests/batch \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -X POST "$FK/api/requests/batch" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "requests": [
@@ -100,7 +120,8 @@ Build the `requests` array from ALL scenes in display_order. Do NOT manually bat
 Poll aggregate status every 30s until done:
 
 ```bash
-curl -s "http://127.0.0.1:8100/api/requests/batch-status?video_id=<VID>&type=GENERATE_VIDEO"
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/requests/batch-status?video_id=<VID>&type=GENERATE_VIDEO" -H "$KEY"
 # Wait for: "done": true
 # If "all_succeeded": false → some failed, check individual failures
 ```

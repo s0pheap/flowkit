@@ -6,12 +6,29 @@ Usage: `/fk-gen-narrator <video_id> [--force] [--language vi] [--speed 1.1]`
 
 Prepares audio for `/fk-concat-fit-narrator`.
 
+## Connection
+
+These commands work against a local agent or a shared server. The Flow Kit
+installer (`<server>/install.sh` or `install.ps1`) writes `~/.flowkit/env` with
+`FLOWKIT_URL` and `FLOWKIT_API_KEY`; without that file they default to
+`http://127.0.0.1:8100` and no key. Shell state does not carry
+over between commands, so **start every command with this line**:
+
+```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+```
+
+Then call the API as `curl -s "$FK/api/..." -H "$KEY"`. A `401` means the key is
+missing or wrong; a `404` on an id you were given means it belongs to another user.
+In PowerShell use `$env:FLOWKIT_URL` and `-Headers @{"X-API-Key"=$env:FLOWKIT_API_KEY}`.
+
 ## Step 1: Load project, video, scenes
 
 ```bash
-curl -s http://127.0.0.1:8100/api/videos/<VID>
-curl -s http://127.0.0.1:8100/api/projects/<PID>
-curl -s "http://127.0.0.1:8100/api/scenes?video_id=<VID>"
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/videos/<VID>" -H "$KEY"
+curl -s "$FK/api/projects/<PID>" -H "$KEY"
+curl -s "$FK/api/scenes?video_id=<VID>" -H "$KEY"
 ```
 
 Note: project name, language, story context.
@@ -37,7 +54,8 @@ Cinematic scenes (will narrate): M
 ## Step 2: Check voice template
 
 ```bash
-curl -s http://127.0.0.1:8100/api/tts/templates
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/tts/templates" -H "$KEY"
 ```
 
 If NO templates exist:
@@ -137,7 +155,8 @@ narrator_text: `Colonel Harris detects unusual radar signatures. Dozens of Irani
 For each scene with generated text:
 
 ```bash
-curl -X PATCH "http://127.0.0.1:8100/api/scenes/<SID>" \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -X PATCH "$FK/api/scenes/<SID>" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{"narrator_text": "<generated_text>"}'
 ```
@@ -170,7 +189,7 @@ Use per-scene generation for reliability:
 
 ```python
 for scene in scenes:
-    curl -s -m 120 -X POST "http://127.0.0.1:8100/api/tts/generate" \
+    curl -s -m 120 -X POST "$FK/api/tts/generate" -H "$KEY" \
       -H "Content-Type: application/json" \
       -d '{
         "text": "<scene_narrator_text>",
@@ -200,8 +219,9 @@ The `ref_text` is the **exact transcript** of what's spoken in `ref_audio`.
 ## Step 7: Setup output directory
 
 ```bash
-# Get project output directory (creates dir + meta.json if needed)
-PROJ_OUT=$(curl -s http://127.0.0.1:8100/api/projects/<PID>/output-dir)
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+# Get the project's output directory on the server
+PROJ_OUT=$(curl -s "$FK/api/projects/<PID>/output-dir" -H "$KEY")
 OUTDIR=$(echo "$PROJ_OUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['path'])")
 mkdir -p "${OUTDIR}/tts"
 ```

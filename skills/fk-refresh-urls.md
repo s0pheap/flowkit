@@ -2,6 +2,22 @@ Re-sign expired media URLs for all scenes in a video (images, videos, upscale vi
 
 Usage: `/fk-refresh-urls <video_id> [--project-id <PID>]`
 
+## Connection
+
+These commands work against a local agent or a shared server. The Flow Kit
+installer (`<server>/install.sh` or `install.ps1`) writes `~/.flowkit/env` with
+`FLOWKIT_URL` and `FLOWKIT_API_KEY`; without that file they default to
+`http://127.0.0.1:8100` and no key. Shell state does not carry
+over between commands, so **start every command with this line**:
+
+```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+```
+
+Then call the API as `curl -s "$FK/api/..." -H "$KEY"`. A `401` means the key is
+missing or wrong; a `404` on an id you were given means it belongs to another user.
+In PowerShell use `$env:FLOWKIT_URL` and `-Headers @{"X-API-Key"=$env:FLOWKIT_API_KEY}`.
+
 ## When to use
 
 - Before `/fk-review-video` if videos were generated hours ago (GCS signed URLs expire)
@@ -11,7 +27,8 @@ Usage: `/fk-refresh-urls <video_id> [--project-id <PID>]`
 ## Pre-flight
 
 ```bash
-curl -s http://127.0.0.1:8100/api/flow/status
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/flow/status" -H "$KEY"
 # Must show: {"connected": true, "transport": "batch"}
 # Ignore flow_key_present — the batch path has no bearer token.
 # If connected is false: open https://flow.google.com/ and sign in.
@@ -20,8 +37,9 @@ curl -s http://127.0.0.1:8100/api/flow/status
 ## Step 1: Get project_id from video
 
 ```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
 VID="<video_id>"
-PID=$(curl -s "http://127.0.0.1:8100/api/videos/${VID}" | python3 -c "import sys,json; print(json.load(sys.stdin)['project_id'])")
+PID=$(curl -s "$FK/api/videos/${VID}" -H "$KEY" | python3 -c "import sys,json; print(json.load(sys.stdin)['project_id'])")
 echo "Project: $PID"
 ```
 
@@ -32,7 +50,8 @@ each `*_media_id` it holds, and writes the fresh urls back to the DB. It is a
 call per media id, so a large project takes a moment.
 
 ```bash
-curl -s -X POST "http://127.0.0.1:8100/api/flow/refresh-urls/${PID}" | python3 -c "
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s -X POST "$FK/api/flow/refresh-urls/${PID}" -H "$KEY" | python3 -c "
 import sys, json
 r = json.load(sys.stdin)
 print(f\"Refreshed: {r.get('refreshed', 0)} URLs (found {r.get('found', 0)} total)\")
@@ -52,8 +71,9 @@ The server matches each URL's media_id against `*_media_id` fields on scenes and
 ## Step 3: Verify refresh worked
 
 ```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
 # Check a few scenes have valid URLs
-curl -s "http://127.0.0.1:8100/api/scenes?video_id=${VID}" | python3 -c "
+curl -s "$FK/api/scenes?video_id=${VID}" -H "$KEY" | python3 -c "
 import sys, json
 scenes = sorted(json.load(sys.stdin), key=lambda s: s['display_order'])
 
@@ -95,7 +115,8 @@ If a media id was not covered — because it is not stored on a scene or entity
 row — re-sign it directly:
 
 ```bash
-curl -s "http://127.0.0.1:8100/api/flow/media/<MEDIA_ID>"
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/flow/media/<MEDIA_ID>" -H "$KEY"
 # Returns: {"video": {"fifeUrl": "https://flow-content.google/video/…"},
 #           "image": {"fifeUrl": "https://flow-content.google/image/…"}}
 ```
@@ -107,7 +128,8 @@ do not save the poster as the video.
 Then update the scene manually:
 
 ```bash
-curl -X PATCH "http://127.0.0.1:8100/api/scenes/<SID>" \
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -X PATCH "$FK/api/scenes/<SID>" -H "$KEY" \
   -H "Content-Type: application/json" \
   -d '{"horizontal_video_url": "<FRESH_URL>"}'
 ```

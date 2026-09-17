@@ -4,6 +4,22 @@ Usage: `/creative-mix <project_id> <video_id>`
 
 This skill analyzes existing scenes and suggests creative enhancements using all available techniques.
 
+## Connection
+
+These commands work against a local agent or a shared server. The Flow Kit
+installer (`<server>/install.sh` or `install.ps1`) writes `~/.flowkit/env` with
+`FLOWKIT_URL` and `FLOWKIT_API_KEY`; without that file they default to
+`http://127.0.0.1:8100` and no key. Shell state does not carry
+over between commands, so **start every command with this line**:
+
+```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+```
+
+Then call the API as `curl -s "$FK/api/..." -H "$KEY"`. A `401` means the key is
+missing or wrong; a `404` on an id you were given means it belongs to another user.
+In PowerShell use `$env:FLOWKIT_URL` and `-Headers @{"X-API-Key"=$env:FLOWKIT_API_KEY}`.
+
 ## Techniques Available
 
 ### T1: Scene Chaining (i2v_fl)
@@ -104,7 +120,8 @@ Polish scene images before committing to video generation.
 Before running creative-mix, remove any previous system-generated scenes:
 
 ```bash
-curl -X DELETE "http://127.0.0.1:8100/api/scenes?video_id=<VID>&source=system"
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -X DELETE "$FK/api/scenes?video_id=<VID>&source=system" -H "$KEY"
 ```
 
 This deletes all `source=system` INSERT scenes and re-compacts display_order. Safe to re-run.
@@ -112,8 +129,9 @@ This deletes all `source=system` INSERT scenes and re-compacts display_order. Sa
 ## Step 1: Analyze current video
 
 ```bash
-curl -s "http://127.0.0.1:8100/api/scenes?video_id=<VID>"
-curl -s http://127.0.0.1:8100/api/projects/<PID>/characters
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/scenes?video_id=<VID>" -H "$KEY"
+curl -s "$FK/api/projects/<PID>/characters" -H "$KEY"
 ```
 
 Review scenes and suggest enhancements:

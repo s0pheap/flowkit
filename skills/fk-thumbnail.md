@@ -2,13 +2,30 @@ Generate 4 YouTube-optimized thumbnail variants for a project video.
 
 Usage: `/fk-thumbnail [project_id]`
 
+## Connection
+
+These commands work against a local agent or a shared server. The Flow Kit
+installer (`<server>/install.sh` or `install.ps1`) writes `~/.flowkit/env` with
+`FLOWKIT_URL` and `FLOWKIT_API_KEY`; without that file they default to
+`http://127.0.0.1:8100` and no key. Shell state does not carry
+over between commands, so **start every command with this line**:
+
+```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+```
+
+Then call the API as `curl -s "$FK/api/..." -H "$KEY"`. A `401` means the key is
+missing or wrong; a `404` on an id you were given means it belongs to another user.
+In PowerShell use `$env:FLOWKIT_URL` and `-Headers @{"X-API-Key"=$env:FLOWKIT_API_KEY}`.
+
 ## Step 1: Load project context
 
 ```bash
-curl -s http://127.0.0.1:8100/api/projects/<PID>
-curl -s "http://127.0.0.1:8100/api/videos?project_id=<PID>"
-curl -s "http://127.0.0.1:8100/api/projects/<PID>/characters"
-curl -s "http://127.0.0.1:8100/api/scenes?video_id=<VID>"
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/projects/<PID>" -H "$KEY"
+curl -s "$FK/api/videos?project_id=<PID>" -H "$KEY"
+curl -s "$FK/api/projects/<PID>/characters" -H "$KEY"
+curl -s "$FK/api/scenes?video_id=<VID>" -H "$KEY"
 ```
 
 Extract and understand:
@@ -101,13 +118,14 @@ If character refs fail (400 error), retry without refs but warn user.
 SEQUENTIALLY with 8s cooldown between each:
 
 ```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
 # Get project output directory
-PROJ_OUT=$(curl -s http://127.0.0.1:8100/api/projects/<PID>/output-dir)
+PROJ_OUT=$(curl -s "$FK/api/projects/<PID>/output-dir" -H "$KEY")
 OUTDIR=$(echo "$PROJ_OUT" | python3 -c "import sys,json; print(json.load(sys.stdin)['path'])")
 mkdir -p "${OUTDIR}/thumbnails"
 
 for i in 1 2 3 4; do
-  curl -s -m 90 -X POST "http://127.0.0.1:8100/api/projects/<PID>/generate-thumbnail" \
+  curl -s -m 90 -X POST "$FK/api/projects/<PID>/generate-thumbnail" -H "$KEY" \
     -H "Content-Type: application/json" \
     -d '{
       "prompt": "<variant_prompt_with_text_embedded>",
