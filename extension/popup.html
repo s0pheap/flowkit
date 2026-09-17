@@ -6,84 +6,96 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    /* Palette mirrors the dashboard (dashboard/src/index.css) so the extension
+       and the console read as one product. Keep them in step when either moves. */
     :root {
-      --bg:       #0d0d1a;
-      --surface:  #13132a;
-      --card:     #1a1a35;
-      --border:   #252545;
-      --accent:   #3b82f6;
-      --accent-dim: #1d4ed8;
-      --green:    #22c55e;
-      --red:      #ef4444;
-      --yellow:   #f59e0b;
-      --text:     #e2e8f0;
-      --muted:    #64748b;
-      --font:     'DM Mono', 'Fira Code', 'Cascadia Code', monospace;
+      --bg:        #0a0b0f;
+      --surface:   #0f1116;
+      --card:      #14161d;
+      --card-hover:#191c24;
+      --raised:    #1d2029;
+      --border:    #242833;
+      --accent:    #8b93ff;
+      --accent-strong: #6f78f7;
+      --accent-soft: rgb(139 147 255 / 0.12);
+      --green:     #3ddc97;
+      --red:       #ff6b6b;
+      --yellow:    #f5b945;
+      --text:      #eceef3;
+      --muted:     #8a90a2;
+      --faint:     #5d6374;
+      --radius:    10px;
+      --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', 'Malgun Gothic', sans-serif;
+      --font-mono: ui-monospace, 'Cascadia Code', 'Fira Code', SFMono-Regular, monospace;
     }
 
     html, body {
-      width: 360px;
+      width: 380px;
       min-height: 200px;
       background: var(--bg);
       color: var(--text);
-      font-family: var(--font);
-      font-size: 11px;
+      font-family: var(--font-sans);
+      font-size: 13px;
       line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
     }
 
     header {
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 10px 12px 8px;
+      gap: 10px;
+      padding: 12px 14px;
       border-bottom: 1px solid var(--border);
       background: var(--surface);
     }
 
     .header-title {
       flex: 1;
-      font-size: 12px;
+      font-size: 14px;
       font-weight: 600;
-      letter-spacing: 0.04em;
-      color: var(--text);
+      letter-spacing: -0.01em;
     }
 
     .header-title span { color: var(--accent); }
 
     #btn-panel {
-      padding: 4px 10px;
-      font-family: var(--font);
-      font-size: 9px;
-      font-weight: 600;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      background: var(--accent-dim);
-      color: #fff;
+      padding: 0 12px;
+      height: 30px;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 500;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #0a0b0f;
       cursor: pointer;
+      transition: filter 0.15s, background 0.15s;
     }
 
-    #btn-panel:hover { background: var(--accent); }
+    #btn-panel:hover { filter: brightness(1.1); }
+    #btn-panel:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
     .log-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 6px 12px 5px;
-      font-size: 9px;
+      padding: 10px 14px;
+      font-size: 11px;
+      font-weight: 500;
       text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: var(--muted);
+      letter-spacing: 0.08em;
+      color: var(--faint);
       background: var(--surface);
       border-bottom: 1px solid var(--border);
     }
 
     #log-count {
-      background: var(--border);
-      border-radius: 10px;
-      padding: 1px 6px;
-      font-size: 9px;
+      background: var(--raised);
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0;
       color: var(--muted);
     }
 
@@ -94,55 +106,54 @@
       scrollbar-color: var(--border) transparent;
     }
 
-    #log-list::-webkit-scrollbar { width: 4px; }
+    #log-list::-webkit-scrollbar { width: 6px; }
     #log-list::-webkit-scrollbar-track { background: transparent; }
-    #log-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    #log-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
 
     .log-empty {
-      padding: 20px 12px;
+      padding: 32px 14px;
       text-align: center;
-      color: var(--muted);
-      font-size: 10px;
-      letter-spacing: 0.04em;
+      color: var(--faint);
+      font-size: 13px;
     }
 
-    .entry {
-      border-bottom: 1px solid rgba(37,37,69,0.6);
-    }
+    .entry { border-bottom: 1px solid var(--border); }
+    .entry:last-child { border-bottom: none; }
 
     .entry-row {
       display: flex;
       align-items: center;
-      gap: 6px;
-      padding: 6px 12px;
+      gap: 8px;
+      padding: 9px 14px;
       cursor: pointer;
-      transition: background 0.1s;
+      transition: background 0.12s;
       user-select: none;
     }
 
-    .entry-row:hover { background: rgba(59,130,246,0.05); }
+    .entry-row:hover { background: var(--card-hover); }
+    .entry.open .entry-row { background: var(--card); }
 
     .entry-id {
-      font-size: 9px;
-      color: var(--muted);
-      min-width: 54px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--faint);
+      min-width: 58px;
       flex-shrink: 0;
     }
 
     .entry-type {
       flex: 1;
-      font-size: 10px;
-      font-weight: 700;
-      color: var(--accent);
-      letter-spacing: 0.04em;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
 
     .entry-time {
-      font-size: 9px;
-      color: var(--muted);
+      font-size: 11px;
+      color: var(--faint);
       flex-shrink: 0;
       font-variant-numeric: tabular-nums;
     }
@@ -150,21 +161,22 @@
     .badge {
       display: inline-flex;
       align-items: center;
-      gap: 2px;
-      padding: 1px 5px;
-      border-radius: 3px;
-      font-size: 9px;
-      font-weight: 700;
+      gap: 3px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      font-size: 11px;
+      font-weight: 500;
       flex-shrink: 0;
     }
 
-    .badge-ok   { background: rgba(34,197,94,0.12);  color: var(--green); }
-    .badge-fail { background: rgba(239,68,68,0.12);  color: var(--red); }
-    .badge-proc { background: rgba(245,158,11,0.12); color: var(--yellow); }
+    .badge-ok   { background: rgb(61 220 151 / 0.12); border-color: rgb(61 220 151 / 0.25); color: var(--green); }
+    .badge-fail { background: rgb(255 107 107 / 0.12); border-color: rgb(255 107 107 / 0.25); color: var(--red); }
+    .badge-proc { background: rgb(245 185 69 / 0.12); border-color: rgb(245 185 69 / 0.25); color: var(--yellow); }
 
     .expand-icon {
-      font-size: 9px;
-      color: var(--muted);
+      font-size: 11px;
+      color: var(--faint);
       flex-shrink: 0;
       transition: transform 0.15s;
     }
@@ -173,34 +185,35 @@
 
     .entry-details {
       display: none;
-      padding: 0 12px 8px;
-      background: var(--surface);
+      padding: 0 14px 12px;
+      background: var(--card);
     }
 
     .entry.open .entry-details { display: block; }
 
-    .detail-section {
-      margin-top: 6px;
-    }
+    .detail-section { margin-top: 10px; }
 
     .detail-label {
-      font-size: 9px;
+      font-size: 11px;
+      font-weight: 500;
       text-transform: uppercase;
       letter-spacing: 0.08em;
-      color: var(--muted);
-      margin-bottom: 2px;
+      color: var(--faint);
+      margin-bottom: 4px;
     }
 
     .detail-value {
-      font-size: 9px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      line-height: 1.6;
       color: var(--text);
-      background: var(--card);
+      background: var(--bg);
       border: 1px solid var(--border);
-      border-radius: 3px;
-      padding: 4px 6px;
+      border-radius: 8px;
+      padding: 7px 9px;
       word-break: break-all;
       white-space: pre-wrap;
-      max-height: 80px;
+      max-height: 110px;
       overflow-y: auto;
     }
 
@@ -212,18 +225,15 @@
       max-height: none;
     }
 
-    .detail-error {
-      color: var(--red);
-    }
+    .detail-error { color: var(--red); }
 
     .footer {
-      padding: 8px 12px;
+      padding: 10px 14px;
       border-top: 1px solid var(--border);
       background: var(--surface);
-      font-size: 9px;
-      color: var(--muted);
+      font-size: 12px;
+      color: var(--faint);
       text-align: center;
-      letter-spacing: 0.04em;
     }
   </style>
 </head>
