@@ -7,7 +7,7 @@ import type { TranslationKey } from '../i18n/translations'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card'
 import { Badge } from '../components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs'
-import { SKILL_CATEGORIES, WORKFLOW, STORY_RECIPE, type SkillGuide, type SkillStatus } from './guide/skills'
+import { SKILL_CATEGORIES, WORKFLOW, STORY_RECIPE, STORY_EXAMPLE, type SkillGuide, type SkillStatus } from './guide/skills'
 
 interface HealthResponse {
   status: string
@@ -291,12 +291,68 @@ function StoryRecipeCard() {
   )
 }
 
+function StoryExampleCard() {
+  const { lang } = useTranslation()
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{STORY_EXAMPLE.title[lang]}</CardTitle>
+        <CardDescription>{STORY_EXAMPLE.why[lang]}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col">
+            {STORY_EXAMPLE.beats.map(b => (
+              <div
+                key={b.beat.en}
+                className="flex gap-3 py-1.5 items-baseline border-b last:border-b-0"
+                style={{ borderColor: 'var(--border)' }}
+              >
+                <span className="text-[13px] font-semibold w-[140px] flex-shrink-0" style={{ color: 'var(--text)' }}>
+                  {b.beat[lang]}
+                </span>
+                <span className="text-[13px] leading-relaxed flex-1 min-w-0" style={{ color: 'var(--muted)' }}>
+                  {b.happens[lang]}
+                </span>
+                <span
+                  className="text-[11px] tabular-nums flex-shrink-0 rounded-full px-2 py-0.5"
+                  style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}
+                >
+                  {b.scenes}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <span className="text-[13px] font-semibold" style={{ color: 'var(--text)' }}>
+              {STORY_EXAMPLE.registerLabel[lang]}
+            </span>
+            <div className="rounded-lg border px-3 py-2" style={{ borderColor: 'rgb(255 107 107 / 0.3)', background: 'rgb(255 107 107 / 0.06)' }}>
+              <span className="text-[13px] leading-relaxed" style={{ color: 'var(--muted)' }}>{STORY_EXAMPLE.registerBad[lang]}</span>
+            </div>
+            <div className="rounded-lg border px-3 py-2" style={{ borderColor: 'rgb(61 220 151 / 0.3)', background: 'rgb(61 220 151 / 0.06)' }}>
+              <span className="text-[13px] leading-relaxed" style={{ color: 'var(--text)' }}>{STORY_EXAMPLE.registerGood[lang]}</span>
+            </div>
+            <span className="text-[13px] leading-relaxed" style={{ color: 'var(--muted)' }}>{STORY_EXAMPLE.registerNote[lang]}</span>
+          </div>
+
+          <p className="m-0 text-[13px] leading-relaxed" style={{ color: 'var(--yellow)' }}>
+            {STORY_EXAMPLE.closing[lang]}
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 function WorkflowTab({ onOpenSkill }: { onOpenSkill: (name: string) => void }) {
   const { t, lang } = useTranslation()
   return (
     <div className="flex flex-col gap-3">
       <p className="text-[13px] m-0" style={{ color: 'var(--muted)' }}>{t('guide.workflow.intro')}</p>
       <StoryRecipeCard />
+      <StoryExampleCard />
       <Card>
         <CardContent>
           <ol className="m-0 p-0 list-none flex flex-col">

@@ -675,6 +675,83 @@ Show me the beat sheet before creating any scene. It is narration-led, so use ff
   ],
 }
 
+/** One tale worked end to end, so the recipe above can be read against something real. */
+export const STORY_EXAMPLE: {
+  title: Localized
+  why: Localized
+  beats: { beat: Localized; happens: Localized; scenes: number }[]
+  registerLabel: Localized
+  registerBad: Localized
+  registerGood: Localized
+  registerNote: Localized
+  closing: Localized
+} = {
+  title: { en: 'Worked example — ភ្នំប្រុស ភ្នំស្រី (Phnom Pros and Phnom Srei)', ko: '실제 예시 — ភ្នំប្រុស ភ្នំស្រី (프놈 프로스와 프놈 스레이)' },
+  why: {
+    en: 'Short, widely known, and it ends by explaining two hills that still stand in Kampong Cham — so it shows every point above, especially the closing beat. Eight beats, twelve narration-led scenes, about three minutes.',
+    ko: '짧고 널리 알려져 있으며, 오늘날 캄퐁참에 남아 있는 두 언덕을 설명하며 끝납니다. 위의 모든 항목, 특히 마지막 비트를 보여 줍니다. 비트 8개, 내레이션 중심 장면 12개, 약 3분.',
+  },
+  beats: [
+    {
+      beat: { en: 'The world', ko: '세계' },
+      happens: { en: 'Long ago in Kampong Cham, custom held that women had to ask men for marriage.', ko: '옛날 캄퐁참에서는 여자가 남자에게 청혼해야 하는 관습이 있었습니다.' },
+      scenes: 1,
+    },
+    {
+      beat: { en: 'The lack', ko: '결핍' },
+      happens: { en: 'The women are tired of it, and say so.', ko: '여자들은 그 관습에 지쳐 불만을 말합니다.' },
+      scenes: 1,
+    },
+    {
+      beat: { en: 'The disturbance', ko: '사건의 시작' },
+      happens: { en: 'A contest is agreed: each side builds a hill in one night. The taller hill decides who must do the asking, for ever.', ko: '내기가 정해집니다. 양쪽이 하룻밤 사이에 언덕을 쌓고, 더 높은 쪽이 앞으로 누가 청혼할지를 결정합니다.' },
+      scenes: 1,
+    },
+    {
+      beat: { en: 'The attempt', ko: '시도' },
+      happens: { en: 'Both sides dig and carry earth through the dark.', ko: '양쪽 모두 어둠 속에서 흙을 파고 나릅니다.' },
+      scenes: 2,
+    },
+    {
+      beat: { en: 'The opposing force', ko: '맞서는 힘' },
+      happens: { en: 'The men are stronger and their hill rises faster. The women are losing.', ko: '남자들이 더 힘이 세어 언덕이 빨리 올라갑니다. 여자들이 지고 있습니다.' },
+      scenes: 2,
+    },
+    {
+      beat: { en: 'The turn', ko: '반전' },
+      happens: { en: 'The women raise a lantern on a tall pole. The men take it for the morning star, believe dawn has come, and lie down to sleep.', ko: '여자들이 긴 장대에 등불을 매답니다. 남자들은 그것을 샛별로 여겨 날이 밝았다고 믿고 잠자리에 듭니다.' },
+      scenes: 2,
+    },
+    {
+      beat: { en: 'The consequence', ko: '결과' },
+      happens: { en: 'At real dawn the women’s hill is the taller one. The men have lost their own wager.', ko: '진짜 새벽이 오자 여자들의 언덕이 더 높습니다. 남자들은 자기들이 건 내기에 졌습니다.' },
+      scenes: 2,
+    },
+    {
+      beat: { en: 'Why it is still told', ko: '지금도 전해지는 이유' },
+      happens: { en: 'The two hills stand in Kampong Cham to this day, and ever since it is the men who must ask.', ko: '두 언덕은 오늘날까지 캄퐁참에 서 있고, 그때부터 청혼은 남자의 몫이 되었습니다.' },
+      scenes: 1,
+    },
+  ],
+  registerLabel: { en: 'The difference a register makes', ko: '어조가 만드는 차이' },
+  registerBad: {
+    en: 'The women tricked the men with a light and won the contest.',
+    ko: '여자들은 불빛으로 남자들을 속여 내기에서 이겼습니다.',
+  },
+  registerGood: {
+    en: 'They hung one lantern high on a pole. The men looked up, saw the morning star, and set down their baskets. All the rest of that night, only the women were digging.',
+    ko: '여자들은 장대 높이 등불 하나를 매달았습니다. 남자들은 고개를 들어 샛별을 보고는 바구니를 내려놓았습니다. 그날 밤 남은 시간 동안 땅을 판 것은 여자들뿐이었습니다.',
+  },
+  registerNote: {
+    en: 'Both say the same thing. The first summarises the beat, the second tells it — and only the second gives the scene something to show. When a line reads like the first one, the video will too.',
+    ko: '둘은 같은 내용입니다. 앞의 것은 비트를 요약하고, 뒤의 것은 이야기를 들려줍니다. 장면에 보여 줄 거리를 주는 것은 뒤의 것뿐입니다. 대사가 앞의 것처럼 읽히면 영상도 그렇게 됩니다.',
+  },
+  closing: {
+    en: 'Cut the last beat to save thirty seconds and the video stops being this tale — it becomes a story about a digging contest. Check it survives into the beat sheet before you approve it.',
+    ko: '30초를 아끼려고 마지막 비트를 자르면 이 설화가 아니라 그저 땅파기 시합 이야기가 됩니다. 승인하기 전에 비트 시트에 그 비트가 남아 있는지 확인하세요.',
+  },
+}
+
 export const WORKFLOW: { title: Localized; body: Localized; skills: string[] }[] = [
   {
     title: { en: '1. Research your topic', ko: '1. 주제 조사' },
