@@ -289,14 +289,27 @@ async def require_media(media_id: str) -> None:
 
 
 async def require_output_path(path: str) -> None:
-    """Non-admins may only write or read files under their own projects' output folders."""
+    """Non-admins may only write or read files under their own projects' output folders.
+
+    A project's folder is named after its slug, so this only separates one caller from
+    another as long as no two projects slugify alike — which `_require_unique_slug` in
+    the projects API enforces on create and rename, and `slugify` upholds by never
+    returning the empty string (which would name the output root itself).
+    """
     p = current_principal()
     if p.is_admin:
         return
     candidate = Path(path)
     resolved = (candidate if candidate.is_absolute() else config.BASE_DIR / candidate).resolve()
+    output_root = config.OUTPUT_DIR.resolve()
+    if resolved == output_root:
+        raise HTTPException(403, "Path must be inside one of your projects' output folders")
     for pid in await allowed_project_ids(p):
         project = await crud.get_project(pid)
-        if project and resolved.is_relative_to((config.OUTPUT_DIR / slugify(project["name"])).resolve()):
+        if not project:
+            continue
+        owned = (config.OUTPUT_DIR / slugify(project["name"])).resolve()
+        # A project folder that resolved to the output root would authorise everything.
+        if owned != output_root and resolved.is_relative_to(owned):
             return
     raise HTTPException(403, "Path must be inside one of your projects' output folders")

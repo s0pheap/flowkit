@@ -14,6 +14,7 @@ from agent.models.project import Project, ProjectCreate, ProjectUpdate
 from agent.models.character import Character
 from agent.sdk.persistence.sqlite_repository import SQLiteRepository
 from agent.services.flow_client import get_flow_client
+from agent.utils.paths import project_dir
 from agent.utils.slugify import slugify
 
 logger = logging.getLogger(__name__)
@@ -196,9 +197,9 @@ async def create(body: ProjectCreate):
     if existing_project:
         raise HTTPException(409, f"Project {flow_project_id} already exists. One Flow project holds one Flow Kit project.")
 
-    # With project-isolated directories (output/{project_id}/{slug}/), we don't need global uniqueness
-    # But we keep the check for better UX to avoid confusing duplicate names in the UI
-    await _require_unique_slug(body.name, flow_project_id=flow_project_id)
+    # Output directories are keyed by name slug, not by project id, so two projects
+    # that slugify alike would share one folder — and each other's files.
+    await _require_unique_slug(body.name)
 
     repo = _get_repo()
 
@@ -251,33 +252,23 @@ async def create(body: ProjectCreate):
     return project
 
 
-async def _require_unique_slug(name: str, project_id: str | None = None, flow_project_id: str | None = None) -> None:
-    """Ensure slug is unique within the same Flow project to prevent file conflicts.
+async def _require_unique_slug(name: str, project_id: str | None = None) -> None:
+    """Ensure no other project's name slugifies the same way.
 
-    With the new structure (output/{flow_project_id}/{slug}/), slugs only need to be
-    unique within the same Flow project, not globally. This allows multiple users
-    with different Flow projects to create projects with the same name.
+    A project's files live in a flat ``output/<slug>/``, so the slug — not the id —
+    is what separates one project's scenes, narration, music and renders from
+    another's. `auth.require_output_path` grants a caller the output folders of the
+    projects they hold by slugifying each one's name, so two projects sharing a slug
+    means two owners sharing a folder. Uniqueness is therefore global, across every
+    project on the server, not per Flow project.
+
+    `project_id` is the project being renamed, which is excluded from the check.
     """
     slug = slugify(name)
-
-    # Get all projects - we'll filter by Flow project ID
-    all_projects = await crud.list_projects()
-
-    # If we have a flow_project_id, only check within that Flow project
-    if flow_project_id:
-        projects_to_check = [p for p in all_projects if p["id"] == flow_project_id]
-    else:
-        # Legacy behavior: check all projects (for backward compatibility)
-        projects_to_check = all_projects
-
-    for other in projects_to_check:
+    for other in await crud.list_projects():
         if other["id"] != project_id and slugify(other["name"]) == slug:
-            if flow_project_id:
-                raise HTTPException(409, f"You already have a project named like {name!r} in this Flow project. "
-                                         "Choose a different name.")
-            else:
-                raise HTTPException(409, f"A project named like {name!r} already exists (its files would share "
-                                         f"output/{slug}). Choose a different name.")
+            raise HTTPException(409, f"A project named like {name!r} already exists (its files would share "
+                                     f"output/{slug}). Choose a different name.")
 
 
 async def _granted_flow_project(requested: str | None) -> str:
@@ -350,12 +341,39 @@ async def get(pid: str):
     return p
 
 
+def _rename_output_dir(old_slug: str, new_slug: str) -> None:
+    """Move a project's output folder so the directory keeps following the name.
+
+    Without this a rename orphans ``output/<old_slug>/``: nothing points at it any
+    more, but the next project to take that name inherits every file in it — and,
+    through `auth.require_output_path`, the right to read them.
+    """
+    if old_slug == new_slug:
+        return
+    old_dir, new_dir = project_dir(old_slug), project_dir(new_slug)
+    if not old_dir.is_dir():
+        return
+    if new_dir.exists():
+        raise HTTPException(409, f"output/{new_slug} already exists on disk. Move or remove it before "
+                                 f"renaming this project.")
+    try:
+        old_dir.rename(new_dir)
+    except OSError as e:
+        raise HTTPException(409, f"Could not move output/{old_slug} to output/{new_slug}: {e}. "
+                                 "The project was not renamed.")
+    logger.info("Project output moved: %s -> %s", old_slug, new_slug)
+
+
 @router.patch("/{pid}", response_model=Project)
 async def update(pid: str, body: ProjectUpdate):
-    await auth.require_project(pid)
+    project = await auth.require_project(pid)
+    old_slug = slugify(project["name"]) if project else None
     if body.name:
-        # Get the project to find its Flow project ID (which is the same as pid in current design)
-        await _require_unique_slug(body.name, project_id=pid, flow_project_id=pid)
+        await _require_unique_slug(body.name, project_id=pid)
+        # Move the files before the name changes: a failure here must leave the row
+        # alone, or the project would point at a folder it no longer owns.
+        if old_slug is not None:
+            _rename_output_dir(old_slug, slugify(body.name))
     repo = _get_repo()
     row = await repo.update("project", pid, **body.model_dump(exclude_unset=True))
     if not row:

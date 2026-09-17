@@ -4,18 +4,14 @@ from pathlib import Path
 from agent.config import OUTPUT_DIR
 
 
-def project_dir(project_slug: str, project_id: str = None) -> Path:
-    """Return the output directory for a given project.
+def project_dir(project_slug: str) -> Path:
+    """Return the output directory for a given project: ``output/<slug>/``.
 
-    If project_id is provided, isolates by Flow project UUID to prevent
-    conflicts when multiple users create projects with the same name.
-
-    Structure: output/{flow_project_id}/{slug}/ or output/{slug}/ (legacy)
+    The layout is flat and keyed by the project's name slug, not its id, so what
+    keeps two projects apart on disk is that no two of them slugify alike —
+    enforced by `_require_unique_slug` in the projects API. `slugify` never
+    returns the empty string, so this can never resolve to OUTPUT_DIR itself.
     """
-    if project_id:
-        # New structure: isolate by Flow project UUID
-        return OUTPUT_DIR / project_id / project_slug
-    # Legacy structure for backward compatibility
     return OUTPUT_DIR / project_slug
 
 
@@ -24,33 +20,31 @@ def scene_filename(display_order: int, scene_id: str, ext: str = "mp4") -> str:
     return f"scene_{display_order:03d}_{scene_id}.{ext}"
 
 
-def scene_4k_path(project_slug: str, display_order: int, scene_id: str, project_id: str = None) -> Path:
+def scene_4k_path(project_slug: str, display_order: int, scene_id: str) -> Path:
     """Return path to the 4K scene video file."""
-    return project_dir(project_slug, project_id) / "4k" / scene_filename(display_order, scene_id)
+    return project_dir(project_slug) / "4k" / scene_filename(display_order, scene_id)
 
 
-def scene_tts_path(project_slug: str, display_order: int, scene_id: str, project_id: str = None) -> Path:
+def scene_tts_path(project_slug: str, display_order: int, scene_id: str) -> Path:
     """Return path to the TTS narration WAV for a scene."""
-    return project_dir(project_slug, project_id) / "tts" / scene_filename(display_order, scene_id, ext="wav")
+    return project_dir(project_slug) / "tts" / scene_filename(display_order, scene_id, ext="wav")
 
 
-def scene_video_path(
-    project_slug: str, display_order: int, scene_id: str, subdir: str = "scenes", project_id: str = None
-) -> Path:
+def scene_video_path(project_slug: str, display_order: int, scene_id: str, subdir: str = "scenes") -> Path:
     """Return path to a scene video file under an arbitrary subdir."""
-    return project_dir(project_slug, project_id) / subdir / scene_filename(display_order, scene_id)
+    return project_dir(project_slug) / subdir / scene_filename(display_order, scene_id)
 
 
-def resolve_4k_file(project_slug: str, display_order: int, scene_id: str, project_id: str = None) -> "Path | None":
+def resolve_4k_file(project_slug: str, display_order: int, scene_id: str) -> "Path | None":
     """Locate the 4K file for a scene.
 
     Checks canonical name (scene_NNN_<id>.mp4) first, then falls back to
     the legacy <scene_id>.mp4 name. Returns None if neither exists.
     """
-    canonical = scene_4k_path(project_slug, display_order, scene_id, project_id)
+    canonical = scene_4k_path(project_slug, display_order, scene_id)
     if canonical.exists():
         return canonical
-    legacy = project_dir(project_slug, project_id) / "4k" / f"{scene_id}.mp4"
+    legacy = project_dir(project_slug) / "4k" / f"{scene_id}.mp4"
     if legacy.exists():
         return legacy
     return None
