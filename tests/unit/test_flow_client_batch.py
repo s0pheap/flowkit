@@ -15,6 +15,7 @@ from agent.worker._parsing import _extract_media_id, _extract_output_url, _is_er
 PROJECT = "11111111-2222-3333-4444-555555555555"
 MEDIA = "12345678-1234-1234-1234-1234567890ab"
 OPERATION = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+STALE_MEDIA = "99999999-9999-9999-9999-999999999999"
 IMAGE_URL = f"https://{fb.MEDIA_HOST}/image/{MEDIA}?sig=x"
 VIDEO_URL = f"https://{fb.MEDIA_HOST}/video/{MEDIA}?sig=x"
 
@@ -261,6 +262,57 @@ class TestCheckVideoStatus:
         await self._status(client)
         listing = next(c for c in client.calls if c["rpcid"] == fb.RPC_PROJECT_MEDIA)
         assert listing["match"] == OPERATION
+
+    def _media_that_only_answers_for(self, client, good_id):
+        """`as29s` answers for one media id and reports [5] for any other."""
+        def respond(_match):
+            asked = json.dumps(client.calls[-1]["freq"])
+            if good_id in asked:
+                return {"data": envelope(fb.RPC_MEDIA, [VIDEO_URL])}
+            return {"error": "as29s failed: [5]"}
+        return respond
+
+    async def test_a_media_id_that_keeps_failing_its_url_lookup_is_re_derived(self, client):
+        """The listing can hand back a row `as29s` then reports as not found.
+
+        That id used to be cached for the life of the client, so every later
+        round asked about the same dead id, the poll ran out its whole timeout,
+        and each retry re-polled the same dead id all over again.
+        """
+        listings = []
+
+        def listing(_match):
+            listings.append(1)
+            found = MEDIA if len(listings) >= 3 else STALE_MEDIA
+            return {"data": f'["{OPERATION}",null,null,["t",1,2,null,null,"{found}"]'}
+
+        client.responses[fb.RPC_OPERATION] = self._poll(status="CAE")
+        client.responses[fb.RPC_PROJECT_MEDIA] = listing
+        client.responses[fb.RPC_MEDIA] = self._media_that_only_answers_for(client, MEDIA)
+
+        seen = [(await self._status(client))["status"] for _ in range(5)]
+        assert seen[-1] == "MEDIA_GENERATION_STATUS_SUCCESSFUL"
+        assert seen[:-1] == ["MEDIA_GENERATION_STATUS_PENDING"] * 4
+        assert STALE_MEDIA not in client._operation_media.values()
+
+    async def test_one_failed_url_lookup_does_not_pay_for_another_listing(self, client):
+        """The listing is the expensive call, so a single hiccup must not trigger it."""
+        client.responses[fb.RPC_OPERATION] = self._poll(status="CAE")
+        client.responses[fb.RPC_PROJECT_MEDIA] = self._listing()
+
+        failed = []
+
+        def flaky(_match):
+            if not failed:
+                failed.append(1)
+                return {"error": "as29s failed: [5]"}
+            return {"data": envelope(fb.RPC_MEDIA, [VIDEO_URL])}
+
+        client.responses[fb.RPC_MEDIA] = flaky
+
+        assert (await self._status(client))["status"] == "MEDIA_GENERATION_STATUS_PENDING"
+        assert (await self._status(client))["status"] == "MEDIA_GENERATION_STATUS_SUCCESSFUL"
+        assert sum(c["rpcid"] == fb.RPC_PROJECT_MEDIA for c in client.calls) == 1
 
     async def test_an_unreadable_poll_still_consults_the_listing(self, client):
         """Old operations decay to a bare id but stay in the listing."""

@@ -33,6 +33,10 @@ from agent.services.headers import random_headers
 
 logger = logging.getLogger(__name__)
 
+# Consecutive failed url lookups before a cached media id is treated as wrong
+# rather than slow. Two, so one hiccup does not cost a project-listing fetch.
+_URL_LOOKUP_STRIKES = 2
+
 
 class FlowClient:
     """Sends commands to Chrome extension via WebSocket."""
@@ -47,9 +51,14 @@ class FlowClient:
         # listing to look a finished media up in; `_operation_media` caches the
         # id once the listing has it, so later rounds skip the listing entirely;
         # `_operation_polls` counts rounds, to keep the listing off most of them.
+        # `_operation_url_failures` counts rounds the cached id failed the url
+        # lookup, and `_operation_recheck` marks the ones whose id we dropped
+        # and want re-derived from the listing on the very next round.
         self._operation_projects: dict[str, str] = {}
         self._operation_media: dict[str, str] = {}
         self._operation_polls: dict[str, int] = {}
+        self._operation_url_failures: dict[str, int] = {}
+        self._operation_recheck: set[str] = set()
         # WS stats
         self._ws_connect_count = 0
         self._ws_disconnect_count = 0
@@ -558,6 +567,8 @@ class FlowClient:
             self._operation_projects.clear()
             self._operation_media.clear()
             self._operation_polls.clear()
+            self._operation_url_failures.clear()
+            self._operation_recheck.clear()
         self._operation_projects[operation_id] = project_id
 
     # ─── High-level API Methods ──────────────────────────────
@@ -793,7 +804,29 @@ class FlowClient:
                 return _as_pending_operation(operation_id, error=complaint)
             self._operation_media[operation_id] = media_id
 
-        urls = await self._batch_media_urls(media_id)
+        try:
+            urls = await self._batch_media_urls(media_id)
+        except Exception as e:
+            # A media id that keeps failing the url lookup is the wrong id, not
+            # a slow one — the listing can hand back a row that `as29s` then
+            # reports as not found. The id is cached for the life of the client,
+            # so left alone it fails every round until the poll times out, and
+            # every retry after that re-polls the same dead id. Drop it after a
+            # second strike and have the next round re-derive it.
+            strikes = self._operation_url_failures.get(operation_id, 0) + 1
+            self._operation_url_failures[operation_id] = strikes
+            if strikes >= _URL_LOOKUP_STRIKES:
+                logger.warning(
+                    "Operation %s: media %s failed the url lookup %d rounds running (%s) "
+                    "— dropping it and asking the listing again",
+                    operation_id[:20], media_id[:8], strikes, e)
+                self._operation_media.pop(operation_id, None)
+                self._operation_url_failures.pop(operation_id, None)
+                self._operation_recheck.add(operation_id)
+            return _as_pending_operation(operation_id, error=str(e), media_id=media_id)
+
+        # It answered, so whatever went wrong before is not sticking.
+        self._operation_url_failures.pop(operation_id, None)
         if not urls.video:
             # The id landed but the clip is still being written; downloading
             # now would save the poster still instead of the video.
@@ -817,14 +850,18 @@ class FlowClient:
         The listing is the authority — the poll has been seen to never report a
         finished job the listing already knows about — but it is also the
         expensive call, so it is only consulted when the poll says something
-        happened, when the poll is unreadable, or every third round regardless.
+        happened, when the poll is unreadable, when a cached media id was just
+        dropped for failing its url lookup, or every third round regardless.
         """
         rounds = self._operation_polls.get(operation_id, 0) + 1
         self._operation_polls[operation_id] = rounds
 
         project_id = self._operation_projects.get(operation_id) or FLOW_PROJECT_ID
         complaint = None
-        worth_looking = rounds % 3 == 0
+        # A dropped media id is worth the listing straight away, whatever the round.
+        forced = operation_id in self._operation_recheck
+        self._operation_recheck.discard(operation_id)
+        worth_looking = forced or rounds % 3 == 0
         try:
             operation = fb.read_operation(
                 await self._batch_payload(
