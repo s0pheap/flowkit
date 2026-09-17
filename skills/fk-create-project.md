@@ -1,12 +1,60 @@
-Create a new Google Flow video project. Ask the user for:
+Create a new Google Flow video project.
 
-1. **Project name** and **story** (brief plot summary)
-1b. **What kind of video** — documentary/news, or storytelling (folktale, legend, myth, fiction). Ask this first if it is not obvious: it decides the beat sheet in Step 3, the narrator register, and whether scenes are narration-led. A legend built as a documentary comes out as captions over pictures, which is the single most common way this skill disappoints.
-2. **Material** — the visual style for all images. Choose one of the 6 built-in styles or a custom material. Run `GET /api/materials` to show available options. Built-ins: `realistic`, `3d_pixar`, `anime`, `stop_motion`, `minecraft`, `oil_painting`. **Required.**
-3. **Characters** — name + visual description of their **base default look in ONE outfit only**. No scene-specific variants (e.g. "glamorous in studio, sporty in gym"). The reference image must be a single clean image, not a multi-panel grid. Different outfits per scene come from the scene prompts, not the character description.
-4. **Locations** — name + visual description of key places
-5. **Visual assets** — name + visual description of key props/objects
-6. **Number of scenes** and **orientation** (VERTICAL or HORIZONTAL)
+**Ask for everything below before creating anything, and never silently accept a
+default for it.** Each of these changes the finished video and is expensive to
+change afterwards: language and style are baked into every generated asset, and
+the audio flags decide whether the clips talk over your narration. If the user's
+opening message already answered something, do not ask again — but still echo it
+back in the confirmation at the end.
+
+### Ask (required)
+
+1. **Project name** and **story**. For a folk tale or any existing story, ask for
+   the full text, not a summary — the skill can only dramatise detail it is given.
+2. **Kind of video** — documentary/news, storytelling (folktale, legend, myth,
+   fiction), or explainer. This decides the beat sheet in Step 3, the narrator
+   register, and whether scenes are narration-led. A legend built as a
+   documentary comes out as captions over pictures, which is the single most
+   common way this skill disappoints.
+3. **Narration language** — the language the voice speaks, e.g. `km` for Khmer,
+   `ko`, `en`. Sets `language` on the project and is what `/fk-gen-narrator`
+   writes in. It defaults to English if you do not ask, which is almost never
+   what a Khmer or Korean project wanted. Image and video prompts stay English
+   regardless — only the narration changes.
+4. **Material** — the visual style for every image. `GET /api/materials` to list
+   them. Built-ins: `realistic`, `3d_pixar`, `anime`, `stop_motion`, `minecraft`,
+   `oil_painting`. Offer a recommendation for the kind of video (folk tale →
+   `oil_painting` or `3d_pixar`; explainer or news → `realistic`) and let the
+   user pick.
+5. **Orientation** — VERTICAL (Shorts, TikTok, Reels) or HORIZONTAL (YouTube).
+6. **Number of scenes.** Do not take a number on trust: check it against the
+   beat sheet in Step 3 and say so if the story needs more. Three minutes of
+   narration is roughly 12 narration-led scenes.
+7. **Characters** — name + visual description of their **base default look in ONE
+   outfit only**. No scene-specific variants (e.g. "glamorous in studio, sporty in
+   gym"). The reference image must be a single clean image, not a multi-panel
+   grid. Different outfits per scene come from the scene prompts, not here.
+8. **Locations** — name + visual description of key places.
+9. **Visual assets** — name + visual description of key props/objects.
+
+### Confirm (state the default, accept it silently only if the user agrees)
+
+10. **Sound in the clips** — `allow_music` and `allow_voice`, both **off** by
+    default and they should usually stay off. With `allow_voice` on, the
+    generated clip invents its own dialogue and you get two voices over one
+    scene, because the narration is a separate TTS track. Only turn it on for a
+    video that wants in-clip speech and no narration over it.
+11. **Video model family** — `omni_flash` (10s clips, image-to-video, no native
+    audio) or `veo` (8s clips, native audio). Omitted, the server default is
+    used. This sets how much narration fits a generated scene, so mention it
+    when the project is narration-heavy.
+
+### Then read it all back
+
+Before calling the API, show the user a short summary — name, kind, language,
+material, orientation, scene count, entities, audio flags — and wait for a yes.
+This is the cheapest correction point in the whole pipeline: fixing "I wanted
+Khmer" here costs one message, and after `/fk-gen-images` it costs the images.
 
 Then execute:
 
@@ -173,12 +221,25 @@ granted to this key; `409` means it already holds a project.
 . ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
 curl -X POST "$FK/api/projects" -H "$KEY" \
   -H "Content-Type: application/json" \
-  -d '{"name": "...", "description": "...", "story": "...", "material": "3d_pixar", "characters": [
+  -d '{"name": "...", "description": "...", "story": "...",
+       "flow_project_id": "<uuid from Step 0>",
+       "language": "km",
+       "material": "3d_pixar",
+       "allow_music": false, "allow_voice": false,
+       "characters": [
     {"name": "...", "entity_type": "character", "description": "...", "voice_description": "Deep calm voice, speaks slowly with confidence"},
     {"name": "...", "entity_type": "location", "description": "..."},
     {"name": "...", "entity_type": "visual_asset", "description": "..."}
   ]}'
 ```
+
+**Send `language` explicitly, every time.** Left out it is `"en"`, whatever the
+user asked for — this is the usual reason a Khmer or Korean project narrates in
+English. `allow_music` and `allow_voice` are false by default; send them anyway
+so the intended value is visible in the request rather than assumed.
+
+Add `"video_model_family": "veo"` or `"omni_flash"` only when the user chose one;
+omitted, the server default applies.
 
 Save the returned `project_id`.
 
@@ -188,8 +249,12 @@ Save the returned `project_id`.
 . ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
 curl -X POST "$FK/api/videos" -H "$KEY" \
   -H "Content-Type: application/json" \
-  -d '{"project_id": "<PID>", "title": "...", "display_order": 0}'
+  -d '{"project_id": "<PID>", "title": "...", "display_order": 0, "orientation": "VERTICAL"}'
 ```
+
+Set `orientation` here from what the user chose — `VERTICAL` or `HORIZONTAL`.
+Left out, it is decided later by whichever generation batch runs first, which is
+not a decision worth leaving to chance.
 
 Save the returned `video_id`.
 

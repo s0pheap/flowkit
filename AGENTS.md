@@ -87,7 +87,7 @@ This project has reusable skills in `skills/`. When the user says `/fk-<name>`, 
 | `/fk-change-provider` | fk-change-provider — View & Switch AI CLI Provider (Video Review) |
 | `/fk-concat-fit-narrator` | Build the final video on the server — each scene fitted to its narration, with text overlays, transitions and subtitles — then download it. |
 | `/fk-concat` | Download and concatenate all scene videos into a single video with optional TTS narration. |
-| `/fk-create-project` | Create a new Google Flow video project. Ask the user for: |
+| `/fk-create-project` | Create a new Google Flow video project. |
 | `/fk-creative-mix` | Creative video mixing — combine techniques for cinematic results. |
 | `/fk-dashboard` | Show live GLA status in Claude Code statusline. |
 | `/fk-doctor` | Diagnose any FlowKit error and prescribe a fix. Knows the full error taxonomy across Google Flow, the Chrome extension, the FastAPI layer, the worker, and the YouTube upload pipeline. |
