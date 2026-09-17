@@ -1,6 +1,14 @@
 Create a new Google Flow video project. Ask the user for:
 
-1. **Project name** and **story** (brief plot summary)
+1. **Project name** and **story**. When the story already exists — a folk tale, a
+   legend, a news event, a script — ask for the **full text, not a summary**. The
+   skill can only dramatise detail it has been given: the names, the repetitions,
+   the exact bargain that was struck, how it ends. A one-line summary produces a
+   one-line video, and no amount of good imagery rescues it. `story` is unbounded
+   TEXT in the database, so length is never the constraint. A short premise is the
+   right input only for an original idea, where the beats are invented rather than
+   adapted — and if the user only half-remembers an existing tale, run
+   `/fk-research` on it first rather than filling the gaps by guessing.
 2. **Material** — the visual style for all images. Choose one of the 6 built-in styles or a custom material. Run `GET /api/materials` to show available options. Built-ins: `realistic`, `3d_pixar`, `anime`, `stop_motion`, `minecraft`, `oil_painting`. **Required.**
 3. **Characters** — name + visual description of their **base default look in ONE outfit only**. No scene-specific variants (e.g. "glamorous in studio, sporty in gym"). The reference image must be a single clean image, not a multi-panel grid. Different outfits per scene come from the scene prompts, not the character description.
 4. **Locations** — name + visual description of key places

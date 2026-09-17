@@ -114,7 +114,10 @@ Ready for /fk-create-project — use this research as the story source.
 ## Step 6: Handoff to Project Creation
 
 When the user proceeds to `/fk-create-project`, the research file serves as the **single source of truth** for:
-- `story` field — summary built from verified timeline
+- `story` field — for a documentary, the verified timeline. For an existing tale
+  or text, **the full text itself, not a condensation of it**: `/fk-create-project`
+  can only dramatise the detail it is handed, so a summary here becomes a
+  summary-shaped video no matter how good the research behind it was
 - `narrator_text` — must reference only verified events
 - Scene descriptions — must depict real events, not invented scenarios
 - Character names — must match real figures from the fact sheet
