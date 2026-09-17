@@ -634,10 +634,10 @@ export const RECIPES: Recipe[] = [
       ko: '기본 경로는 그림이 영상을 이끄는 다큐멘터리를 가정합니다. 설화는 반대입니다. 이야기가 영상을 이끌고 그림은 그것을 보여줍니다. 성패를 가르는 여섯 가지 선택은 모두 이미지를 만들기 전에 정해집니다.',
     },
     prompt: {
-      en: `Make a storytelling video of the Khmer folk tale "<name>" from ប្រជុំរឿងព្រេងខ្មែរ. Narration in Khmer, oil painting style, vertical.
+      en: `Make a storytelling video of the Khmer folk tale "<name>" from ប្រជុំរឿងព្រេងខ្មែរ. Narration in Khmer, vertical.
 Here is the full tale: <paste the whole tale, not a summary>
 Show me the beat sheet before creating any scene. It is narration-led, so use ffmpeg look & feel.`,
-      ko: `ប្រជុំរឿងព្រេងខ្មែរ의 크메르 설화 "<제목>"로 이야기 영상을 만들어 주세요. 내레이션은 크메르어, 유화 스타일, 세로형입니다.
+      ko: `ប្រជុំរឿងព្រេងខ្មែរ의 크메르 설화 "<제목>"로 이야기 영상을 만들어 주세요. 내레이션은 크메르어, 세로형입니다.
 설화 전문: <요약이 아닌 전문을 붙여넣으세요>
 장면을 만들기 전에 비트 시트를 먼저 보여주세요. 내레이션 중심이므로 ffmpeg look & feel을 써 주세요.`,
     },
