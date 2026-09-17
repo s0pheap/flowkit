@@ -33,7 +33,7 @@ export const SKILL_CATEGORIES: SkillCategory[] = [
       {
         name: 'fk-research',
         remote: true,
-        usage: ['/fk-research <topic> [--language vi] [--depth deep|quick]'],
+        usage: ['/fk-research <topic> [--language en] [--depth deep|quick]'],
         summary: {
           en: 'Researches and fact-checks a real-world topic and writes a report you can script from.',
           ko: '실제 주제를 조사하고 사실 확인한 뒤, 대본 작성에 쓸 수 있는 보고서를 만듭니다.',
