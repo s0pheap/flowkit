@@ -1,54 +1,16 @@
 # Skills — Flow Kit
 
-Workflow skills for AI agents and humans. Each skill is a step-by-step recipe for generating high-quality AI videos.
+Workflow skills for AI agents and humans. Each skill is a step-by-step recipe.
 
-## Quick Start
-
-**First time?** Run these skills in order to create your first video:
-
-```bash
-/fk-research "your topic"           # Research your topic
-/fk-create-project                  # Create project (interactive)
-/fk-gen-refs <project_id>           # Generate entity references
-/fk-gen-images <project_id> <video_id>  # Generate scene images
-/fk-gen-narrator <video_id>         # Add narration (optional)
-/fk-review-board <video_id>         # Set look & feel
-/fk-gen-videos <project_id> <video_id>  # Generate video clips
-/fk-concat-fit-narrator <video_id>  # Render final video
-```
-
-Use `/fk-status` anytime to see what's done and what to run next.
-
-## Complete Video Generation Workflow (run in this order)
+## Pipeline (run in order)
 
 | # | Skill | File | Description |
 |---|-------|------|-------------|
-| 1 | `fk-research` | [fk-research.md](fk-research.md) | Research and fact-check your topic before creating the project |
-| 2 | `fk-create-project` | [fk-create-project.md](fk-create-project.md) | Create project + entities + video + scenes |
-| 3 | `fk-gen-refs` | [fk-gen-refs.md](fk-gen-refs.md) | Generate reference images for all entities (characters, locations, props) |
-| 4 | `fk-gen-images` | [fk-gen-images.md](fk-gen-images.md) | Generate keyframe images for every scene using entity references |
-| 5 | `fk-gen-narrator` | [fk-gen-narrator.md](fk-gen-narrator.md) | Generate narrator text + TTS voiceover + word timings for subtitles |
-| 5b | `fk-gen-text-overlays` | [fk-gen-text-overlays.md](fk-gen-text-overlays.md) | Extract key facts as on-screen text overlays (optional) |
-| 6 | `fk-review-board` | [fk-review-board.md](fk-review-board.md) | Set look & feel for each scene: Veo vs ffmpeg, transitions, timing |
-| 7 | `fk-gen-videos` | [fk-gen-videos.md](fk-gen-videos.md) | Generate video clips (Veo for AI motion, ffmpeg for pan/zoom effects) |
-| 8 | `fk-review-video` | [fk-review-video.md](fk-review-video.md) | Score clips for quality, find scenes to regenerate (optional) |
-| 8b | `fk-review-board` | [fk-review-board.md](fk-review-board.md) | Mark clips as Good/Redo/Skip, write notes |
-| 9 | `fk-gen-music` | [fk-gen-music.md](fk-gen-music.md) | Generate background music with Suno (optional) |
-| 10 | `fk-concat-fit-narrator` | [fk-concat-fit-narrator.md](fk-concat-fit-narrator.md) | Render final video with narration timing, music, transitions, subtitles |
-
-**For videos without narration:** Skip steps 5-5b and 9, use `fk-concat` instead of `fk-concat-fit-narrator` in step 10.
-
-### Why this order matters
-
-- **Step 1 → 2:** Research before creating ensures factually accurate content
-- **Step 3 → 4:** Reference images MUST exist before scene images (ensures visual consistency)
-- **Step 4 → 5:** Scene images should exist before narration (narrator can describe what's visible)
-- **Step 5 → 6:** Narration length determines each scene's duration for ffmpeg scenes
-- **Step 6 → 7:** Look & feel must be set BEFORE generating videos (determines Veo vs ffmpeg)
-- **Step 7 → 8:** Review after videos exist to identify clips that need regeneration
-- **Step 8 → 10:** Final assembly needs all clips finalized
-
-**Critical:** A new image clears that scene's video. If you regenerate images after videos, you'll need to regenerate those videos too. Always: refs → images → narration (if ffmpeg) → videos → final render.
+| 1 | `fk-create-project` | [fk-create-project.md](fk-create-project.md) | Create project + entities + video + scenes |
+| 2 | `fk-gen-refs` | [fk-gen-refs.md](fk-gen-refs.md) | Generate reference images for all entities |
+| 3 | `fk-gen-images` | [fk-gen-images.md](fk-gen-images.md) | Generate scene images with character refs |
+| 4 | `fk-gen-videos` | [fk-gen-videos.md](fk-gen-videos.md) | Generate videos from scene images |
+| 5 | `fk-concat` | [fk-concat.md](fk-concat.md) | Download + merge all scene videos |
 
 ## Advanced Video
 
@@ -64,15 +26,12 @@ Use `/fk-status` anytime to see what's done and what to run next.
 |-------|------|-------------|
 | `fk-camera-guide` | [fk-camera-guide.md](fk-camera-guide.md) | Camera angles, movements, lighting, DOF for cinematic video prompts |
 
-## Project Management & Troubleshooting
+## Utilities
 
 | Skill | File | Description |
 |-------|------|-------------|
-| `fk-status` | [fk-status.md](fk-status.md) | Show project progress and what to run next |
-| `fk-switch-project` | [fk-switch-project.md](fk-switch-project.md) | Set active project (work on multiple projects) |
-| `fk-doctor` | [fk-doctor.md](fk-doctor.md) | Diagnose and fix errors across Flow, extension, agent |
-| `fk-refresh-urls` | [fk-refresh-urls.md](fk-refresh-urls.md) | Re-sign expired media URLs |
-| `fk-fix-uuids` | [fk-fix-uuids.md](fk-fix-uuids.md) | Repair CAMS... media_ids to UUID format |
+| `fk-status` | [fk-status.md](fk-status.md) | Full project dashboard + next action |
+| `fk-fix-uuids` | [fk-fix-uuids.md](fk-fix-uuids.md) | Repair any CAMS... media_ids to UUID format |
 
 ## Cross-Tool Compatibility
 
@@ -88,7 +47,7 @@ python setup.py clean     # Remove generated configs
 | Tool | Generated Config | Instruction File | Invocation |
 |------|-----------------|------------------|------------|
 | Claude Code | `.claude/commands/fk-<name>.md` (stubs) | `CLAUDE.md` (committed) | `/fk-<name>` |
-| Antigravity CLI (`agy`) | `.agents/skills/fk-<name>/SKILL.md` | `GEMINI.md` / `AGENTS.md` (generated) | `/fk-<name>` or auto-invoked |
+| Gemini CLI | `.gemini/commands/fk/<name>.toml` | `GEMINI.md` (generated) | `/fk-<name>` |
 | Codex CLI | — | `AGENTS.md` (generated) | Read `skills/fk-<name>.md` |
 
 **Adding a new skill:** Create `skills/fk-<name>.md`, then run `python setup.py sync`.

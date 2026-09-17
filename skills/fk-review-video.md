@@ -1,113 +1,84 @@
-Review AI-generated scene videos for quality with a vision model.
+Review AI-generated scene videos for quality using Claude Vision.
 
-Usage: `/fk-review-video <video_id> [--mode light|deep] [--provider claude|agy]`
+Usage: `/fk-review-video <video_id> [--mode light|deep]`
 
-Default mode: `light`. The server turns each scene's clip into timestamped contact sheets; a vision model scores them. **Who does the vision analysis:**
-
-1. **Your own AI agent (preferred)** — the agent running this skill (Claude Code, Codex, Gemini CLI, ...) looks at the contact sheets itself and sends its JSON back. Uses your agent, not the server.
-2. **The host's CLI (fallback)** — when your agent cannot view images, the server runs `claude` or `agy` on its own machine.
-
-## Connection
-
-These commands work against a local agent or a shared server. The Flow Kit
-installer (`<server>/install.sh` or `install.ps1`) writes `~/.flowkit/env` with
-`FLOWKIT_URL` and `FLOWKIT_API_KEY`; without that file they default to
-`http://127.0.0.1:8100` and no key. Shell state does not carry
-over between commands, so **start every command with this line**:
-
-```bash
-. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
-```
+Default mode: `light`. Orientation auto-detected from project `meta.json`.
 
 ## Prerequisites
 
-- Scenes must have completed videos (`${ori}_video_status = COMPLETED`). Pan/zoom (ffmpeg) scenes have no Veo clip and are skipped.
-- Signed video links expire after a few hours — run `/fk-refresh-urls` first if the videos are old.
-- No API key is needed for either path.
+- `ANTHROPIC_API_KEY` env var set
+- `ffmpeg` + `ffprobe` installed
+- Scenes must have completed videos (`${ori}_video_status = COMPLETED`)
 
 ## Step 1: Pre-check
 
 ```bash
-. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
-curl -s "$FK/api/videos/<VID>" -H "$KEY"                 # project_id → <PID>, orientation → ${ORI}
-curl -s "$FK/api/scenes?video_id=<VID>" -H "$KEY"        # which scenes have a completed ${ori} video
+# Verify server + extension connected
+curl -s http://127.0.0.1:8100/health
+# Must return: {"extension_connected": true}
+
+# Verify video exists
+curl -s http://127.0.0.1:8100/api/videos/<VID>
 ```
 
-**ABORT** if the video is not found. List scenes without a completed video and tell the user to run `/fk-gen-videos` for them; review the rest.
+**ABORT** if extension not connected or video not found.
 
-## Step 2: Choose who analyses
-
-- **Your agent can view image files** (e.g. Claude Code's Read tool opens a `.jpg`) and the user did not pass `--provider` → **Step 3A**.
-- Otherwise → **Step 3B** with the host CLI. Check what the host has installed:
-
-  ```bash
-  . ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
-  curl -s "$FK/api/providers" -H "$KEY"
-  ```
-
-  Use `--provider` if given, else `claude` if `installed`, else `agy`. If neither is installed, stop and tell the user a vision-capable agent is needed for Step 3A.
-
-## Step 3A: Review with your own agent
-
-**1. Prepare** — the server downloads each clip and makes its contact sheets (all scenes at once, or one scene with `.../scenes/<SID>/review/prepare`):
+## Step 2: Check scenes have completed videos
 
 ```bash
-. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
-curl -s -m 900 -X POST "$FK/api/videos/<VID>/review/prepare?project_id=<PID>&mode=light&orientation=${ORI}" -H "$KEY" > review_jobs.json
+curl -s "http://127.0.0.1:8100/api/scenes?video_id=<VID>"
 ```
 
-Response: `{"reviews": [{"review_id", "scene_id", "display_order", "n_frames", "fps", "sheet_count", "prompt", "sheets": ["/api/videos/<VID>/reviews/<RID>/sheets/1.jpg", ...], "result_url"}], "skipped": [{"scene_id", "reason"}]}`.
+For each scene, verify `${ori}_video_status = COMPLETED` (orientation auto-detected from meta.json).
 
-**2. For each review, one scene at a time:**
+**ABORT** if any scene is missing a completed video — tell user to run `/fk-gen-videos` first.
 
-a. Download its sheets into a scratch folder, in order:
-   ```bash
-   . ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
-   curl -sfL "$FK<sheets[i]>" -H "$KEY" -o "scene_<display_order+1>_sheet_<i>.jpg"
-   ```
-b. **Look at every sheet yourself**, earliest first (each cell is a frame, timestamp in its corner).
-c. Follow that review's `prompt` exactly and write **only** the JSON it asks for: `dimensions` (six 0–10 scores), `errors` (`severity`, `time_range`, `description`) and `usable_segments`. Judge honestly from the frames — do not guess scores for frames you did not see.
-d. Send it back; the server scores it the same way as a host review:
-   ```bash
-   . ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
-   curl -s -X POST "$FK<result_url>" -H "$KEY" -H "Content-Type: application/json" -d @scene_analysis.json
-   ```
-   Your full text reply also works: `{"raw": "<reply with the JSON in it>"}`. A `400` means the JSON could not be read — fix it and post again. A `404` means the review expired (24h) or was already scored — prepare it again.
-
-The reply is that scene's `SceneReview` (Step 4). Delete the downloaded sheets when done.
-
-## Step 3B: Review on the host CLI
+## Step 3: Run review via API
 
 ```bash
-. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
-curl -s -m 1800 -X POST "$FK/api/videos/<VID>/review?project_id=<PID>&mode=light&orientation=${ORI}&provider=<claude|agy>" -H "$KEY"
+curl -X POST "http://127.0.0.1:8100/api/videos/<VID>/review?project_id=<PID>&mode=light&orientation=${ORI}"
 ```
 
-One call reviews every scene and waits for all of them (about a minute per scene). For one scene use `POST $FK/api/videos/<VID>/scenes/<SID>/review?...&provider=...`. Add `&scene_ids=<SID1>,<SID2>` to review a subset. Leaving out `provider` uses the server's default (`/fk-change-provider`, admin only).
+**Parameters:**
+- `mode`: `light` (default) or `deep`
+- `orientation`: auto-detected from meta.json (`${ORI}`)
 
-- `400 ... not installed on this server` → pick an installed provider, or use Step 3A.
-- `500 Review failed: ... CLI timed out` → review scenes one at a time.
+The API will extract frames from each scene video, send them to Claude Vision, and return per-scene quality scores.
+
+**Poll until complete:**
+```bash
+curl -s http://127.0.0.1:8100/api/requests/<RID>
+# Wait for status: "COMPLETED"
+```
 
 ## Step 4: Interpret results
 
-Each scene review (Step 3A per scene; Step 3B returns `{"overall_score", "verdict", "scene_reviews": [...], "scenes_reviewed", "scenes_skipped"}`):
+The response is an array of per-scene review objects:
 
 ```json
-{
-  "scene_id": "abc-123",
-  "overall_score": 8.1,
-  "verdict": "good",
-  "dimensions": {
-    "character_consistency": 8.0, "prompt_adherence": 7.0, "motion_quality": 9.0,
-    "visual_fidelity": 8.0, "temporal_coherence": 8.0, "composition": 7.0
-  },
-  "errors": [{"severity": "MINOR", "time_range": "2s-3s", "description": "prop count changes"}],
-  "usable_segments": [{"time_range": "0s-8s", "score": 8.0}],
-  "fix_guide": "Edit video_prompt camera directions, then regenerate",
-  "frames_analyzed": 32,
-  "fps_used": 4.0,
-  "has_critical_errors": false
-}
+[
+  {
+    "scene_id": "abc-123",
+    "display_order": 0,
+    "total_score": 8.5,
+    "dimensions": {
+      "character_consistency": 9.0,
+      "prompt_adherence": 8.5,
+      "motion_quality": 8.0,
+      "visual_fidelity": 8.5,
+      "temporal_coherence": 8.0,
+      "composition": 9.0
+    },
+    "errors": ["Slight motion blur at 4s mark"],
+    "fix_guide": "Acceptable as-is. If re-generating, add 'sharp focus, crisp motion' to prompt.",
+    "usable": true,
+    "verdict": "good",
+    "usable_segments": [
+      {"start": "0s", "end": "4s", "score": 9.0},
+      {"start": "5s", "end": "8s", "score": 8.5}
+    ]
+  }
+]
 ```
 
 ### Scoring Dimensions
@@ -121,7 +92,7 @@ Each scene review (Step 3A per scene; Step 3B returns `{"overall_score", "verdic
 | Temporal Coherence | 10% | Consistent lighting/shadows across frames |
 | Composition | 10% | Framing matches camera direction |
 
-`overall_score = sum(dimension_score * weight)`
+`total_score = sum(dimension_score * weight)`
 
 ### Verdict Scale
 
@@ -133,28 +104,37 @@ Each scene review (Step 3A per scene; Step 3B returns `{"overall_score", "verdic
 | 4.0–5.9 | Poor | Regen scene image first, then video |
 | 0–3.9 | Unusable | Rewrite prompt + regen from scratch |
 
-Any `CRITICAL` error caps `character_consistency` at 3.0 and `overall_score` at 5.9 (`has_critical_errors: true`). See **Known AI Video Errors** below.
+Errors in the `errors` array are prefixed with severity: `[CRITICAL]`, `[HIGH]`, or `[MINOR]`. Any `[CRITICAL]` error forces the scene into the 0–3.9 range regardless of other dimensions. See **Known AI Video Errors** section below.
 
 ## Step 5: Act on results
 
 ### Poor / Unusable scenes
 Regenerate the scene image first, then the video:
 ```bash
-. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
-curl -s -X POST "$FK/api/requests" -H "$KEY" -H "Content-Type: application/json" \
-  -d '{"type": "REGENERATE_IMAGE", "scene_id": "<SID>", "project_id": "<PID>", "video_id": "<VID>", "orientation": "'"${ORI}"'"}'
+# Force-regenerate scene image (cascades video + upscale)
+curl -X POST http://127.0.0.1:8100/api/requests \
+  -H "Content-Type: application/json" \
+  -d '{"type": "REGENERATE_IMAGE", "scene_id": "<SID>", "project_id": "<PID>", "video_id": "<VID>", "orientation": "${ORI}"}'
 ```
-Then run `/fk-gen-videos <PID> <VID>` after the image is complete.
+Then run `/fk-gen-videos <PID> <VID>` after image is complete.
 
 ### Acceptable with good segments
-Note `usable_segments` time ranges; set the scene's length or trim in `/fk-review-board`.
+Note `usable_segments` time ranges for manual editing. Use `/fk-concat` and trim in post.
 
 ### Character drift (low `character_consistency`)
 - Verify all entity ref images have `media_id` (UUID format)
-- Use `EDIT_IMAGE` to re-anchor character appearance (same call as above with `"type": "EDIT_IMAGE"`).
+- Use `EDIT_IMAGE` to re-anchor character appearance:
+  ```bash
+  curl -X POST http://127.0.0.1:8100/api/requests \
+    -H "Content-Type: application/json" \
+    -d '{"type": "EDIT_IMAGE", "scene_id": "<SID>", "project_id": "<PID>", "video_id": "<VID>", "orientation": "${ORI}"}'
+  ```
 
 ### After fixes
-Review the regenerated scenes again, with `mode=deep` before final export.
+Run review again to verify improvements:
+```bash
+curl -X POST "http://127.0.0.1:8100/api/videos/<VID>/review?project_id=<PID>&mode=deep"
+```
 
 ## Modes
 
@@ -163,26 +143,27 @@ Review the regenerated scenes again, with `mode=deep` before final export.
 
 ## Output Summary
 
-Print a table after review completes (number scenes from 1, as the dashboard does):
+Print a table after review completes:
 
 ```
-Scene | Score | Verdict    | Errors | Usable Segments        | Analysed by
-------|-------|------------|--------|------------------------|------------
-1     | 8.5   | good       | 1      | 0s-4s(9.0), 5s-8s(8.5) | own agent
-2     | 6.2   | acceptable | 2      | 3s-5s(7.0)             | own agent
-3     | 3.8   | unusable   | 5      | none                   | own agent
+Scene | Order | Score | Verdict    | Errors | Usable Segments
+------|-------|-------|------------|--------|----------------
+s-1   | 0     | 8.5   | good       | 1      | 2s-4s(9.0), 6s-8s(8.5)
+s-2   | 1     | 6.2   | acceptable | 2      | 3s-5s(7.0)
+s-3   | 2     | 9.1   | excellent  | 0      | full
+s-4   | 3     | 3.8   | unusable   | 5      | none
 ...
-Total: 6.9/10 | 3 scenes reviewed | 0 skipped
+Total: 6.9/10 | 4 scenes reviewed | 0 skipped
 ```
 
 Then print recommended actions:
-- Excellent/Good → "Ready for `/fk-concat-fit-narrator <VID>`"
+- Excellent/Good → "Ready for `/fk-concat <VID>`"
 - Acceptable → "Note usable segments, trim in post"
 - Poor/Unusable → "Run `/fk-gen-images <PID> <VID>` to regenerate, then `/fk-gen-videos <PID> <VID>`"
 
 ## Known AI Video Errors
 
-Battle-tested error catalog. The vision model reports these in `errors`, each with its `severity`.
+Battle-tested error catalog. Claude Vision flags these in the `errors` array with severity prefix.
 
 ### CRITICAL (Auto-fail, score 0–3)
 
@@ -233,6 +214,8 @@ MINOR errors → acceptable for most use cases. Polish optional.
 
 ## Cost Note
 
-- **Own agent (Step 3A):** uses your agent's own model and quota; the server only makes contact sheets (a few seconds per scene).
-- **Host CLI (Step 3B):** uses the host's `claude`/`agy` account — one call per scene.
-- Deep mode sends twice the frames of light mode. Review light first, then deep only on scenes flagged as poor/acceptable.
+Each scene review = 1 Claude Vision API call with N frames.
+- Light mode (32 frames/scene): ~$0.01–0.03 per scene
+- Deep mode (64 frames/scene): ~2x light mode cost
+
+Reviewing a full video (10 scenes, deep) ≈ 10 API calls. Review light first, then deep only on scenes flagged as poor/acceptable.

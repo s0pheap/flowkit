@@ -1,39 +1,23 @@
 # fk-gen-text-overlays — Generate Text Overlays from Narrator Text
 
-Analyze narrator text for each scene and extract key data points (dates, locations, statistics, milestones, costs) and save them as the video's text overlays, which `/fk-concat-fit-narrator` burns into the final render.
+Analyze narrator text for each scene and extract key data points (dates, locations, statistics, milestones, costs) to create `text_overlays.json` for `/fk-concat-fit-narrator`.
 
 Usage: `/fk-gen-text-overlays <video_id> [--language vi]`
 
 - `video_id` — the video to generate overlays for
 - `--language` — target language code (default: auto-detect from narrator text). **All overlay text MUST be in this language with proper diacritics/characters.**
 
-## Connection
-
-These commands work against a local agent or a shared server. The Flow Kit
-installer (`<server>/install.sh` or `install.ps1`) writes `~/.flowkit/env` with
-`FLOWKIT_URL` and `FLOWKIT_API_KEY`; without that file they default to
-`http://127.0.0.1:8100` and no key. Shell state does not carry
-over between commands, so **start every command with this line**:
-
-```bash
-. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
-```
-
-Then call the API as `curl -s "$FK/api/..." -H "$KEY"`. A `401` means the key is
-missing or wrong; a `404` on an id you were given means it belongs to another user.
-In PowerShell use `$env:FLOWKIT_URL` and `-Headers @{"X-API-Key"=$env:FLOWKIT_API_KEY}`.
-
 ## Step 1: Load project, video, scenes
 
 ```bash
-. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
-curl -s "$FK/api/videos/<VID>" -H "$KEY"
+curl -s http://127.0.0.1:8100/api/videos/<VID>
 # Get project_id
-curl -s "$FK/api/projects/<PID>" -H "$KEY"
-curl -s "$FK/api/scenes?video_id=<VID>" -H "$KEY"
+curl -s http://127.0.0.1:8100/api/projects/<PID>
+curl -s "http://127.0.0.1:8100/api/scenes?video_id=<VID>"
+curl -s http://127.0.0.1:8100/api/projects/<PID>/output-dir
 ```
 
-Sort scenes by `display_order`.
+Sort scenes by `display_order`. Note `OUTDIR` from output-dir response.
 
 ## Step 2: Detect target language
 
@@ -92,7 +76,7 @@ Bad:
 - **Currency**: use `$X,XXX,XXX` format with dollar sign.
 - **Casualty numbers**: pair with context (e.g., "25 lính hy sinh" not just "25").
 
-## Step 4: Build the overlays
+## Step 4: Generate text_overlays.json
 
 Build JSON object where keys are scene `display_order` (as string), values are arrays of overlay items:
 
@@ -130,17 +114,12 @@ Scene | Style | Text (40 char max)
 Total: X overlays across Y scenes (Z% coverage)
 ```
 
-Save them on the server (this replaces any overlays saved before):
+Save to `${OUTDIR}/text_overlays.json`.
 
 ```bash
-. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
-curl -s -X PUT "$FK/api/videos/<VID>/text-overlays" -H "$KEY" \
-  -H "Content-Type: application/json" \
-  -d '<the JSON object from Step 4>'
-# → {"scenes": 27, "items": 41}
+# Verify JSON is valid
+python3 -c "import json; d=json.load(open('${OUTDIR}/text_overlays.json')); print(f'{len(d)} scenes with overlays, {sum(len(v) for v in d.values())} total items')"
 ```
-
-A `400` names the scene and rule that failed (style, more than 2 items, text over 40 characters) — fix it and save again. `GET` the same URL to read the saved overlays.
 
 ## Step 6: Report
 
@@ -150,7 +129,7 @@ Text overlays generated: <project_name>
   Scenes with overlays: X/Y (Z%)
   Total overlay items: N
   Styles: date=A, name=B, stat=C, cost=D
-  Saved: on the server (GET /api/videos/<VID>/text-overlays)
+  Output: ${OUTDIR}/text_overlays.json
 
 Ready for /fk-concat-fit-narrator
 ```

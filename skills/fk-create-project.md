@@ -1,97 +1,13 @@
-Create a new Google Flow video project.
+Create a new Google Flow video project. Ask the user for:
 
-**Ask for everything below before creating anything, and never silently accept a
-default for it.** Each of these changes the finished video and is expensive to
-change afterwards: language and style are baked into every generated asset, and
-the audio flags decide whether the clips talk over your narration. If the user's
-opening message already answered something, do not ask again — but still echo it
-back in the confirmation at the end.
-
-### Ask (required)
-
-1. **Project name** and **story**. For a folk tale or any existing story, ask for
-   the full text, not a summary — the skill can only dramatise detail it is given.
-2. **Kind of video** — documentary/news, storytelling (folktale, legend, myth,
-   fiction), or explainer. This decides the beat sheet in Step 3, the narrator
-   register, and whether scenes are narration-led. A legend built as a
-   documentary comes out as captions over pictures, which is the single most
-   common way this skill disappoints.
-3. **Narration language** — the language the voice speaks, e.g. `km` for Khmer,
-   `ko`, `en`. Sets `language` on the project and is what `/fk-gen-narrator`
-   writes in. It defaults to English if you do not ask, which is almost never
-   what a Khmer or Korean project wanted. Image and video prompts stay English
-   regardless — only the narration changes.
-4. **Material** — the visual style for every image. `GET /api/materials` to list
-   them. Built-ins: `realistic`, `3d_pixar`, `anime`, `stop_motion`, `minecraft`,
-   `oil_painting`. Offer a recommendation for the kind of video (folk tale →
-   `oil_painting` or `3d_pixar`; explainer or news → `realistic`) and let the
-   user pick.
-5. **Orientation** — VERTICAL (Shorts, TikTok, Reels) or HORIZONTAL (YouTube).
-6. **Number of scenes.** Do not take a number on trust: check it against the
-   beat sheet in Step 3 and say so if the story needs more. Three minutes of
-   narration is roughly 12 narration-led scenes.
-7. **Characters** — name + visual description of their **base default look in ONE
-   outfit only**. No scene-specific variants (e.g. "glamorous in studio, sporty in
-   gym"). The reference image must be a single clean image, not a multi-panel
-   grid. Different outfits per scene come from the scene prompts, not here.
-8. **Locations** — name + visual description of key places.
-9. **Visual assets** — name + visual description of key props/objects.
-
-### Confirm (state the default, accept it silently only if the user agrees)
-
-10. **Sound in the clips** — `allow_music` and `allow_voice`, both **off** by
-    default and they should usually stay off. With `allow_voice` on, the
-    generated clip invents its own dialogue and you get two voices over one
-    scene, because the narration is a separate TTS track. Only turn it on for a
-    video that wants in-clip speech and no narration over it.
-11. **Video model family** — `omni_flash` (10s clips, image-to-video, no native
-    audio) or `veo` (8s clips, native audio). Omitted, the server default is
-    used. This sets how much narration fits a generated scene, so mention it
-    when the project is narration-heavy.
-
-### Then read it all back
-
-Before calling the API, show the user a short summary — name, kind, language,
-material, orientation, scene count, entities, audio flags — and wait for a yes.
-This is the cheapest correction point in the whole pipeline: fixing "I wanted
-Khmer" here costs one message, and after `/fk-gen-images` it costs the images.
+1. **Project name** and **story** (brief plot summary)
+2. **Material** — the visual style for all images. Choose one of the 6 built-in styles or a custom material. Run `GET /api/materials` to show available options. Built-ins: `realistic`, `3d_pixar`, `anime`, `stop_motion`, `minecraft`, `oil_painting`. **Required.**
+3. **Characters** — name + visual description of their **base default look in ONE outfit only**. No scene-specific variants (e.g. "glamorous in studio, sporty in gym"). The reference image must be a single clean image, not a multi-panel grid. Different outfits per scene come from the scene prompts, not the character description.
+4. **Locations** — name + visual description of key places
+5. **Visual assets** — name + visual description of key props/objects
+6. **Number of scenes** and **orientation** (VERTICAL or HORIZONTAL)
 
 Then execute:
-
-## Workflow: When to Run This
-
-**Step 2 of 10** in the complete video generation workflow.
-
-- **Run AFTER:** `/fk-research` (optional but recommended for factual content)
-- **Run BEFORE:** `/fk-gen-refs` - Creates the entities that need reference images
-
-**Why it matters:** This is the foundation of your video. You define:
-- The visual style (material) that applies to ALL images
-- Characters, locations, and props (entities) that appear across scenes
-- The story structure (number and sequence of scenes)
-
-**Quality tip:**
-- For characters, describe only their BASE look in ONE outfit. Different clothes per scene go in the scene prompts, not here.
-- Be specific about visual style - "realistic" for documentaries, "3d_pixar" for animated stories
-- Plan your scene count carefully - each Veo scene takes 2-5 minutes to generate
-
-**Next step:** After creating the project, run `/fk-gen-refs <project_id>` to generate reference images for visual consistency.
-
-## Connection
-
-These commands work against a local agent or a shared server. The Flow Kit
-installer (`<server>/install.sh` or `install.ps1`) writes `~/.flowkit/env` with
-`FLOWKIT_URL` and `FLOWKIT_API_KEY`; without that file they default to
-`http://127.0.0.1:8100` and no key. Shell state does not carry
-over between commands, so **start every command with this line**:
-
-```bash
-. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
-```
-
-Then call the API as `curl -s "$FK/api/..." -H "$KEY"`. A `401` means the key is
-missing or wrong; a `404` on an id you were given means it belongs to another user.
-In PowerShell use `$env:FLOWKIT_URL` and `-Headers @{"X-API-Key"=$env:FLOWKIT_API_KEY}`.
 
 ## Real-People Characters (Documentary / News Projects)
 
@@ -192,129 +108,48 @@ Camera stays behind. Viewers see the leader's power through body language, not f
 
 Since Flow moved to `flow.google.com`, Flow Kit cannot create Flow projects —
 the endpoint that did it went with the migration. Every generation is scoped to
-an existing one, and one Flow project holds one Flow Kit project.
+an existing one.
 
 ```bash
-. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
-curl -s "$FK/api/auth/me" -H "$KEY"
-curl -s "$FK/api/projects" -H "$KEY"
+curl -s http://127.0.0.1:8100/api/flow/status | python3 -c "
+import sys, json
+s = json.load(sys.stdin)
+print('Flow project:', s.get('flow_project_id') or 'NONE — create one in the Flow UI')
+"
 ```
 
-- **`auth_enabled: true` and `is_admin: false`** (a shared server): `project_ids` are
-  the Flow projects granted to this key. Use one that is not already the `id` of a
-  project in the second response, and pass it as `flow_project_id` in Step 1. If
-  every grant is used, stop and tell the user to ask the server admin for another
-  Flow project — do not guess an id.
-- **Otherwise** (a local agent, or an admin key): run
-  `curl -s "$FK/api/flow/status" -H "$KEY"`. If `flow_project_id` is null, ask the
-  user to open `https://flow.google.com/`, create a project and copy the uuid out
-  of the URL, then pass it as `flow_project_id` in Step 1 (or pin it as
-  `FLOW_PROJECT_ID` on the agent). Without it every request fails `NO_FLOW_PROJECT`.
+If it prints NONE, ask the user to open `https://flow.google.com/`, create a
+project, and copy the uuid out of the URL. Then either pin it
+(`export FLOW_PROJECT_ID=<uuid>` before starting the agent) or pass it as
+`flow_project_id` in Step 1. Without it every request fails `NO_FLOW_PROJECT`.
 
 ## Step 1: Create project with all entities
 
-Include `"flow_project_id": "<uuid>"` from Step 0 (it may be left out only on a
-local agent with a pinned `FLOW_PROJECT_ID`). `403` means that Flow project is not
-granted to this key; `409` means it already holds a project.
+Add `"flow_project_id": "<uuid>"` if you are not using the pinned one.
 
 ```bash
-. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
-curl -X POST "$FK/api/projects" -H "$KEY" \
+curl -X POST http://127.0.0.1:8100/api/projects \
   -H "Content-Type: application/json" \
-  -d '{"name": "...", "description": "...", "story": "...",
-       "flow_project_id": "<uuid from Step 0>",
-       "language": "km",
-       "material": "3d_pixar",
-       "allow_music": false, "allow_voice": false,
-       "characters": [
+  -d '{"name": "...", "description": "...", "story": "...", "material": "3d_pixar", "characters": [
     {"name": "...", "entity_type": "character", "description": "...", "voice_description": "Deep calm voice, speaks slowly with confidence"},
     {"name": "...", "entity_type": "location", "description": "..."},
     {"name": "...", "entity_type": "visual_asset", "description": "..."}
   ]}'
 ```
 
-**Send `language` explicitly, every time.** Left out it is `"en"`, whatever the
-user asked for — this is the usual reason a Khmer or Korean project narrates in
-English. `allow_music` and `allow_voice` are false by default; send them anyway
-so the intended value is visible in the request rather than assumed.
-
-Add `"video_model_family": "veo"` or `"omni_flash"` only when the user chose one;
-omitted, the server default applies.
-
 Save the returned `project_id`.
 
 ## Step 2: Create video
 
 ```bash
-. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
-curl -X POST "$FK/api/videos" -H "$KEY" \
+curl -X POST http://127.0.0.1:8100/api/videos \
   -H "Content-Type: application/json" \
-  -d '{"project_id": "<PID>", "title": "...", "display_order": 0, "orientation": "VERTICAL"}'
+  -d '{"project_id": "<PID>", "title": "...", "display_order": 0}'
 ```
-
-Set `orientation` here from what the user chose — `VERTICAL` or `HORIZONTAL`.
-Left out, it is decided later by whichever generation batch runs first, which is
-not a decision worth leaving to chance.
 
 Save the returned `video_id`.
 
-## Step 3: Shape the story before you write any scene
-
-Everything below this section is about *visuals* — chains, camera, composition.
-None of it decides whether the video is worth watching. Do this first.
-
-**Write the beat sheet, show it to the user, and only then create scenes.** A
-beat is one thing that happens and changes something. Scenes come from beats; a
-scene without a beat is a screensaver.
-
-### Which shape
-
-- **Documentary / news** — the default this skill was built for. Beats are
-  events in the order they happened, and the narrator supplies what the footage
-  cannot show. Keep using the formula further down.
-
-- **Storytelling** — folktales, legends, myth, fiction, anything where the
-  narrator *is* telling the story rather than commenting on it. Use the shape
-  below. This is what "make a video about ប្រជុំរឿងព្រេងខ្មែរ" means, and
-  treating it as a documentary is why such videos come out as disconnected
-  captions over pretty pictures.
-
-### The folktale shape
-
-Most oral legends — Khmer ones especially — already have this spine. Find it in
-the source before inventing anything:
-
-| Beat | What it does | Typical scenes |
-|------|--------------|----------------|
-| The world | Time, place, the way things were. "Long ago, in…" | 1 |
-| The person and the lack | Who this is about, and what they want or are missing | 1–2 |
-| The disturbance | The thing that breaks the ordinary | 1 |
-| The attempt | What they try. Usually fails, or costs something | 2–3 |
-| The opposing force | Rival, king, spirit, the river itself | 1–2 |
-| The turn | The trick, the sacrifice, the transformation | 1–2 |
-| The consequence | What it cost and who paid | 1–2 |
-| Why it is still told | The name, the mountain, the lesson | 1 |
-
-Many Khmer legends close by explaining a real place name or custom. **Do not
-cut that beat** — it is the reason the story survived, and audiences are waiting
-for it.
-
-### Before creating scenes, confirm with the user
-
-1. The beat sheet, in their language, one line per beat
-2. Scene count per beat (a beat can hold several scenes; a scene cannot hold
-   several beats)
-3. Whether this is **narration-led** — for storytelling it almost always is,
-   which means the scenes should be `ffmpeg` look & feel so narration is not
-   capped at one sentence. See `fk-gen-narrator.md`; get this wrong and the
-   telling is cut into fragments no listener can follow.
-
-If the requested scene count cannot hold the beats, say so and give the real
-number rather than compressing beats out of the story.
-
----
-
-## Step 3b: Create scenes
+## Step 3: Create scenes
 
 For each scene, write a prompt that describes **action + environment + mood** only. Reference entities by name. Never describe character appearance. **All `prompt` and `video_prompt` must be in English** regardless of project language — the AI generator performs best with English prompts.
 
@@ -437,8 +272,7 @@ Scene 4's video uses `transition_prompt` because it has `end_scene_media_id` (sc
 - `character_names`: list ALL entities that should appear (characters + locations + assets)
 
 ```bash
-. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
-curl -X POST "$FK/api/scenes" -H "$KEY" \
+curl -X POST http://127.0.0.1:8100/api/scenes \
   -H "Content-Type: application/json" \
   -d '{"video_id": "<VID>", "display_order": N, "prompt": "...", "video_prompt": "...", "transition_prompt": "...", "character_names": [...], "chain_type": "ROOT|CONTINUATION", "parent_scene_id": "..."}'
 ```
@@ -482,7 +316,7 @@ When a character appears in the scene image, their face MUST be fully visible (f
 
 **Rule:** If a character is in frame → show full face. If you don't want to show the face → use POV camera (hands/arms only) or wide environmental shot without the character. Never half-crop a face.
 
-**`voice_description`** on characters (max ~30 words) — only used when the project sets `allow_voice: true`, meaning you want the characters to speak *inside the clip*. On a normal narrated video the spoken track comes from `/fk-gen-narrator` (TTS), the clip stays free of speech, and this field is ignored. Example: `"Deep calm heroic voice, speaks slowly with confidence"`.
+**`voice_description`** on characters (max ~30 words) — auto-appended to video prompts by the worker. Dialogue tone must match voice profile. Example: `"Deep calm heroic voice, speaks slowly with confidence"`.
 
 See `fk-camera-guide.md` for full camera language reference.
 
@@ -517,13 +351,7 @@ Google Flow's AI filter rejects prompts with violent, aggressive, or graphic lan
 
 ### Video Prompt Formula (Veo 3)
 
-Write video prompts as **natural prose** — like briefing a film director. Veo 3 generates native audio (dialogue, SFX, ambient) from text, which is exactly why the prompt has to be careful about speech.
-
-> **Keep people from talking in the clip.** Narration comes from `/fk-gen-narrator` as a separate TTS track, so a clip that also invents its own dialogue gives you two voices over one scene. Leave `allow_voice` off (the default) and the worker appends a ban on speech, dialogue, singing, narration and voiceover for you.
->
-> That ban is the only thing holding it back, so do not fight it: keep dialogue verbs — *says, asks, whispers, shouts, replies, murmurs, exclaims, mutters* — out of `video_prompt`. Describe what a character **does**, not what they **say**: "the captain turns sharply and points at the map", not "the captain says hold fast". Put the words in `narrator_text` instead.
->
-> Set `allow_voice: true` only for a video where you genuinely want in-clip speech and no TTS narration over it.
+Write video prompts as **natural prose** — like briefing a film director. Veo 3 generates native audio (dialogue, SFX, ambient) from text.
 
 **5-component structure:** `[Camera/Shot] + [Subject] + [Action] + [Setting] + [Style & Audio]`
 
@@ -572,46 +400,21 @@ See `fk-camera-guide.md` for full Veo 3 camera/lighting/audio vocabulary and pro
 
 ### Narrator Text Formula
 
-Two registers. Pick from the shape chosen in Step 3 — they are not
-interchangeable, and a folktale written in the documentary register is the most
-common reason a storytelling video reads as flat.
-
-**Documentary / news** — the narrator supplies what the footage cannot show:
-
 ```
 [What the viewer CANNOT see: context/stakes/motivation]. [Tension or consequence]. [Short punchy closer.]
 ```
 
+- 2-3 sentences max per 8s scene — strictly under 20 words per sentence
 - Mirror the video timing: calm opener → rising tension → punchy close
 - Add off-screen context: historical facts, character motivation, stakes
 - Never describe what is visually obvious: `"We see a ship sailing"` → cut it
 
+**Example:**
 ```
 Captain Harris spots unusual radar signatures. Dozens of Iranian fast boats race straight toward the convoy. He orders battle stations.
 ```
 
-**Storytelling** — the narrator *is* telling the story. The visuals illustrate
-the telling, not the other way round:
-
-```
-[Carry the story forward: what happens next]. [What it costs, or what it means]. [The line that pulls the listener to the next scene.]
-```
-
-- Tell events, do not summarise them. "He refused the king's offer" is a
-  summary; "Three times the king offered, and three times he refused" is telling
-- Keep the teller's voice: the cadence, the repetitions and the set phrases an
-  oral tale uses are the point, not padding to be trimmed
-- Name people and places out loud — the listener has no captions and no prior
-  knowledge
-- Do not restate the picture, but **do** carry the thread between pictures: the
-  narration is the only thing that makes scene 7 follow from scene 6
-- End each scene on something unresolved, except the last
-
-**Length.** `fk-gen-narrator.md` owns the limits, and they depend on the scene's
-look & feel, not on a fixed sentence count. A generated clip caps a line at
-about 6.5s (Veo) or 8.5s (Omni). An `ffmpeg` scene has **no cap** — which is why
-storytelling projects should be narration-led. Do not write a story to a
-clip-length budget; set the scene type first.
+See `fk-gen-narrator.md` for word count limits per language and narrative arc guide.
 
 ---
 
@@ -640,8 +443,7 @@ Print a summary table:
 After creating scenes, review all prompts. If any prompt is too simple or missing detail, **PATCH it — do not delete and recreate**.
 
 ```bash
-. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
-curl -X PATCH "$FK/api/scenes/<SID>" -H "$KEY" \
+curl -X PATCH http://127.0.0.1:8100/api/scenes/<SID> \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "Hero charges across the Castle bridge at dawn, sword raised, golden light catching the blade. Wide shot.",
@@ -660,13 +462,12 @@ curl -X PATCH "$FK/api/scenes/<SID>" -H "$KEY" \
 After all scenes are created, **always** switch the active project to the newly created one. Without this, downstream skills (`/fk-status`, `/fk-pipeline`, `/fk-monitor`, `/fk-dashboard`) will continue showing the previously-active project — confusing and a frequent source of errors.
 
 ```bash
-. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
-curl -s -X PUT "$FK/api/active-project" -H "$KEY" \
+curl -s -X PUT http://127.0.0.1:8100/api/active-project \
   -H "Content-Type: application/json" \
   -d '{"project_id":"<PID>"}'
 
 # Verify
-curl -s "$FK/api/active-project" -H "$KEY"
+curl -s http://127.0.0.1:8100/api/active-project
 # Should print: {"project_id":"<PID>","project_name":"<your new project>",...}
 ```
 

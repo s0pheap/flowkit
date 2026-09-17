@@ -2,27 +2,10 @@ Show full status dashboard for a project.
 
 Usage: `/fk-status <project_id>` or `/fk-status` (lists all projects)
 
-## Connection
-
-These commands work against a local agent or a shared server. The Flow Kit
-installer (`<server>/install.sh` or `install.ps1`) writes `~/.flowkit/env` with
-`FLOWKIT_URL` and `FLOWKIT_API_KEY`; without that file they default to
-`http://127.0.0.1:8100` and no key. Shell state does not carry
-over between commands, so **start every command with this line**:
-
-```bash
-. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
-```
-
-Then call the API as `curl -s "$FK/api/..." -H "$KEY"`. A `401` means the key is
-missing or wrong; a `404` on an id you were given means it belongs to another user.
-In PowerShell use `$env:FLOWKIT_URL` and `-Headers @{"X-API-Key"=$env:FLOWKIT_API_KEY}`.
-
 ## If no project_id: list all projects
 
 ```bash
-. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
-curl -s "$FK/api/projects" -H "$KEY"
+curl -s http://127.0.0.1:8100/api/projects
 ```
 
 Print table: ID | Name | Tier | Status
@@ -31,20 +14,17 @@ Print table: ID | Name | Tier | Status
 
 ### 1. Server health
 ```bash
-. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
-curl -s "$FK/health" -H "$KEY"
+curl -s http://127.0.0.1:8100/health
 ```
 
 ### 2. Project info
 ```bash
-. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
-curl -s "$FK/api/projects/<PID>" -H "$KEY"
+curl -s http://127.0.0.1:8100/api/projects/<PID>
 ```
 
 ### 3. Entities (references)
 ```bash
-. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
-curl -s "$FK/api/projects/<PID>/characters" -H "$KEY"
+curl -s http://127.0.0.1:8100/api/projects/<PID>/characters
 ```
 
 Print table:
@@ -53,8 +33,7 @@ Print table:
 
 ### 4. Videos + Orientation Detection
 ```bash
-. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
-curl -s "$FK/api/videos?project_id=<PID>" -H "$KEY"
+curl -s "http://127.0.0.1:8100/api/videos?project_id=<PID>"
 ```
 
 **CRITICAL:** Read the `orientation` field from the video response. This determines which scene fields to read:
@@ -66,8 +45,7 @@ Set `ORI` = the detected orientation (lowercase: `horizontal` or `vertical`). Di
 
 ### 5. For each video — scenes
 ```bash
-. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
-curl -s "$FK/api/scenes?video_id=<VID>" -H "$KEY"
+curl -s "http://127.0.0.1:8100/api/scenes?video_id=<VID>"
 ```
 
 Print table (sorted by display_order), using `${ORI}_*` prefix fields:
@@ -79,8 +57,7 @@ Read from: `${ORI}_image_status`, `${ORI}_video_status`, `${ORI}_upscale_status`
 
 ### 6. Pending/processing requests
 ```bash
-. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
-curl -s "$FK/api/requests/pending" -H "$KEY"
+curl -s http://127.0.0.1:8100/api/requests/pending
 ```
 
 ### 7. Summary

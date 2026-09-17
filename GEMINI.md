@@ -85,9 +85,9 @@ This project has reusable skills in `skills/`. When the user says `/fk-<name>`, 
 | `/fk-camera-guide` | Camera Guide — Cinematic Video Prompts (Veo 3) |
 | `/fk-change-model` | fk-change-model — View & Change Video/Image Model Keys |
 | `/fk-change-provider` | fk-change-provider — View & Switch AI CLI Provider (Video Review) |
-| `/fk-concat-fit-narrator` | Build the final video on the server — each scene fitted to its narration, with text overlays, transitions and subtitles — then download it. |
+| `/fk-concat-fit-narrator` | Trim each scene video to fit its TTS narrator duration, burn text overlays, then concatenate into a final video. |
 | `/fk-concat` | Download and concatenate all scene videos into a single video with optional TTS narration. |
-| `/fk-create-project` | Create a new Google Flow video project. |
+| `/fk-create-project` | Create a new Google Flow video project. Ask the user for: |
 | `/fk-creative-mix` | Creative video mixing — combine techniques for cinematic results. |
 | `/fk-dashboard` | Show live GLA status in Claude Code statusline. |
 | `/fk-doctor` | Diagnose any FlowKit error and prescribe a fix. Knows the full error taxonomy across Google Flow, the Chrome extension, the FastAPI layer, the worker, and the YouTube upload pipeline. |
@@ -106,13 +106,12 @@ This project has reusable skills in `skills/`. When the user says `/fk-<name>`, 
 | `/fk-pipeline` | fk-pipeline — Smart Full-Pipeline Orchestrator |
 | `/fk-refresh-urls` | Re-sign expired media URLs for all scenes in a video (images, videos, upscale videos) and character reference images. |
 | `/fk-research` | fk-research — Fact-Check & Research Before Scripting |
-| `/fk-review-board` | Open the Scene Review Board for a video: watch every scene, tag it, write notes, and set each scene's look & feel. |
-| `/fk-review-video` | Review AI-generated scene videos for quality with a vision model. |
+| `/fk-review-board` | Start the Scene Review Board web app for visual feedback on scene chains. |
+| `/fk-review-video` | Review AI-generated scene videos for quality using Claude Vision. |
 | `/fk-status` | Show full status dashboard for a project. |
 | `/fk-switch-project` | fk-switch-project — Switch Active Project |
 | `/fk-thumbnail-guide` | YouTube Thumbnail Guide — Hook-Worthy Design Rules |
 | `/fk-thumbnail` | Generate 4 YouTube-optimized thumbnail variants for a project video. |
 | `/fk-upload-image` | Upload a local image file to Google Flow and get a media_id (UUID). |
-| `/fk-video-quality` | Video Quality Guide — Where Effort Actually Changes the Output |
 | `/fk-youtube-seo` | fk-youtube-seo — Generate YouTube Metadata (SEO-Optimized) |
 | `/fk-youtube-upload` | fk-youtube-upload — Upload Video to YouTube (Shorts + Long-form) |

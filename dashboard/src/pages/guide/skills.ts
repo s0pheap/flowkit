@@ -374,37 +374,6 @@ export const SKILL_CATEGORIES: SkillCategory[] = [
         }],
       },
       {
-        name: 'fk-video-quality',
-        remote: true,
-        usage: ['/fk-video-quality'],
-        summary: {
-          en: 'Guide to what actually makes scene videos look good: which model family you are on, what belongs in the image prompt versus the video prompt, when ffmpeg beats a generated clip, and what the agent already adds to every prompt.',
-          ko: '장면 비디오의 품질을 실제로 좌우하는 것을 알려주는 가이드입니다: 사용 중인 모델 계열, 이미지 프롬프트와 비디오 프롬프트에 각각 넣을 내용, ffmpeg가 생성 클립보다 나은 경우, 에이전트가 모든 프롬프트에 이미 덧붙이는 내용.',
-        },
-        when: {
-          en: 'Read it once before /fk-gen-images. By the time /fk-gen-videos runs, most of the quality is already decided. Come back to it when a clip drifts off-model or faces and hands degrade.',
-          ko: '/fk-gen-images 전에 한 번 읽어 두세요. /fk-gen-videos가 실행될 때쯤이면 품질 대부분이 이미 정해집니다. 클립이 키프레임과 달라지거나 얼굴·손이 망가질 때 다시 참고하세요.',
-        },
-        tips: [
-          {
-            en: 'On omni_flash (the default) the keyframe is the first frame of the clip, so composition, lighting and wardrobe go in the image prompt. Keep video_prompt short and about motion only; restating the subject makes the model redraw it.',
-            ko: '기본값인 omni_flash에서는 키프레임이 곧 클립의 첫 프레임이므로 구도, 조명, 의상은 이미지 프롬프트에 씁니다. video_prompt는 움직임만 짧게 적으세요. 피사체를 다시 묘사하면 모델이 다시 그리면서 달라집니다.',
-          },
-          {
-            en: 'If nothing in the frame should move (diagrams, text cards, maps, product stills), set the scene to ffmpeg in /fk-review-board. It is free, takes seconds and avoids warped text and melting hands.',
-            ko: '프레임 안에서 움직일 것이 없다면(도표, 텍스트 카드, 지도, 제품 스틸) /fk-review-board에서 장면을 ffmpeg로 설정하세요. 비용이 없고 몇 초면 끝나며 글자 왜곡이나 손이 뭉개지는 일을 피할 수 있습니다.',
-          },
-          {
-            en: 'Do not write your own Audio: or Negative: line. The agent appends both, and a hand-written one replaces the full version.',
-            ko: 'Audio:나 Negative: 줄을 직접 쓰지 마세요. 에이전트가 둘 다 덧붙이며, 직접 쓰면 전체 버전이 대체됩니다.',
-          },
-          {
-            en: 'Iterate at the image stage, where a miss costs about a minute, not at the video stage, where it costs a generation and several minutes. Check every image before generating any video.',
-            ko: '수정은 1분 정도면 되는 이미지 단계에서 하세요. 비디오 단계에서는 생성 1회와 몇 분이 듭니다. 비디오를 만들기 전에 모든 이미지를 확인하세요.',
-          },
-        ],
-      },
-      {
         name: 'fk-camera-guide',
         remote: true,
         usage: ['/fk-camera-guide'],
@@ -836,10 +805,10 @@ export const WORKFLOW: { title: Localized; body: Localized; skills: string[] }[]
   {
     title: { en: '4. Scene images', ko: '4. 장면 이미지' },
     body: {
-      en: 'Generate keyframe images for every scene. Read /fk-video-quality first: on the default model the keyframe becomes the first frame of the clip, so this is where most of the final quality is decided. Fix every image you would not ship as a still before moving on.',
-      ko: '모든 장면의 키프레임 이미지를 생성합니다. 먼저 /fk-video-quality를 읽어 두세요. 기본 모델에서는 키프레임이 클립의 첫 프레임이 되므로 최종 품질 대부분이 여기서 정해집니다. 스틸로 내보내기 어려운 이미지는 다음 단계로 가기 전에 고치세요.',
+      en: 'Generate keyframe images for every scene. On the default model the keyframe becomes the first frame of the clip, so this is where most of the final quality is decided. Fix every image you would not ship as a still before moving on.',
+      ko: '모든 장면의 키프레임 이미지를 생성합니다. 기본 모델에서는 키프레임이 클립의 첫 프레임이 되므로 최종 품질 대부분이 여기서 정해집니다. 스틸로 내보내기 어려운 이미지는 다음 단계로 가기 전에 고치세요.',
     },
-    skills: ['fk-gen-images', 'fk-video-quality'],
+    skills: ['fk-gen-images'],
   },
   {
     title: { en: '5. Narration and text overlays', ko: '5. 내레이션 및 텍스트 오버레이' },
@@ -863,7 +832,7 @@ export const WORKFLOW: { title: Localized; body: Localized; skills: string[] }[]
       en: 'Generate video clips for all scenes. Generated scenes queue on Flow for AI motion; ffmpeg scenes render locally with your chosen effects. Keep video prompts short and about motion only on Omni Flash; use the full /fk-camera-guide prompt only on Veo.',
       ko: '모든 장면의 비디오 클립을 생성합니다. 생성 장면은 Flow에서 AI 모션으로, ffmpeg 장면은 선택한 효과로 로컬에서 렌더링합니다. Omni Flash에서는 비디오 프롬프트를 움직임 위주로 짧게 쓰고, 전체 /fk-camera-guide 프롬프트는 Veo에서만 쓰세요.',
     },
-    skills: ['fk-gen-videos', 'fk-video-quality', 'fk-camera-guide', 'fk-insert-scene'],
+    skills: ['fk-gen-videos', 'fk-camera-guide', 'fk-insert-scene'],
   },
   {
     title: { en: '8. Review', ko: '8. 리뷰' },

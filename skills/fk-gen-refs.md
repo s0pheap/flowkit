@@ -4,46 +4,17 @@ Usage: `/fk-gen-refs <project_id>`
 
 If no project_id provided, use `GET /api/active-project` or list projects via `GET /api/projects`.
 
-## Workflow: When to Run This
-
-**Step 3 of 10** in the complete video generation workflow.
-
-- **Run AFTER:** `/fk-create-project` - Project and entities must exist first
-- **Run BEFORE:** `/fk-gen-images` - Scene images need these refs to ensure consistency
-
-**Why it matters:** Reference images ensure characters, locations, and props look the same across all scenes. Without refs, each scene would generate different-looking versions of the same character.
-
-**Quality tip:** Review generated refs visually. If a character does not look right, regenerate with `REGENERATE_CHARACTER_IMAGE` before moving to scene images. Fixing refs now prevents regenerating all scene images later.
-
-## Connection
-
-These commands work against a local agent or a shared server. The Flow Kit
-installer (`<server>/install.sh` or `install.ps1`) writes `~/.flowkit/env` with
-`FLOWKIT_URL` and `FLOWKIT_API_KEY`; without that file they default to
-`http://127.0.0.1:8100` and no key. Shell state does not carry
-over between commands, so **start every command with this line**:
-
-```bash
-. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
-```
-
-Then call the API as `curl -s "$FK/api/..." -H "$KEY"`. A `401` means the key is
-missing or wrong; a `404` on an id you were given means it belongs to another user.
-In PowerShell use `$env:FLOWKIT_URL` and `-Headers @{"X-API-Key"=$env:FLOWKIT_API_KEY}`.
-
 ## Step 1: Check health
 
 ```bash
-. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
-curl -s "$FK/health" -H "$KEY"
+curl -s http://127.0.0.1:8100/health
 ```
 Must have `extension_connected: true`. Abort if not.
 
 ## Step 2: Get entities
 
 ```bash
-. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
-curl -s "$FK/api/projects/<PID>/characters" -H "$KEY"
+curl -s http://127.0.0.1:8100/api/projects/<PID>/characters
 ```
 
 Filter to entities that do NOT yet have `media_id` (UUID format `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`). Never use `CAMS...` strings — those are `mediaGenerationId`, not `media_id`. Skip entities already done.
@@ -57,8 +28,7 @@ Filter to entities that do NOT yet have `media_id` (UUID format `xxxxxxxx-xxxx-x
 The server handles throttling automatically (max 5 concurrent, 10s cooldown). Submit everything in one batch call:
 
 ```bash
-. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
-curl -X POST "$FK/api/requests/batch" -H "$KEY" \
+curl -X POST http://127.0.0.1:8100/api/requests/batch \
   -H "Content-Type: application/json" \
   -d '{
     "requests": [
@@ -73,8 +43,7 @@ Build the `requests` array from ALL entities missing `media_id` in Step 2. Do NO
 Poll aggregate status every 15s until done:
 
 ```bash
-. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
-curl -s "$FK/api/requests/batch-status?project_id=<PID>&type=GENERATE_CHARACTER_IMAGE" -H "$KEY"
+curl -s "http://127.0.0.1:8100/api/requests/batch-status?project_id=<PID>&type=GENERATE_CHARACTER_IMAGE"
 # Wait for: "done": true
 # If "all_succeeded": false → some failed, check individual failures
 ```
@@ -82,8 +51,7 @@ curl -s "$FK/api/requests/batch-status?project_id=<PID>&type=GENERATE_CHARACTER_
 ## Step 4: Verify
 
 ```bash
-. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
-curl -s "$FK/api/projects/<PID>/characters" -H "$KEY"
+curl -s http://127.0.0.1:8100/api/projects/<PID>/characters
 ```
 
 Print results table:
@@ -101,14 +69,13 @@ If any entities failed with `PUBLIC_ERROR_UNSAFE_GENERATION`, this means the AI 
 For each failed entity, rewrite `image_prompt` to show **left side three-quarter profile view** instead of front-facing. This reduces face recognition while keeping the character identifiable by silhouette, hair, clothing, and build.
 
 ```bash
-. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
 # Update image_prompt to left-side profile
-curl -s -X PATCH "$FK/api/characters/<CID>" -H "$KEY" \
+curl -s -X PATCH http://127.0.0.1:8100/api/characters/<CID> \
   -H "Content-Type: application/json" \
   -d '{"image_prompt": "<rewritten prompt with left side three-quarter profile view>"}'
 
 # Regenerate with new prompt
-curl -s -X POST "$FK/api/requests" -H "$KEY" \
+curl -s -X POST http://127.0.0.1:8100/api/requests \
   -H "Content-Type: application/json" \
   -d '{"type": "REGENERATE_CHARACTER_IMAGE", "character_id": "<CID>", "project_id": "<PID>"}'
 ```
@@ -124,14 +91,13 @@ curl -s -X POST "$FK/api/requests" -H "$KEY" \
 If left-side profile still triggers UNSAFE_GENERATION, escalate to **full back view**:
 
 ```bash
-. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
 # Update image_prompt to back view
-curl -s -X PATCH "$FK/api/characters/<CID>" -H "$KEY" \
+curl -s -X PATCH http://127.0.0.1:8100/api/characters/<CID> \
   -H "Content-Type: application/json" \
   -d '{"image_prompt": "<rewritten prompt with back view>"}'
 
 # Regenerate
-curl -s -X POST "$FK/api/requests" -H "$KEY" \
+curl -s -X POST http://127.0.0.1:8100/api/requests \
   -H "Content-Type: application/json" \
   -d '{"type": "REGENERATE_CHARACTER_IMAGE", "character_id": "<CID>", "project_id": "<PID>"}'
 ```
@@ -147,8 +113,7 @@ curl -s -X POST "$FK/api/requests" -H "$KEY" \
 If back view still fails, strip all identifying details:
 
 ```bash
-. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
-curl -s -X PATCH "$FK/api/characters/<CID>" -H "$KEY" \
+curl -s -X PATCH http://127.0.0.1:8100/api/characters/<CID> \
   -H "Content-Type: application/json" \
   -d '{"image_prompt": "Single reference image of an elderly man seen from behind, [hair color] hair, [build] build, [clothing only]. Back view showing full silhouette. Photorealistic studio lighting, neutral grey background."}'
 ```

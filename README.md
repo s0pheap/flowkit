@@ -336,7 +336,7 @@ remote-ready ones (marked ☁️) on a user's machine via `/install.sh` or `/ins
 | Stage | Skills |
 |-------|--------|
 | Project | ☁️ `fk-research`, ☁️ `fk-create-project`, ☁️ `fk-switch-project`, ☁️ `fk-status` |
-| Images and video | ☁️ `fk-gen-refs`, ☁️ `fk-gen-images`, ☁️ `fk-gen-videos`, ☁️ `fk-camera-guide`, ☁️ `fk-video-quality`, `fk-gen-chain-videos`, `fk-insert-scene`, `fk-creative-mix`, `fk-pipeline`, `fk-monitor` |
+| Images and video | ☁️ `fk-gen-refs`, ☁️ `fk-gen-images`, ☁️ `fk-gen-videos`, ☁️ `fk-camera-guide`, `fk-gen-chain-videos`, `fk-insert-scene`, `fk-creative-mix`, `fk-pipeline`, `fk-monitor` |
 | Narration, music, final video | ☁️ `fk-gen-narrator`, ☁️ `fk-gen-text-overlays`, ☁️ `fk-gen-music`, ☁️ `fk-review-board`, ☁️ `fk-concat-fit-narrator`, `fk-concat`, `fk-gen-tts-template`, `fk-import-voice` |
 | Review | `fk-review-video`, `fk-change-provider` |
 | YouTube | `fk-youtube-seo`, `fk-thumbnail`, `fk-thumbnail-guide`, `fk-brand-logo`, `fk-youtube-upload` |

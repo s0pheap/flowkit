@@ -6,7 +6,6 @@ Usage:
 - `/fk-change-model` — show current model config
 - `/fk-change-model list` — show current model config
 - `/fk-change-model video <model_key>` — change video model for current tier
-- `/fk-change-model family omni_flash|veo [project_id]` — which model makes scene videos, server-wide or for one project
 - `/fk-change-model image <model_key>` — change image model
 - `/fk-change-model upscale <model_key>` — change upscale model
 
@@ -15,7 +14,7 @@ Usage:
 ## What the model keys mean on the current Flow API
 
 Since Flow moved to `flow.google.com`, aspect ratio is its own payload slot and
-the REST-era suffixed names (`..._portrait`, `..._fl`, `..._relaxed`) are **rejected
+the REST-era suffixed names (`…_portrait`, `…_fl`, `…_relaxed`) are **rejected
 outright**. `models.json` still stores the old [tier][gen_type][aspect] map for
 the legacy path, and `resolve_video_model()` folds whatever it finds onto the
 three names the new path accepts:
@@ -33,40 +32,6 @@ there too: both are unported.
 Image models are unaffected: `GEM_PIX_2` (Nano Banana Pro) and `NARWHAL`
 (Banana 2) are both accepted, and `default_image_model` in `models.json` picks
 which nickname is used.
-
-## Veo or Omni Flash (model family)
-
-Scene videos are made by one of two model families. Both use the same Flow call
-and the same polling; only the model slot differs.
-
-| Family | Wire name | Clip |
-|---|---|---|
-| `veo` | one of the three Veo names above, from the tier's keys | 8s |
-| `omni_flash` | `omni_flash_models.frame_to_video[<seconds>]`, e.g. `abra_i2v_10s` | `omni_flash_duration_s` (4, 6, 8 or 10; default 10) |
-
-`abra_i2v_10s` is proven by a real generation. The 4/6/8s keys follow the same
-naming but have not been generated yet: check the first clip's length.
-
-A project's own `video_model_family` wins; `null` means the server default,
-`default_video_model_family` in `models.json`. `GET /api/projects/<PID>` shows the
-result as `effective_video_model_family` and `video_clip_seconds`.
-
-Server default (admin):
-
-```bash
-curl -s -X PATCH http://127.0.0.1:8100/api/models -H "Content-Type: application/json"   -d '{"default_video_model_family": "omni_flash", "omni_flash_duration_s": 10}'
-```
-
-One project (any user with access to it; `null` goes back to the server default):
-
-```bash
-curl -s -X PATCH http://127.0.0.1:8100/api/projects/<PID> -H "Content-Type: application/json"   -d '{"video_model_family": "veo"}'
-```
-
-Changing the family doesn't touch clips already made. Regenerate a scene's video to
-get the other model. Narration limits follow the clip length: see `/fk-gen-narrator`.
-Omni only covers first-frame video: chaining (`start_end`) and r2v stay unported
-for both families.
 
 ## Step 1: Show Current Models
 
