@@ -61,6 +61,14 @@ export const SKILL_CATEGORIES: SkillCategory[] = [
         },
         tips: [
           {
+            en: 'Have this ready before you start: the story in a few sentences, one visual style for the whole video, a short look for each character, location and prop, the scene count and the orientation. Anything you leave out, it asks for.',
+            ko: '시작 전에 이것들을 준비하세요: 몇 문장으로 정리한 스토리, 영상 전체에 쓸 비주얼 스타일 하나, 캐릭터·장소·소품별 짧은 외형 설명, 장면 수, 화면 방향. 빠뜨린 항목은 스킬이 물어봅니다.',
+          },
+          {
+            en: 'One scene is one 8-second clip, so choose the scene count from the length you want: 8 scenes for about a minute, 12 for a minute and a half, 23 for three minutes. Fitting clips to the narration at render time shifts this slightly.',
+            ko: '장면 하나가 8초 클립 하나입니다. 원하는 길이에서 장면 수를 정하세요. 약 1분이면 8장면, 1분 30초면 12장면, 3분이면 23장면입니다. 렌더링할 때 클립을 내레이션 길이에 맞추면 조금 달라집니다.',
+          },
+          {
             en: 'Make the project in the Flow UI first. Flow Kit attaches to its uuid (FLOW_PROJECT_ID, or flow_project_id) and cannot create one.',
             ko: '먼저 Flow UI에서 프로젝트를 만드세요. Flow Kit는 그 uuid(FLOW_PROJECT_ID 또는 flow_project_id)에 연결하며 직접 만들 수 없습니다.',
           },
@@ -83,6 +91,10 @@ export const SKILL_CATEGORIES: SkillCategory[] = [
           ko: '프로젝트를 만든 직후, 장면 이미지보다 먼저 실행합니다.',
         },
         needs: ['Flow tab'],
+        tips: [{
+          en: 'Look at the character images before you move on. Every scene inherits that face, so redoing one reference now costs far less than redoing a dozen scenes later.',
+          ko: '다음 단계로 넘어가기 전에 캐릭터 이미지를 확인하세요. 모든 장면이 그 얼굴을 물려받으므로, 지금 레퍼런스 한 장을 다시 만드는 편이 나중에 장면 열두 개를 다시 만드는 것보다 훨씬 쌉니다.',
+        }],
       },
       {
         name: 'fk-gen-images',
@@ -97,10 +109,16 @@ export const SKILL_CATEGORIES: SkillCategory[] = [
           ko: '모든 엔티티에 레퍼런스 이미지가 생긴 뒤 실행합니다.',
         },
         needs: ['Flow tab'],
-        tips: [{
-          en: 'A new image clears that scene\'s video, so regenerate images before videos, not after.',
-          ko: '이미지를 새로 만들면 해당 장면의 비디오가 지워지므로, 비디오보다 먼저 이미지를 다시 만드세요.',
-        }],
+        tips: [
+          {
+            en: 'Check every image before the next step: the character\'s whole face in frame, and each scene that continues another clearly different from the one it was edited from.',
+            ko: '다음 단계로 가기 전에 모든 이미지를 확인하세요. 캐릭터의 얼굴 전체가 화면에 들어왔는지, 이어지는 장면이 원본 장면과 확실히 달라 보이는지 봅니다.',
+          },
+          {
+            en: 'A new image clears that scene\'s video, so regenerate images before videos, not after.',
+            ko: '이미지를 새로 만들면 해당 장면의 비디오가 지워지므로, 비디오보다 먼저 이미지를 다시 만드세요.',
+          },
+        ],
       },
       {
         name: 'fk-gen-narrator',
@@ -115,10 +133,16 @@ export const SKILL_CATEGORIES: SkillCategory[] = [
           ko: '장면이 만들어진 뒤 실행하고, ffmpeg 장면이 있으면 비디오보다 먼저 실행합니다(길이가 내레이션에서 정해짐).',
         },
         needs: ['GEMINI_API_KEY'],
-        tips: [{
-          en: '--force rewrites text that already exists. TTS_ENGINE=google switches to the free gTTS voice.',
-          ko: '--force는 기존 문장을 다시 씁니다. TTS_ENGINE=google로 무료 gTTS 음성으로 바꿀 수 있습니다.',
-        }],
+        tips: [
+          {
+            en: 'Every line has to fit one clip: about 6.5 seconds of speech, roughly 18 English words or 75 Khmer characters. Flow cannot make a clip longer than 8 seconds, so a longer line is cut off. Measure the wav after TTS and shorten anything over 6.5s.',
+            ko: '모든 문장이 클립 하나에 들어가야 합니다. 말하는 시간 약 6.5초, 영어로 18단어, 크메르어로 75자 정도입니다. Flow는 8초보다 긴 클립을 만들 수 없어 더 긴 문장은 잘립니다. TTS 후 wav 길이를 재고 6.5초가 넘으면 줄이세요.',
+          },
+          {
+            en: '--force rewrites text that already exists. TTS_ENGINE=google switches to the free gTTS voice.',
+            ko: '--force는 기존 문장을 다시 씁니다. TTS_ENGINE=google로 무료 gTTS 음성으로 바꿀 수 있습니다.',
+          },
+        ],
       },
       {
         name: 'fk-review-board',
@@ -150,10 +174,16 @@ export const SKILL_CATEGORIES: SkillCategory[] = [
           ko: '장면 이미지가 끝난 뒤 실행합니다(ffmpeg 장면이 있으면 내레이션 이후).',
         },
         needs: ['Flow tab', 'ffmpeg'],
-        tips: [{
-          en: 'Veo takes 2-5 minutes per scene. The worker throttles itself; never loop requests from a script.',
-          ko: 'Veo는 장면당 2~5분 걸립니다. 워커가 알아서 속도를 조절하니 스크립트로 요청을 반복하지 마세요.',
-        }],
+        tips: [
+          {
+            en: 'Settle three things first: every scene image is one you would ship, the narration is recorded if any scene uses ffmpeg, and each scene has its look & feel set in the review board. This is the slowest and most expensive step to repeat.',
+            ko: '먼저 세 가지를 정리하세요. 모든 장면 이미지가 그대로 내보낼 수 있는 수준인지, ffmpeg 장면이 있다면 내레이션이 준비됐는지, 리뷰 보드에서 장면별 룩앤필을 지정했는지 확인합니다. 다시 하기에 가장 느리고 비싼 단계입니다.',
+          },
+          {
+            en: 'Veo takes 2-5 minutes per scene. The worker throttles itself; never loop requests from a script.',
+            ko: 'Veo는 장면당 2~5분 걸립니다. 워커가 알아서 속도를 조절하니 스크립트로 요청을 반복하지 마세요.',
+          },
+        ],
       },
       {
         name: 'fk-concat-fit-narrator',
@@ -342,6 +372,37 @@ export const SKILL_CATEGORIES: SkillCategory[] = [
           en: 'Suggestions that need chaining or reference video are unavailable right now.',
           ko: '체이닝이나 레퍼런스 비디오가 필요한 제안은 현재 사용할 수 없습니다.',
         }],
+      },
+      {
+        name: 'fk-video-quality',
+        remote: true,
+        usage: ['/fk-video-quality'],
+        summary: {
+          en: 'Guide to what actually makes scene videos look good: which model family you are on, what belongs in the image prompt versus the video prompt, when ffmpeg beats a generated clip, and what the agent already adds to every prompt.',
+          ko: '장면 비디오의 품질을 실제로 좌우하는 것을 알려주는 가이드입니다: 사용 중인 모델 계열, 이미지 프롬프트와 비디오 프롬프트에 각각 넣을 내용, ffmpeg가 생성 클립보다 나은 경우, 에이전트가 모든 프롬프트에 이미 덧붙이는 내용.',
+        },
+        when: {
+          en: 'Read it once before /fk-gen-images. By the time /fk-gen-videos runs, most of the quality is already decided. Come back to it when a clip drifts off-model or faces and hands degrade.',
+          ko: '/fk-gen-images 전에 한 번 읽어 두세요. /fk-gen-videos가 실행될 때쯤이면 품질 대부분이 이미 정해집니다. 클립이 키프레임과 달라지거나 얼굴·손이 망가질 때 다시 참고하세요.',
+        },
+        tips: [
+          {
+            en: 'On omni_flash (the default) the keyframe is the first frame of the clip, so composition, lighting and wardrobe go in the image prompt. Keep video_prompt short and about motion only; restating the subject makes the model redraw it.',
+            ko: '기본값인 omni_flash에서는 키프레임이 곧 클립의 첫 프레임이므로 구도, 조명, 의상은 이미지 프롬프트에 씁니다. video_prompt는 움직임만 짧게 적으세요. 피사체를 다시 묘사하면 모델이 다시 그리면서 달라집니다.',
+          },
+          {
+            en: 'If nothing in the frame should move (diagrams, text cards, maps, product stills), set the scene to ffmpeg in /fk-review-board. It is free, takes seconds and avoids warped text and melting hands.',
+            ko: '프레임 안에서 움직일 것이 없다면(도표, 텍스트 카드, 지도, 제품 스틸) /fk-review-board에서 장면을 ffmpeg로 설정하세요. 비용이 없고 몇 초면 끝나며 글자 왜곡이나 손이 뭉개지는 일을 피할 수 있습니다.',
+          },
+          {
+            en: 'Do not write your own Audio: or Negative: line. The agent appends both, and a hand-written one replaces the full version.',
+            ko: 'Audio:나 Negative: 줄을 직접 쓰지 마세요. 에이전트가 둘 다 덧붙이며, 직접 쓰면 전체 버전이 대체됩니다.',
+          },
+          {
+            en: 'Iterate at the image stage, where a miss costs about a minute, not at the video stage, where it costs a generation and several minutes. Check every image before generating any video.',
+            ko: '수정은 1분 정도면 되는 이미지 단계에서 하세요. 비디오 단계에서는 생성 1회와 몇 분이 듭니다. 비디오를 만들기 전에 모든 이미지를 확인하세요.',
+          },
+        ],
       },
       {
         name: 'fk-camera-guide',
@@ -569,10 +630,10 @@ export const WORKFLOW: { title: Localized; body: Localized; skills: string[] }[]
   {
     title: { en: '4. Scene images', ko: '4. 장면 이미지' },
     body: {
-      en: 'Generate keyframe images for every scene.',
-      ko: '모든 장면의 키프레임 이미지를 생성합니다.',
+      en: 'Generate keyframe images for every scene. Read /fk-video-quality first: on the default model the keyframe becomes the first frame of the clip, so this is where most of the final quality is decided. Fix every image you would not ship as a still before moving on.',
+      ko: '모든 장면의 키프레임 이미지를 생성합니다. 먼저 /fk-video-quality를 읽어 두세요. 기본 모델에서는 키프레임이 클립의 첫 프레임이 되므로 최종 품질 대부분이 여기서 정해집니다. 스틸로 내보내기 어려운 이미지는 다음 단계로 가기 전에 고치세요.',
     },
-    skills: ['fk-gen-images'],
+    skills: ['fk-gen-images', 'fk-video-quality'],
   },
   {
     title: { en: '5. Narration and text overlays', ko: '5. 내레이션 및 텍스트 오버레이' },
@@ -593,10 +654,10 @@ export const WORKFLOW: { title: Localized; body: Localized; skills: string[] }[]
   {
     title: { en: '7. Generate videos', ko: '7. 비디오 생성' },
     body: {
-      en: 'Generate video clips for all scenes. Veo scenes queue on Flow for AI motion; ffmpeg scenes render locally with your chosen effects.',
-      ko: '모든 장면의 비디오 클립을 생성합니다. Veo 장면은 Flow에서 AI 모션으로, ffmpeg 장면은 선택한 효과로 로컬에서 렌더링합니다.',
+      en: 'Generate video clips for all scenes. Generated scenes queue on Flow for AI motion; ffmpeg scenes render locally with your chosen effects. Keep video prompts short and about motion only on Omni Flash; use the full /fk-camera-guide prompt only on Veo.',
+      ko: '모든 장면의 비디오 클립을 생성합니다. 생성 장면은 Flow에서 AI 모션으로, ffmpeg 장면은 선택한 효과로 로컬에서 렌더링합니다. Omni Flash에서는 비디오 프롬프트를 움직임 위주로 짧게 쓰고, 전체 /fk-camera-guide 프롬프트는 Veo에서만 쓰세요.',
     },
-    skills: ['fk-gen-videos', 'fk-insert-scene'],
+    skills: ['fk-gen-videos', 'fk-video-quality', 'fk-camera-guide', 'fk-insert-scene'],
   },
   {
     title: { en: '8. Review', ko: '8. 리뷰' },

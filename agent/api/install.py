@@ -33,6 +33,7 @@ REMOTE_SKILLS = (
     "fk-switch-project",
     "fk-doctor",
     "fk-camera-guide",
+    "fk-video-quality",
     "fk-refresh-urls",
     "fk-gen-narrator",
     "fk-gen-text-overlays",

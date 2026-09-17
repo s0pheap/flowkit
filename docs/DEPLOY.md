@@ -198,7 +198,7 @@ Installed skills (API calls only; the work and the files stay on the server, exc
 | Stage | Skills |
 |-------|--------|
 | Project | `fk-research`, `fk-create-project`, `fk-switch-project`, `fk-status` |
-| Images and video | `fk-gen-refs`, `fk-gen-images`, `fk-gen-videos`, `fk-camera-guide` |
+| Images and video | `fk-gen-refs`, `fk-gen-images`, `fk-gen-videos`, `fk-camera-guide`, `fk-video-quality` |
 | Narration, music and final video | `fk-gen-narrator`, `fk-gen-text-overlays`, `fk-gen-music`, `fk-review-board`, `fk-concat-fit-narrator` |
 | Fixing | `fk-refresh-urls`, `fk-doctor` |
 
