@@ -88,7 +88,7 @@ For each scene (sorted by display_order):
 
 ### Read the scene's `video_prompt` and `prompt`
 
-The `video_prompt` describes what happens in the 8s video (sub-clip timing).
+The `video_prompt` describes what happens in the generated clip (sub-clip timing).
 The `prompt` describes the still image (frame 0).
 The project `story` provides overall narrative context.
 
@@ -96,30 +96,55 @@ The project `story` provides overall narrative context.
 
 **Language:** Use `--language` flag or project's `language` field.
 
-**CRITICAL: Narrator MUST be shorter than video.**
-Each scene video is 8s. With `-ss 1` trim, usable video = 7s. With 0.5s buffer, narrator must fit in ~6.5s max.
-At 1.1x speed: Vietnamese ~5.5 words/sec, English ~4.5 words/sec.
+**CRITICAL: Narrator MUST be shorter than the clip — and the clip is not always 8s.**
 
-**Word count limits (HARD MAX — never exceed):**
+Read the clip length from the project first; do not assume it:
 
-Voice is trained at 1.2x speed, fast style. These limits fit within 8s video (7s usable after `-ss 1` trim).
+```bash
+. ~/.flowkit/env 2>/dev/null; FK="${FLOWKIT_URL:-http://127.0.0.1:8100}"; KEY="X-API-Key: ${FLOWKIT_API_KEY:-}"
+curl -s "$FK/api/projects/<PID>" -H "$KEY"
+```
 
-| Language | Max Words | ~Duration | Words/sec | Notes |
-|----------|-----------|-----------|-----------|-------|
-| Vietnamese | 22 | ~6.5s | ~3.5 | Tonal, diacritics slow TTS. 2-3 punchy sentences |
-| English | 22 | ~6.5s | ~3.5 | Standard baseline |
-| Japanese | 33 | ~6.5s | ~5.0 | Short words, particles add up fast (は、を、に) |
-| Korean | 22 | ~6.5s | ~3.5 | Agglutinative, long compound words = fewer needed |
-| Thai | 24 | ~6.5s | ~3.8 | Tonal like Vietnamese, no spaces between words |
-| Chinese (ZH) | 28 | ~6.5s | ~4.3 | Each character = 1 syllable, very dense |
-| Spanish | 24 | ~6.5s | ~3.8 | Slightly faster than English |
-| French | 24 | ~6.5s | ~3.8 | Liaison makes speech flow faster |
-| Arabic | 20 | ~6.5s | ~3.0 | Long words, formal style = slower delivery |
-| Hindi | 22 | ~6.5s | ~3.5 | Compound verbs take time |
+`effective_video_model_family` says which model makes the clip and
+`video_clip_seconds` says how long it is. The render skips the clip's static
+first second (`-ss 1`) and keeps a 0.5s pause after the line, so:
 
-**Why strict?** TTS at 1.2x speed — 22 Vietnamese words ≈ 6.5s. Usable video = 7s after `-ss 1` trim. Over 22 words risks cut-off mid-sentence. Under 18 words = dead air.
+```
+MAX_SPEECH = video_clip_seconds − 1.0 skipped head − 0.5 pause
 
-**Rule of thumb for unlisted languages:** MAX 22 words. Adjust down for languages with long compound words (German, Finnish), adjust up for languages with short particles (Japanese, Chinese).
+Veo          8s clip  → 6.5s of speech
+Omni Flash  10s clip  → 8.5s of speech     ← the server default
+```
+
+**Omni Flash is the default on this server, so the usual budget is 8.5s, not
+6.5s.** Writing every line to 6.5s wastes almost a third of every scene and is a
+common reason narration feels clipped and the story feels rushed.
+
+**Word count limits (HARD MAX — never exceed).** Use the column for the project's
+model family. Kokoro and the calmer Gemini voices speak English at ~2.8 words/s
+rather than 3.5, so these assume the slower voices:
+
+| Language | Veo (≤6.5s) | Omni Flash 10s (≤8.5s) | Notes |
+|----------|-------------|------------------------|-------|
+| English | 18 words | 23 words | ~2.8 words/s on the calm voices |
+| Vietnamese | 18 words | 23 words | Tonal, diacritics slow TTS. 1-2 punchy sentences |
+| Korean | 18 words | 23 words | Agglutinative, long compound words = fewer needed |
+| Japanese | 27 words | 35 words | Short words, particles add up fast (は、を、に) |
+| Thai | 20 words | 26 words | Tonal like Vietnamese, no spaces between words |
+| Chinese (ZH) | 23 characters | 30 characters | Each character = 1 syllable, very dense |
+| Spanish | 20 words | 26 words | Slightly faster than English |
+| French | 20 words | 26 words | Liaison makes speech flow faster |
+| Arabic | 16 words | 21 words | Long words, formal style = slower delivery |
+| Hindi | 18 words | 23 words | Compound verbs take time |
+| Khmer | 75 Khmer characters | 98 Khmer characters | Count characters without spaces or punctuation (Khmer has no spaces between words). ~12.5 characters/s with Gemini Charon, brisk style, speed 1.1. Write numbers as words |
+
+**Why strict?** The clip is a fixed length, so anything past MAX_SPEECH is cut
+off mid-sentence. Well under it leaves dead air — below about 10 words (13 on
+Omni) a generated scene sits silent at the end.
+
+**Rule of thumb for unlisted languages:** MAX 18 words (23 on Omni). Adjust down
+for languages with long compound words (German, Finnish), up for those with short
+particles (Japanese, Chinese).
 
 **Documentary narrator style:**
 
@@ -134,21 +159,21 @@ DO:
 DON'T:
 - Describe what's visually obvious: "We see a ship sailing" (viewer sees it)
 - Use filler phrases: "In this scene...", "Meanwhile...", "As we can see..."
-- Exceed word count (too long = cut off mid-sentence at 8s)
+- Exceed word count (too long = cut off mid-sentence when the clip ends)
 - Be too short (< 18 words = dead air, awkward silence)
 - Use passive voice: "The ship was attacked" → "Iran attacked the ship"
 
 ### Example (military documentary, Vietnamese):
 
-Scene video_prompt: `0-3s: Captain Harris stands on the bridge scanning the horizon. 3-6s: Radar shows multiple fast contacts approaching. 6-8s: Captain grabs radio and orders battle stations.`
+Scene video_prompt (a 10s Omni clip, so the sub-clip timings run to 10): `0-3s: Captain Harris stands on the bridge scanning the horizon. 3-7s: Radar shows multiple fast contacts approaching. 7-10s: Captain grabs radio and orders battle stations.`
 
 narrator_text: `Đại tá Harris phát hiện tín hiệu radar bất thường. Hàng chục tàu cao tốc Iran lao thẳng về phía đoàn hộ tống.`
-(20 words, ~6s at 1.2x, adds Iran + convoy context not visible in scene)
+(20 words, ~7s, inside the 8.5s an Omni clip allows — on Veo this would need trimming to 18)
 
 ### Example (military documentary, English):
 
 narrator_text: `Colonel Harris detects unusual radar signatures. Dozens of Iranian fast boats racing toward the convoy.`
-(15 words, ~5s at 1.2x — adds Iran context, punchy)
+(15 words, ~5.5s — fits either family, adds Iran context, punchy)
 
 ## Step 4: Save narrator_text to each scene
 
