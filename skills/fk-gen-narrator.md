@@ -184,9 +184,46 @@ Veo        8s clip − 1.0s skipped head − 0.5s pause = 6.5s of speech
 Omni Flash 10s clip − 1.0s skipped head − 0.5s pause = 8.5s of speech
 ```
 
-Write every line for this, whatever the scene's look & feel is today: a line that fits the generated clip also fits a pan/zoom still, and the scene can switch to a generated clip later without re-voicing. Only write longer lines (up to ~15s) when the user has said explicitly that the scene stays a still. If the project may be switched from Omni to Veo later, write for 6.5s.
+### First decide which way the video is led
 
-**Length limits per line (HARD MAX — never exceed):**
+**Ask before writing a single line.** The limits below are the clip's, not the
+story's, and they only bind when the clip is generated.
+
+- **Clip-led** (default) — the visuals carry the video and narration rides on
+  top: showreels, montages, product shots, anything where a scene is a moment
+  rather than a paragraph. Write every line to MAX_SPEECH below. A line that
+  fits the generated clip also fits a pan/zoom still, so the scene can switch to
+  a generated clip later without re-voicing. If the project may be switched from
+  Omni to Veo later, write for 6.5s.
+
+- **Narration-led** — the *story* carries the video and the visuals illustrate
+  it: folktales, legends, history, explainers, anything a listener has to follow
+  to understand. **MAX_SPEECH does not apply.** Trying to tell a story in 6.5s
+  per scene produces a caption, not a narration, and the result is exactly what
+  it sounds like: disconnected fragments nobody can follow.
+
+**For a narration-led video, set the scenes to `ffmpeg` look & feel *before*
+writing narration** (`/fk-review-board`, or `PATCH /api/scenes/<sid>` with
+`look_feel.mode = "ffmpeg"`). An ffmpeg scene is a pan/zoom over the still, and
+`assembly.scene_duration` gives it `narration + 0.5s` with **no ceiling** — the
+image holds for as long as the sentence takes. Then write the line the story
+needs and ignore the table below.
+
+If a scene must stay a generated clip, a fixed `look_feel.duration` stretches it
+in slow motion as far as speed 0.6 — **11.7s on Veo, 15s on Omni** — which buys
+roughly 145 or 187 Khmer characters. Past that the clip visibly drags; use
+`ffmpeg` instead.
+
+**Scene count is the other lever.** Narration total ≈ scenes × per-scene length.
+A Khmer legend that needs three minutes of telling is ~2,250 characters at
+~12.5 chars/s: about 30 clip-led scenes, or 12 narration-led ones. If the scene
+count was chosen for runtime rather than for the story, say so and offer to add
+scenes (`/fk-insert-scene`) rather than compressing the telling.
+
+
+
+**Length limits per line for a clip-led scene (HARD MAX — never exceed).**
+Skip this table entirely for a narration-led scene set to `ffmpeg`:
 
 Speaking speed depends on the voice. Kokoro and calm Gemini voices speak English at ~2.8 words/s, not 3.5, so these limits assume the slower voices. Use the column for the project's model:
 
@@ -206,7 +243,7 @@ Speaking speed depends on the voice. Kokoro and calm Gemini voices speak English
 
 **Rule of thumb for unlisted languages:** MAX 18 words (23 for Omni). Adjust down for languages with long compound words (German, Finnish), adjust up for languages with short particles (Japanese, Chinese). Under ~10 words (~13 for Omni) leaves dead air on a generated scene.
 
-These limits are estimates — the real length is measured after TTS, and **Step 6b is a required check** that every line is ≤ MAX_SPEECH.
+These limits are estimates — the real length is measured after TTS, and **Step 6b is a required check** that every line is ≤ MAX_SPEECH. Step 6b applies to clip-led scenes only; an `ffmpeg` scene has no ceiling to check against, so a long line there is correct, not an overrun.
 
 **Documentary narrator style:**
 
@@ -222,7 +259,8 @@ DO:
 DON'T:
 - Describe what's visually obvious: "We see a ship sailing" (viewer sees it)
 - Use filler phrases: "In this scene...", "Meanwhile...", "As we can see..."
-- Exceed the length limit — every line must be spoken within MAX_SPEECH (6.5s on Veo, 8.5s on Omni) to fit the clip (too long = cut off mid-sentence)
+- Exceed the length limit **on a clip-led scene** — the line must be spoken within MAX_SPEECH (6.5s on Veo, 8.5s on Omni) or the clip cuts it off mid-sentence
+- Compress a story to fit a clip. If the line has to drop what the listener needs, the scene is the wrong shape: switch it to `ffmpeg` or add scenes, and say so rather than shipping a fragment
 - Use passive voice: "The ship was attacked" → "Iran attacked the ship"
 
 ### Example (military documentary, English):
