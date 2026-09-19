@@ -274,6 +274,7 @@ export const SKILL_CATEGORIES: SkillCategory[] = [
     skills: [
       {
         name: 'fk-add-material',
+        remote: true,
         usage: ['/fk-add-material'],
         summary: {
           en: 'Explains image materials (the visual style applied to every image) and adds a custom one.',
@@ -290,6 +291,7 @@ export const SKILL_CATEGORIES: SkillCategory[] = [
       },
       {
         name: 'fk-upload-image',
+        remote: true,
         usage: ['/fk-upload-image <file_path> [--project <project_id>] [--entity <entity_id>]'],
         summary: {
           en: 'Uploads a local image to Flow and returns its media_id, optionally setting it as an entity\'s reference.',
@@ -330,6 +332,7 @@ export const SKILL_CATEGORIES: SkillCategory[] = [
       },
       {
         name: 'fk-insert-scene',
+        remote: true,
         usage: ['/fk-insert-scene <video_id> <after_scene_order> "<prompt>"'],
         summary: {
           en: 'Inserts a new scene after a given position (a close-up, cutaway or second angle) and shifts the rest.',
@@ -342,6 +345,7 @@ export const SKILL_CATEGORIES: SkillCategory[] = [
       },
       {
         name: 'fk-gen-chain-videos',
+        remote: true,
         usage: ['/fk-gen-chain-videos <project_id> <video_id>'],
         summary: {
           en: 'Would use the next scene\'s image as each clip\'s end frame for seamless cuts.',
@@ -359,6 +363,7 @@ export const SKILL_CATEGORIES: SkillCategory[] = [
       },
       {
         name: 'fk-creative-mix',
+        remote: true,
         usage: ['/fk-creative-mix <project_id> <video_id>'],
         summary: {
           en: 'Reads your scenes and suggests techniques to combine: inserted angles, chaining, reference video, parallel stories.',

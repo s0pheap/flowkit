@@ -39,6 +39,12 @@ REMOTE_SKILLS = (
     "fk-gen-music",
     "fk-review-board",
     "fk-concat-fit-narrator",
+    "fk-add-material",
+    "fk-upload-image",
+    "fk-insert-scene",
+    "fk-gen-chain-videos",
+    "fk-creative-mix",
+    "fk-thumbnail-guide",
 )
 
 
